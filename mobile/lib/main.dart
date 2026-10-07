@@ -1,124 +1,72 @@
-//JANG KORE
-
+// YANG DI SINI JANG KORE
+//LIAT ADA YANG JANGGAL KASE INFO DI GC NANTI SA YG PERBAIKI
 import 'package:flutter/material.dart';
 
-void main() {
-  runApp(const MyApp());
+//CORE SERVICE
+import 'core/theme/app_theme.dart';
+import 'services/supabase_config.dart';
+import 'models/index.dart';
+
+// AUTH - 3 file Salmin
+import 'views/auth/splash_screen.dart';
+import 'views/auth/login_screen.dart';
+import 'views/auth/register_screen.dart';
+
+// HOME - 3 file Hesti
+import 'views/home/home_page.dart';
+import 'views/home/pencarian_page.dart';
+import 'views/home/hasil_pencarian.dart';
+
+// KOST - 3 file Ilham
+import 'views/kost/detail_kost_page.dart';
+import 'views/kost/daftar_favorite_page.dart';
+// hapus_favorite_dialog.dart itu dialog, jadi tr masuk routes
+
+// CHAT USER - 3 file Salsa
+import 'views/chatUser/daftar_chat_page.dart';
+import 'views/chatUser/ruang_chat_page.dart';
+import 'views/chatUser/profil_page.dart';
+
+// ADMIN - 5 file Dina & Riana
+import 'views/admin/home_admin_page.dart'; //dina
+import 'views/admin/data_kost_page.dart'; //dina
+import 'views/admin/tambah_edit_kost_page.dart'; //dina
+import 'views/admin/daftar_chat_admin_page.dart'; //riana
+import 'views/admin/profil_admin_page.dart'; //riana
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await initSupabase();
+  runApp(const KostRadarApp());
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
-
-  // This widget is the root of your application.
+class KostRadarApp extends StatelessWidget {
+  const KostRadarApp({super.key});
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Demo',
-      theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // TRY THIS: Try running your application with "flutter run". You'll see
-        // the application has a purple toolbar. Then, without quitting the app,
-        // try changing the seedColor in the colorScheme below to Colors.green
-        // and then invoke "hot reload" (save your changes or press the "hot
-        // reload" button in a Flutter-supported IDE, or press "r" if you used
-        // the command line to start the app).
-        //
-        // Notice that the counter didn't reset back to zero; the application
-        // state is not lost during the reload. To reset the state, use hot
-        // restart instead.
-        //
-        // This works for code too, not just values: Most code changes can be
-        // tested with just a hot reload.
-        colorScheme: .fromSeed(seedColor: Colors.deepPurple),
-      ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
-    );
-  }
-}
-
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
-
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
-
-  final String title;
-
-  @override
-  State<MyHomePage> createState() => _MyHomePageState();
-}
-
-class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
-
-  void _incrementCounter() {
-    setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
-    return Scaffold(
-      appBar: AppBar(
-        // TRY THIS: Try changing the color here to a specific color (to
-        // Colors.amber, perhaps?) and trigger a hot reload to see the AppBar
-        // change color while the other colors stay the same.
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
-        title: Text(widget.title),
-      ),
-      body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
-        child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          //
-          // TRY THIS: Invoke "debug painting" (choose the "Toggle Debug Paint"
-          // action in the IDE, or press "p" in the console), to see the
-          // wireframe for each widget.
-          mainAxisAlignment: .center,
-          children: [
-            const Text('You have pushed the button this many times:'),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headlineMedium,
-            ),
-          ],
-        ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
-      ),
+      debugShowCheckedModeBanner: false,
+      theme: AppTheme.light,
+      initialRoute: '/splash',
+      routes: {
+        '/splash': (c) => const SplashScreen(), // 1 Salmin
+        '/login': (c) => const LoginScreen(), // 2 Salmin
+        '/register': (c) => const RegisterScreen(), // 3 Salmin
+        '/home': (c) => const HomePage(), // 4 Hesti
+        '/pencarian': (c) => const PencarianPage(), // 5 Hesti - FIX
+        '/hasil-pencarian': (c) => const HasilPencarian(), // 6 Hesti - FIX
+        '/detail-kost': (c) => const DetailKostPage(), // 7 Ilham
+        '/daftar-favorite': (c) => const DaftarFavoritePage(), // 8 Ilham - FIX
+        '/daftar-chat': (c) => const DaftarChatPage(), // 10 salsa - FIX
+        '/ruang-chat': (c) => const RuangChatPage(), // 11 salsa - FIX
+        '/profil': (c) => const ProfilPage(), // 12 salsa - FIX
+        '/home-admin': (c) => const HomeAdminPage(), // 13 Dina - FIX
+        '/data-kost': (c) => const DataKostPage(), // 14 Dina - FIX
+        '/tambah-edit-kost': (c) => const TambahEditKostPage(), // 15 Dina - FIX
+        '/daftar-chat-admin': (c) =>
+            const DaftarChatAdminPage(), // 16 Riana - FIX
+        '/profil-admin': (c) => const ProfilAdminPage(), // 17 Riana - FIX
+      },
     );
   }
 }
