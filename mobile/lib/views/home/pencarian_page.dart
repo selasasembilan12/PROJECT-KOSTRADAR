@@ -1,29 +1,24 @@
-//Hesti
-
 import 'package:flutter/material.dart';
 
 import 'hasil_pencarian.dart';
 
-// =====================================================
+// ==========================================
 // WARNA HALAMAN PENCARIAN
-// Tidak membutuhkan import theme atau constants.
-// =====================================================
+// ==========================================
 
 class PencarianColors {
   static const Color primary = Color(0xFF2563EB);
   static const Color background = Color(0xFFF8FAFC);
-  static const Color backgroundLight = Color(0xFFFFFFFF);
+  static const Color white = Colors.white;
   static const Color textPrimary = Color(0xFF12233F);
   static const Color textSecondary = Color(0xFF64748B);
-  static const Color textHint = Color(0xFF94A3B8);
   static const Color border = Color(0xFFE2E8F0);
-  static const Color white = Colors.white;
   static const Color success = Color(0xFF16A34A);
 }
 
-// =====================================================
+// ==========================================
 // HALAMAN PENCARIAN KOST
-// =====================================================
+// ==========================================
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
@@ -35,87 +30,89 @@ class SearchScreen extends StatefulWidget {
 class _SearchScreenState extends State<SearchScreen> {
   final TextEditingController _searchController = TextEditingController();
 
-  String _selectedPriceRange = 'Rp 400.000 - Rp 1.000.000';
-
-  String _selectedLocation = 'Jati';
-
-  String _selectedAvailability = 'Tersedia';
+  String _selectedPriceRange = 'Semua Harga';
+  String _selectedLocation = 'Semua Lokasi';
+  String _selectedAvailability = 'Semua Status';
 
   final Map<String, bool> _facilities = {
-    'WiFi': true,
-    'AC': true,
+    'WiFi': false,
+    'AC': false,
     'Kamar Mandi Dalam': false,
     'Dapur': false,
     'Parkir': false,
   };
 
   final List<String> _priceRanges = [
+    'Semua Harga',
     'Rp 400.000 - Rp 1.000.000',
     'Rp 1.000.000 - Rp 2.000.000',
     'Rp 2.000.000 - Rp 3.000.000',
     '> Rp 3.000.000',
   ];
 
-  final List<String> _locations = ['Jati', 'Jati Metro', 'Jati Perumnas'];
+  final List<String> _locations = [
+    'Semua Lokasi',
+    'Jati',
+    'Jati Metro',
+    'Jati Perumnas',
+  ];
 
   final List<String> _availabilityOptions = [
+    'Semua Status',
     'Tersedia',
     'Hampir Penuh',
     'Penuh',
   ];
 
-  // ===================================================
+  // ==========================================
   // RESET FILTER
-  // ===================================================
+  // ==========================================
 
   void _resetFilters() {
     setState(() {
       _searchController.clear();
 
-      _selectedPriceRange = 'Rp 400.000 - Rp 1.000.000';
-
-      _selectedLocation = 'Jati';
-
-      _selectedAvailability = 'Tersedia';
+      _selectedPriceRange = 'Semua Harga';
+      _selectedLocation = 'Semua Lokasi';
+      _selectedAvailability = 'Semua Status';
 
       _facilities.updateAll((key, value) => false);
     });
   }
 
-  // ===================================================
-  // NAVIGASI KE HASIL PENCARIAN
-  // ===================================================
+  // ==========================================
+  // TERAPKAN FILTER
+  // ==========================================
 
   void _applyFilters() {
+    final selectedFacilities = _facilities.entries
+        .where((entry) => entry.value)
+        .map((entry) => entry.key)
+        .toList();
+
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => const SearchResultsScreen()),
+      MaterialPageRoute(
+        builder: (context) => SearchResultsScreen(
+          keyword: _searchController.text.trim(),
+          priceRange: _selectedPriceRange,
+          location: _selectedLocation,
+          availability: _selectedAvailability,
+          facilities: selectedFacilities,
+        ),
+      ),
     );
   }
 
   @override
-  void initState() {
-    super.initState();
-
-    _searchController.addListener(_onSearchChanged);
-  }
-
-  void _onSearchChanged() {
-    if (mounted) {
-      setState(() {});
-    }
-  }
-
-  @override
   void dispose() {
-    _searchController.removeListener(_onSearchChanged);
     _searchController.dispose();
     super.dispose();
   }
 
-  // ===================================================
-  // TAMPILAN UTAMA
-  // ===================================================
+  // ==========================================
+  // TAMPILAN HALAMAN PENCARIAN
+  // ==========================================
 
   @override
   Widget build(BuildContext context) {
@@ -126,6 +123,7 @@ class _SearchScreenState extends State<SearchScreen> {
         backgroundColor: PencarianColors.background,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
+        centerTitle: true,
 
         leading: IconButton(
           icon: const Icon(
@@ -133,9 +131,7 @@ class _SearchScreenState extends State<SearchScreen> {
             color: PencarianColors.textPrimary,
           ),
           onPressed: () {
-            if (Navigator.canPop(context)) {
-              Navigator.pop(context);
-            }
+            Navigator.pop(context);
           },
         ),
 
@@ -147,8 +143,6 @@ class _SearchScreenState extends State<SearchScreen> {
             fontSize: 18,
           ),
         ),
-
-        centerTitle: true,
 
         actions: [
           TextButton(
@@ -170,11 +164,10 @@ class _SearchScreenState extends State<SearchScreen> {
 
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-
             children: [
-              // =======================================
+              // ======================================
               // INPUT PENCARIAN
-              // =======================================
+              // ======================================
 
               Container(
                 padding: const EdgeInsets.symmetric(
@@ -183,9 +176,8 @@ class _SearchScreenState extends State<SearchScreen> {
                 ),
 
                 decoration: BoxDecoration(
-                  color: PencarianColors.backgroundLight,
+                  color: PencarianColors.white,
                   borderRadius: BorderRadius.circular(12),
-
                   border: Border.all(color: PencarianColors.border),
                 ),
 
@@ -194,7 +186,6 @@ class _SearchScreenState extends State<SearchScreen> {
                     const Icon(
                       Icons.search,
                       color: PencarianColors.textSecondary,
-                      size: 20,
                     ),
 
                     const SizedBox(width: 12),
@@ -203,35 +194,24 @@ class _SearchScreenState extends State<SearchScreen> {
                       child: TextField(
                         controller: _searchController,
                         textInputAction: TextInputAction.search,
-                        onSubmitted: (_) => _applyFilters(),
-
+                        onSubmitted: (value) => _applyFilters(),
+                        onChanged: (value) {
+                          setState(() {});
+                        },
                         decoration: const InputDecoration(
                           hintText: 'Cari nama kost atau lokasi...',
-
-                          hintStyle: TextStyle(
-                            color: PencarianColors.textHint,
-                            fontSize: 14,
-                          ),
-
                           border: InputBorder.none,
-                          isDense: true,
-
-                          contentPadding: EdgeInsets.symmetric(vertical: 12),
                         ),
                       ),
                     ),
 
                     if (_searchController.text.isNotEmpty)
                       IconButton(
-                        icon: const Icon(
-                          Icons.close,
-                          size: 20,
-                          color: PencarianColors.textSecondary,
-                        ),
-
                         onPressed: () {
                           _searchController.clear();
+                          setState(() {});
                         },
+                        icon: const Icon(Icons.close),
                       ),
                   ],
                 ),
@@ -239,14 +219,13 @@ class _SearchScreenState extends State<SearchScreen> {
 
               const SizedBox(height: 24),
 
-              // =======================================
+              // ======================================
               // RENTANG HARGA
-              // =======================================
+              // ======================================
               _buildDropdownSection(
                 title: 'Rentang Harga',
                 value: _selectedPriceRange,
                 items: _priceRanges,
-
                 onChanged: (value) {
                   if (value != null) {
                     setState(() {
@@ -258,9 +237,9 @@ class _SearchScreenState extends State<SearchScreen> {
 
               const SizedBox(height: 24),
 
-              // =======================================
-              // PILIH FASILITAS
-              // =======================================
+              // ======================================
+              // FASILITAS
+              // ======================================
               const Text(
                 'Fasilitas',
                 style: TextStyle(
@@ -273,12 +252,9 @@ class _SearchScreenState extends State<SearchScreen> {
               const SizedBox(height: 12),
 
               Container(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-
                 decoration: BoxDecoration(
-                  color: PencarianColors.backgroundLight,
+                  color: PencarianColors.white,
                   borderRadius: BorderRadius.circular(12),
-
                   border: Border.all(color: PencarianColors.border),
                 ),
 
@@ -287,25 +263,12 @@ class _SearchScreenState extends State<SearchScreen> {
                     return CheckboxListTile(
                       title: Text(
                         facility,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          color: PencarianColors.textPrimary,
-                        ),
+                        style: const TextStyle(fontSize: 14),
                       ),
-
                       value: _facilities[facility] ?? false,
-
                       activeColor: PencarianColors.primary,
-                      checkColor: PencarianColors.white,
-
                       controlAffinity: ListTileControlAffinity.trailing,
-
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 4,
-                      ),
-
-                      onChanged: (bool? value) {
+                      onChanged: (value) {
                         setState(() {
                           _facilities[facility] = value ?? false;
                         });
@@ -317,14 +280,13 @@ class _SearchScreenState extends State<SearchScreen> {
 
               const SizedBox(height: 24),
 
-              // =======================================
-              // PILIH LOKASI
-              // =======================================
+              // ======================================
+              // LOKASI
+              // ======================================
               _buildDropdownSection(
                 title: 'Lokasi',
                 value: _selectedLocation,
                 items: _locations,
-
                 onChanged: (value) {
                   if (value != null) {
                     setState(() {
@@ -336,15 +298,13 @@ class _SearchScreenState extends State<SearchScreen> {
 
               const SizedBox(height: 24),
 
-              // =======================================
+              // ======================================
               // KETERSEDIAAN KAMAR
-              // =======================================
+              // ======================================
               _buildDropdownSection(
                 title: 'Ketersediaan Kamar',
                 value: _selectedAvailability,
                 items: _availabilityOptions,
-                showStatusDot: true,
-
                 onChanged: (value) {
                   if (value != null) {
                     setState(() {
@@ -356,26 +316,26 @@ class _SearchScreenState extends State<SearchScreen> {
 
               const SizedBox(height: 32),
 
-              // =======================================
+              // ======================================
               // TOMBOL TERAPKAN FILTER
-              // =======================================
+              // ======================================
               SizedBox(
                 width: double.infinity,
                 height: 50,
-
-                child: ElevatedButton(
+                child: ElevatedButton.icon(
                   onPressed: _applyFilters,
 
                   style: ElevatedButton.styleFrom(
                     backgroundColor: PencarianColors.primary,
-                    foregroundColor: PencarianColors.white,
-
+                    foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
 
-                  child: const Text(
+                  icon: const Icon(Icons.search),
+
+                  label: const Text(
                     'Terapkan Filter',
                     style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                   ),
@@ -390,20 +350,18 @@ class _SearchScreenState extends State<SearchScreen> {
     );
   }
 
-  // ===================================================
+  // ==========================================
   // WIDGET DROPDOWN
-  // ===================================================
+  // ==========================================
 
   Widget _buildDropdownSection({
     required String title,
     required String value,
     required List<String> items,
     required ValueChanged<String?> onChanged,
-    bool showStatusDot = false,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-
       children: [
         Text(
           title,
@@ -418,11 +376,9 @@ class _SearchScreenState extends State<SearchScreen> {
 
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16),
-
           decoration: BoxDecoration(
-            color: PencarianColors.backgroundLight,
+            color: PencarianColors.white,
             borderRadius: BorderRadius.circular(12),
-
             border: Border.all(color: PencarianColors.border),
           ),
 
@@ -430,53 +386,20 @@ class _SearchScreenState extends State<SearchScreen> {
             child: DropdownButton<String>(
               value: value,
               isExpanded: true,
-
-              icon: const Icon(
-                Icons.keyboard_arrow_down,
-                color: PencarianColors.textSecondary,
-              ),
-
+              icon: const Icon(Icons.keyboard_arrow_down),
               items: items.map((item) {
                 return DropdownMenuItem<String>(
                   value: item,
-
-                  child: Row(
-                    children: [
-                      if (showStatusDot) ...[
-                        Container(
-                          width: 8,
-                          height: 8,
-
-                          decoration: BoxDecoration(
-                            color: item == 'Tersedia'
-                                ? PencarianColors.success
-                                : item == 'Hampir Penuh'
-                                ? Colors.orange
-                                : Colors.red,
-
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-
-                        const SizedBox(width: 8),
-                      ],
-
-                      Expanded(
-                        child: Text(
-                          item,
-                          overflow: TextOverflow.ellipsis,
-
-                          style: const TextStyle(
-                            fontSize: 14,
-                            color: PencarianColors.textPrimary,
-                          ),
-                        ),
-                      ),
-                    ],
+                  child: Text(
+                    item,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: PencarianColors.textPrimary,
+                    ),
                   ),
                 );
               }).toList(),
-
               onChanged: onChanged,
             ),
           ),
@@ -486,9 +409,9 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 }
 
-// =====================================================
-// NAMA ALTERNATIF SESUAI NAMA FILE
-// =====================================================
+// ==========================================
+// ALIAS SESUAI NAMA FILE PROJECT
+// ==========================================
 
 class PencarianPage extends SearchScreen {
   const PencarianPage({super.key});
