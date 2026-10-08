@@ -1,32 +1,21 @@
-class KostModel {
+class KostModel{
 
-  // ID kost dari tabel kost
+  // ID kost
   final String idKost;
 
-  // Nama kost
+  // Informasi utama kost
   final String nama;
-
-  // Alamat lengkap kost
   final String alamat;
-
-  // Harga sewa per bulan
   final int harga;
-
-  // Deskripsi kost
   final String deskripsi;
-
-  // Jumlah kamar yang tersedia
   final int ketersediaanKamar;
 
-  // Daftar foto kost dari tabel foto_kost
+  // Data relasi
   final List<String> foto;
-
-  // Daftar fasilitas dari tabel fasilitas_kost
   final List<String> fasilitas;
 
 
   KostModel({
-
     required this.idKost,
     required this.nama,
     required this.alamat,
@@ -35,76 +24,62 @@ class KostModel {
     required this.ketersediaanKamar,
     required this.foto,
     required this.fasilitas,
-
   });
 
 
-
-  // Mengubah data JSON/database menjadi object KostModel
-  factory KostModel.fromJson(
-    Map<String,dynamic> json,
-  ){
+  // Konversi data Supabase menjadi object KostModel
+  factory KostModel.fromJson(Map<String,dynamic> json){
 
     return KostModel(
 
       idKost:
       json['id_kost']?.toString() ?? "",
 
-
       nama:
       json['nama'] ?? "",
-
 
       alamat:
       json['alamat'] ?? "",
 
-
+      // Mengubah harga menjadi int agar aman
       harga:
-      json['harga'] ?? 0,
-
+      int.tryParse(
+        json['harga']?.toString() ?? "0",
+      ) ?? 0,
 
       deskripsi:
       json['deskripsi'] ?? "",
 
-
       ketersediaanKamar:
-      json['ketersediaan_kamar'] ?? 0,
+      int.tryParse(
+        json['ketersediaan_kamar']?.toString() ?? "0",
+      ) ?? 0,
 
 
-
-      // Mengambil data foto kost
+      // Mengambil daftar foto kost
       foto:
 
-      json['foto_kost'] != null
+      json['foto_kost'] is List
 
-      ? List<String>.from(
-
-          json['foto_kost'].map(
-
-            (item)=>item['foto'],
-
-          ),
-
-        )
+      ? (json['foto_kost'] as List)
+          .map<String>(
+            (item)=>item['foto'].toString(),
+          )
+          .toList()
 
       : [],
 
 
-
-      // Mengambil data fasilitas kost
+      // Mengambil daftar fasilitas kost
       fasilitas:
 
-      json['fasilitas_kost'] != null
+      json['fasilitas_kost'] is List
 
-      ? List<String>.from(
-
-          json['fasilitas_kost'].map(
-
-            (item)=>item['fasilitas'],
-
-          ),
-
-        )
+      ? (json['fasilitas_kost'] as List)
+          .map<String>(
+            (item)=>item['fasilitas'].toString(),
+          )
+          .toList()
 
       : [],
 
@@ -113,31 +88,20 @@ class KostModel {
   }
 
 
-
-  // Mengubah object KostModel menjadi JSON
+  // Konversi object menjadi JSON
   Map<String,dynamic> toJson(){
 
-    return {
+    return{
 
-      "id_kost":
-      idKost,
+      "id_kost":idKost,
 
+      "nama":nama,
 
-      "nama":
-      nama,
+      "alamat":alamat,
 
+      "harga":harga,
 
-      "alamat":
-      alamat,
-
-
-      "harga":
-      harga,
-
-
-      "deskripsi":
-      deskripsi,
-
+      "deskripsi":deskripsi,
 
       "ketersediaan_kamar":
       ketersediaanKamar,
