@@ -1,69 +1,149 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../models/kost_model.dart';
 import 'hapus_favorite_dialog.dart';
+import 'detail_kost_page.dart';
 
-
-class DaftarFavoritePage extends StatefulWidget {
-
+class DaftarFavoritePage extends StatefulWidget{
   const DaftarFavoritePage({super.key});
+
+  @override
+  State<DaftarFavoritePage> createState()=>_DaftarFavoritePageState();
+}
+
+class _DaftarFavoritePageState extends State<DaftarFavoritePage>{
+
+  // Menyimpan data kost dari database
+  List<KostModel> daftarKost=[];
+  bool isLoading=true;
 
 
   @override
-  State<DaftarFavoritePage> createState() =>
-      _DaftarFavoritePageState();
-
-}
-
-
-
-class _DaftarFavoritePageState 
-extends State<DaftarFavoritePage> {
+  void initState(){
+    super.initState();
+    loadFavorite();
+  }
 
 
-  // DATA SEMENTARA
-  // Nanti diganti dengan data dari tabel favorite + kost
+  // Mengambil data favorit dari Supabase
+  Future<void> loadFavorite()async{
 
-  List<Map<String,dynamic>> daftarKost = [
+    final user=
+    Supabase.instance.client.auth.currentUser;
 
-    {
-      "id_kost": "1",
-      "foto": "assets/images/kost1.jpg",
-      "nama": "Kost Adiwarna",
-      "harga": 1200000,
-      "alamat": "Jl. Danau Toba No.12, Ternate",
-      "rating": "4.9",
-      "fasilitas": "WiFi • AC",
-      "ketersediaan_kamar": 3,
-    },
+    if(user==null){
+      setState(()=>isLoading=false);
+      return;
+    }
 
 
-    {
-      "id_kost": "2",
-      "foto": "assets/images/kost2.jpg",
-      "nama": "Kost Melati",
-      "harga": 1000000,
-      "alamat": "Jl. Setiabudi, Ternate",
-      "rating": "4.7",
-      "fasilitas": "WiFi • AC",
-      "ketersediaan_kamar": 2,
-    },
-
-
-    {
-      "id_kost": "3",
-      "foto": "assets/images/kost3.jpg",
-      "nama": "Kost Cemara",
-      "harga": 950000,
-      "alamat": "Jl. Dago, Ternate",
-      "rating": "4.8",
-      "fasilitas": "WiFi • AC",
-      "ketersediaan_kamar": 5,
-    },
-
-  ];
+    final response=
+    await Supabase.instance.client
+        .from('favorite')
+        .select('''
+          id_favorite,
+          kost(
+            id_kost,
+            nama,
+            alamat,
+            harga,
+            deskripsi,
+            ketersediaan_kamar,
+            foto_kost(foto),
+            fasilitas_kost(fasilitas)
+          )
+        ''')
+        .eq('id_user',user.id);
 
 
 
-  void hapusFavorite(int index){
+    final data=response.map<KostModel>((item){
+
+      final kost=item['kost'];
+
+      return KostModel(
+
+        idKost:
+        kost['id_kost'].toString(),
+
+        nama:
+        kost['nama']??"",
+
+        alamat:
+        kost['alamat']??"",
+
+        harga:
+        kost['harga']??0,
+
+        deskripsi:
+        kost['deskripsi']??"",
+
+        ketersediaanKamar:
+        kost['ketersediaan_kamar']??0,
+
+
+        // Mengambil foto dari tabel foto_kost
+        foto:
+
+        (kost['foto_kost'] as List)
+            .map<String>(
+              (e)=>e['foto'].toString(),
+        )
+            .toList(),
+
+
+        // Mengambil fasilitas dari tabel fasilitas_kost
+        fasilitas:
+
+        (kost['fasilitas_kost'] as List)
+            .map<String>(
+              (e)=>e['fasilitas'].toString(),
+        )
+            .toList(),
+
+      );
+
+    }).toList();
+
+
+    setState((){
+
+      daftarKost=data;
+
+      isLoading=false;
+
+    });
+
+  }
+
+
+
+  // Menghapus favorit dari database
+  Future<void> hapusFavorite(int index)async{
+
+    final user=
+    Supabase.instance.client.auth.currentUser;
+
+
+    if(user==null)return;
+
+
+    final kost=
+    daftarKost[index];
+
+
+    await Supabase.instance.client
+        .from('favorite')
+        .delete()
+        .eq(
+          'id_user',
+          user.id,
+        )
+        .eq(
+          'id_kost',
+          kost.idKost,
+        );
+
 
     setState((){
 
@@ -76,8 +156,7 @@ extends State<DaftarFavoritePage> {
 
 
   @override
-  Widget build(BuildContext context) {
-
+  Widget build(BuildContext context){
 
     return Scaffold(
 
@@ -85,14 +164,14 @@ extends State<DaftarFavoritePage> {
       Colors.white,
 
 
-      body: SafeArea(
+      body:SafeArea(
 
-        child: Column(
+        child:Column(
 
           children:[
 
 
-            // HEADER
+            // Header halaman
 
             Padding(
 
@@ -105,30 +184,25 @@ extends State<DaftarFavoritePage> {
               ),
 
 
-              child: Row(
+              child:Row(
 
                 children:[
 
 
                   const Icon(
-
                     Icons.arrow_back_ios,
-
                     size:18,
-
                   ),
-
 
 
                   const SizedBox(width:6),
 
 
-
                   const Text(
-
                     "Kost Favorit",
 
-                    style: TextStyle(
+                    style:
+                    TextStyle(
 
                       fontSize:18,
 
@@ -136,13 +210,10 @@ extends State<DaftarFavoritePage> {
                       FontWeight.bold,
 
                     ),
-
                   ),
 
 
-
                   const Spacer(),
-
 
 
                   Container(
@@ -181,88 +252,10 @@ extends State<DaftarFavoritePage> {
 
                         fontSize:11,
 
-                        fontWeight:
-                        FontWeight.bold,
-
                       ),
 
                     ),
 
-                  )
-
-                ],
-
-              ),
-
-            ),
-
-
-
-            // LOKASI
-
-            Padding(
-
-              padding:
-              const EdgeInsets.symmetric(
-                horizontal:16,
-              ),
-
-
-              child:Row(
-
-                children:[
-
-
-                  const Icon(
-
-                    Icons.location_on,
-
-                    color:
-                    Colors.blue,
-
-                    size:15,
-
-                  ),
-
-
-
-                  const SizedBox(width:5),
-
-
-
-                  const Text(
-
-                    "Ternate • Kost Tersimpan",
-
-                    style:
-                    TextStyle(
-
-                      fontSize:12,
-
-                    ),
-
-                  ),
-
-
-
-                  const Spacer(),
-
-
-
-                  Text(
-
-                    "Sinkron Otomatis",
-
-                    style:
-                    TextStyle(
-
-                      fontSize:11,
-
-                      color:
-                      Colors.grey.shade600,
-
-                    ),
-
                   ),
 
                 ],
@@ -272,91 +265,23 @@ extends State<DaftarFavoritePage> {
             ),
 
 
-
-            const SizedBox(height:10),
-
-
-
-            // BANNER
-
-            Container(
-
-              margin:
-              const EdgeInsets.symmetric(
-                horizontal:16,
-              ),
-
-
-              padding:
-              const EdgeInsets.all(10),
-
-
-              decoration:
-              BoxDecoration(
-
-                color:
-                Colors.blue.shade50,
-
-                borderRadius:
-                BorderRadius.circular(10),
-
-              ),
-
-
-              child:Row(
-
-                children:[
-
-
-                  const Icon(
-
-                    Icons.notifications_none,
-
-                    color:
-                    Colors.blue,
-
-                  ),
-
-
-
-                  const SizedBox(width:8),
-
-
-
-                  const Expanded(
-
-                    child:Text(
-
-                      "Ketersediaan kamar dan harga dapat berubah sewaktu-waktu.",
-
-                      style:
-                      TextStyle(
-
-                        fontSize:11,
-
-                      ),
-
-                    ),
-
-                  )
-
-                ],
-
-              ),
-
-            ),
-
-
-
-            const SizedBox(height:10),
-
-
-
-            // LIST KOST
 
             Expanded(
 
               child:
+
+              isLoading
+
+              ?
+
+              const Center(
+                child:
+                CircularProgressIndicator(),
+              )
+
+
+              :
+
               ListView.builder(
 
                 padding:
@@ -373,225 +298,131 @@ extends State<DaftarFavoritePage> {
                 (context,index){
 
 
-                  final kost =
+                  final kost=
                   daftarKost[index];
 
 
-                  return Container(
+                  return GestureDetector(
 
-                    margin:
-                    const EdgeInsets.only(
-                      bottom:10,
-                    ),
+                    // Membuka detail kost
+                    onTap:(){
 
+                      Navigator.push(
 
-                    padding:
-                    const EdgeInsets.all(8),
+                        context,
 
+                        MaterialPageRoute(
 
-                    decoration:
-                    BoxDecoration(
+                          builder:(context)=>
+                          DetailKostPage(
+                            kost:kost,
+                          ),
 
-                      color:
-                      Colors.white,
+                        ),
 
-                      borderRadius:
-                      BorderRadius.circular(12),
+                      ).then((value){
 
+                        loadFavorite();
 
-                      boxShadow:[
+                      });
 
-                        const BoxShadow(
-
-                          color:
-                          Colors.black12,
-
-                          blurRadius:
-                          5,
-
-                        )
-
-                      ],
-
-                    ),
+                    },
 
 
+                    child:Card(
 
-                    child:Row(
+                      margin:
+                      const EdgeInsets.only(
+                        bottom:10,
+                      ),
 
-                      children:[
+
+                      child:ListTile(
+
+                        leading:
+
+                        Image.network(
+
+                          kost.foto.isNotEmpty
+                          ?kost.foto[0]
+                          :"",
+
+                          width:70,
+
+                          fit:
+                          BoxFit.cover,
+
+                        ),
 
 
-                        ClipRRect(
+                        title:
+                        Text(
+                          kost.nama,
+                        ),
 
-                          borderRadius:
-                          BorderRadius.circular(8),
+
+                        subtitle:
+                        Column(
+
+                          crossAxisAlignment:
+                          CrossAxisAlignment.start,
+
+
+                          children:[
+
+
+                            Text(
+                              "Rp ${kost.harga}/bulan",
+                            ),
+
+
+                            Text(
+                              kost.alamat,
+                            ),
+
+
+                            Text(
+                              kost.fasilitas.join(" • "),
+                            ),
+
+                          ],
+
+                        ),
+
+
+                        trailing:
+                        GestureDetector(
+
+                          onTap:(){
+
+                            showHapusFavoriteDialog(
+
+                              context,
+
+                              (){
+
+                                hapusFavorite(index);
+
+                              },
+
+                            );
+
+                          },
 
 
                           child:
-                          Image.asset(
+                          const Icon(
 
-                            kost["foto"],
+                            Icons.favorite,
 
-                            width:75,
-
-                            height:75,
-
-                            fit:
-                            BoxFit.cover,
+                            color:
+                            Colors.red,
 
                           ),
 
                         ),
 
-
-
-                        const SizedBox(width:10),
-
-
-
-                        Expanded(
-
-                          child:Column(
-
-                            crossAxisAlignment:
-                            CrossAxisAlignment.start,
-
-
-                            children:[
-
-
-                              Row(
-
-                                children:[
-
-
-                                  Expanded(
-
-                                    child:Text(
-
-                                      kost["nama"],
-
-                                      style:
-                                      const TextStyle(
-
-                                        fontSize:13,
-
-                                        fontWeight:
-                                        FontWeight.bold,
-
-                                      ),
-
-                                    ),
-
-                                  ),
-
-
-
-                                  GestureDetector(
-
-                                    onTap:(){
-
-                                      showHapusFavoriteDialog(
-
-                                        context,
-
-                                        (){
-
-                                          hapusFavorite(index);
-
-                                        },
-
-                                      );
-
-                                    },
-
-
-                                    child:
-                                    const Icon(
-
-                                      Icons.favorite,
-
-                                      color:
-                                      Colors.red,
-
-                                      size:20,
-
-                                    ),
-
-                                  )
-
-                                ],
-
-                              ),
-
-
-
-                              Text(
-
-                                "Rp ${kost["harga"]}/bulan",
-
-                                style:
-                                const TextStyle(
-
-                                  color:
-                                  Colors.blue,
-
-                                  fontWeight:
-                                  FontWeight.bold,
-
-                                  fontSize:12,
-
-                                ),
-
-                              ),
-
-
-
-                              Text(
-
-                                kost["alamat"],
-
-                                maxLines:1,
-
-                                overflow:
-                                TextOverflow.ellipsis,
-
-
-                                style:
-                                const TextStyle(
-
-                                  color:
-                                  Colors.grey,
-
-                                  fontSize:10,
-
-                                ),
-
-                              ),
-
-
-
-                              Text(
-
-                                "⭐ ${kost["rating"]}  ${kost["fasilitas"]}",
-
-                                style:
-                                const TextStyle(
-
-                                  fontSize:10,
-
-                                ),
-
-                              ),
-
-                            ],
-
-                          ),
-
-                        )
-
-                      ],
+                      ),
 
                     ),
 
@@ -601,7 +432,7 @@ extends State<DaftarFavoritePage> {
 
               ),
 
-            )
+            ),
 
           ],
 
