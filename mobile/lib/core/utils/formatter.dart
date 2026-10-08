@@ -7,7 +7,7 @@ class AppTexts {
 
   // Home Screen
   static const String welcomeText = "Selamat Datang 👋";
-  static const String userName = "Hai, Alya Putri";
+  static const String userName = "Hai, User";
   static const String searchHint = "Cari nama kost, daerah, atau...";
   static const String bannerTitle = "Temukan kost terbaik di sekitar kampus";
   static const String bannerSubtitle =

@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 
-// --- PERUBAHAN IMPORT DI SINI (Disesuaikan dengan struktur tim) ---
-import '../../core/theme/app_colors.dart';
-import '../../core/utils/constants.dart';
+import '../../core/theme/app_theme.dart';
+import '../../core/utils/formatter.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({super.key});
@@ -24,7 +23,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   void _handleResetPassword() {
     final email = _emailController.text.trim();
 
-    // Validasi email kosong
     if (email.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -35,7 +33,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       return;
     }
 
-    // Validasi format email sederhana
     if (!email.contains('@') || !email.contains('.')) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -46,10 +43,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       return;
     }
 
-    // Mulai loading
     setState(() => _isLoading = true);
 
-    // Simulasi proses kirim email (Nanti diganti logic Supabase)
     Future.delayed(const Duration(seconds: 2), () {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -76,7 +71,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SizedBox(height: 16),
-              // Tombol Back
               GestureDetector(
                 onTap: () => Navigator.pop(context),
                 child: const Icon(
@@ -87,7 +81,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
               ),
               const SizedBox(height: 48),
 
-              // Header
               const Text(
                 "Lupa Password?",
                 style: TextStyle(
@@ -107,7 +100,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
               ),
               const SizedBox(height: 40),
 
-              // Input Email
               const Text(
                 "Email",
                 style: TextStyle(
@@ -155,7 +147,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
               ),
               const SizedBox(height: 32),
 
-              // Tombol Kirim Link Reset
               SizedBox(
                 width: double.infinity,
                 height: 50,
@@ -189,7 +180,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
               ),
               const SizedBox(height: 24),
 
-              // Tombol Kembali ke Login
               Center(
                 child: GestureDetector(
                   onTap: () => Navigator.pop(context),

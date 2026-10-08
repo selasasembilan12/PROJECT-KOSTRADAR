@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 
-// --- PERUBAHAN IMPORT DI SINI (Disesuaikan dengan struktur tim) ---
-import '../../core/theme/app_colors.dart';
-import '../../core/utils/constants.dart';
+import '../../core/theme/app_theme.dart';
+import '../../core/utils/formatter.dart';
 import 'login_screen.dart';
 
 class SplashScreen extends StatelessWidget {

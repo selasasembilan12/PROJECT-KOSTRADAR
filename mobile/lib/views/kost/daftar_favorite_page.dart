@@ -1,38 +1,37 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
 import '../../models/kost_model.dart';
 import 'hapus_favorite_dialog.dart';
 
-class DaftarFavoritePage extends StatefulWidget{
+class DaftarFavoritePage extends StatefulWidget {
   const DaftarFavoritePage({super.key});
 
   @override
-  State<DaftarFavoritePage> createState()=>_DaftarFavoritePageState();
+  State<DaftarFavoritePage> createState() => _DaftarFavoritePageState();
 }
 
-class _DaftarFavoritePageState extends State<DaftarFavoritePage>{
-
+class _DaftarFavoritePageState extends State<DaftarFavoritePage> {
   // Menyimpan data kost dari database
-  List<KostModel> daftarKost=[];
-  bool isLoading=true;
+  List<KostModel> daftarKost = [];
+  bool isLoading = true;
 
   @override
-  void initState(){
+  void initState() {
     super.initState();
     loadFavorite();
   }
 
   // Mengambil data favorit dari Supabase
-  Future<void> loadFavorite()async{
+  Future<void> loadFavorite() async {
+    final user = Supabase.instance.client.auth.currentUser;
 
-    final user=Supabase.instance.client.auth.currentUser;
-
-    if(user==null){
-      setState(()=>isLoading=false);
+    if (user == null) {
+      setState(() => isLoading = false);
       return;
     }
 
-    final response=await Supabase.instance.client
+    final response = await Supabase.instance.client
         .from('favorite')
         .select('''
           id_favorite,
@@ -47,78 +46,70 @@ class _DaftarFavoritePageState extends State<DaftarFavoritePage>{
             fasilitas_kost(fasilitas)
           )
         ''')
-        .eq('id_user',user.id);
+        .eq('id_user', user.id);
 
-    final data=response.map<KostModel>((item){
-
-      final kost=item['kost'];
+    final data = response.map<KostModel>((item) {
+      final kost = item['kost'];
 
       return KostModel(
-        idKost:kost['id_kost'].toString(),
-        nama:kost['nama']??"",
-        alamat:kost['alamat']??"",
-        harga:kost['harga']??0,
-        deskripsi:kost['deskripsi']??"",
-        ketersediaanKamar:kost['ketersediaan_kamar']??0,
-        foto:(kost['foto_kost'] as List)
-            .map<String>((e)=>e['foto'].toString())
+        idKost: kost['id_kost'].toString(),
+        nama: kost['nama'] ?? "",
+        alamat: kost['alamat'] ?? "",
+        harga: kost['harga'] ?? 0,
+        deskripsi: kost['deskripsi'] ?? "",
+        ketersediaanKamar: kost['ketersediaan_kamar'] ?? 0,
+        foto: (kost['foto_kost'] as List)
+            .map<String>((e) => e['foto'].toString())
             .toList(),
-        fasilitas:(kost['fasilitas_kost'] as List)
-            .map<String>((e)=>e['fasilitas'].toString())
+        fasilitas: (kost['fasilitas_kost'] as List)
+            .map<String>((e) => e['fasilitas'].toString())
             .toList(),
       );
-
     }).toList();
 
-    setState((){
-      daftarKost=data;
-      isLoading=false;
+    setState(() {
+      daftarKost = data;
+      isLoading = false;
     });
   }
 
   // Menghapus dari tampilan
-  void hapusFavorite(int index){
-    setState((){
+  void hapusFavorite(int index) {
+    setState(() {
       daftarKost.removeAt(index);
     });
   }
 
   @override
-  Widget build(BuildContext context){
+  Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor:Colors.white,
-      body:SafeArea(
-        child:Column(
-          children:[
+      backgroundColor: Colors.white,
+      body: SafeArea(
+        child: Column(
+          children: [
             Padding(
-              padding:const EdgeInsets.fromLTRB(16,10,16,8),
-              child:Row(
-                children:[
-                  const Icon(Icons.arrow_back_ios,size:18),
-                  const SizedBox(width:6),
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
+              child: Row(
+                children: [
+                  const Icon(Icons.arrow_back_ios, size: 18),
+                  const SizedBox(width: 6),
                   const Text(
                     "Kost Favorit",
-                    style:TextStyle(
-                      fontSize:18,
-                      fontWeight:FontWeight.bold,
-                    ),
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   const Spacer(),
                   Container(
-                    padding:const EdgeInsets.symmetric(
-                      horizontal:10,
-                      vertical:5,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 5,
                     ),
-                    decoration:BoxDecoration(
-                      color:Colors.red.shade50,
-                      borderRadius:BorderRadius.circular(20),
+                    decoration: BoxDecoration(
+                      color: Colors.red.shade50,
+                      borderRadius: BorderRadius.circular(20),
                     ),
-                    child:Text(
+                    child: Text(
                       "${daftarKost.length} Tersimpan",
-                      style:const TextStyle(
-                        color:Colors.red,
-                        fontSize:11,
-                      ),
+                      style: const TextStyle(color: Colors.red, fontSize: 11),
                     ),
                   ),
                 ],
@@ -126,53 +117,45 @@ class _DaftarFavoritePageState extends State<DaftarFavoritePage>{
             ),
 
             Expanded(
-              child:isLoading
-              ? const Center(
-                  child:CircularProgressIndicator(),
-                )
-              :ListView.builder(
-                  padding:const EdgeInsets.symmetric(horizontal:16),
-                  itemCount:daftarKost.length,
-                  itemBuilder:(context,index){
+              child: isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : ListView.builder(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      itemCount: daftarKost.length,
+                      itemBuilder: (context, index) {
+                        final kost = daftarKost[index];
 
-                    final kost=daftarKost[index];
-
-                    return Card(
-                      child:ListTile(
-                        leading:Image.network(
-                          kost.foto.isNotEmpty
-                          ?kost.foto[0]
-                          :"",
-                          width:70,
-                          fit:BoxFit.cover,
-                        ),
-                        title:Text(kost.nama),
-                        subtitle:Column(
-                          crossAxisAlignment:CrossAxisAlignment.start,
-                          children:[
-                            Text("Rp ${kost.harga}/bulan"),
-                            Text(kost.alamat),
-                            Text(kost.fasilitas.join(" • ")),
-                          ],
-                        ),
-                        trailing:GestureDetector(
-                          onTap:(){
-                            showHapusFavoriteDialog(
-                              context,
-                              (){
-                                hapusFavorite(index);
+                        return Card(
+                          child: ListTile(
+                            leading: Image.network(
+                              kost.foto.isNotEmpty ? kost.foto[0] : "",
+                              width: 70,
+                              fit: BoxFit.cover,
+                            ),
+                            title: Text(kost.nama),
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text("Rp ${kost.harga}/bulan"),
+                                Text(kost.alamat),
+                                Text(kost.fasilitas.join(" • ")),
+                              ],
+                            ),
+                            trailing: GestureDetector(
+                              onTap: () {
+                                showHapusFavoriteDialog(context, () {
+                                  hapusFavorite(index);
+                                });
                               },
-                            );
-                          },
-                          child:const Icon(
-                            Icons.favorite,
-                            color:Colors.red,
+                              child: const Icon(
+                                Icons.favorite,
+                                color: Colors.red,
+                              ),
+                            ),
                           ),
-                        ),
-                      ),
-                    );
-                  },
-                ),
+                        );
+                      },
+                    ),
             ),
           ],
         ),

@@ -1,12 +1,10 @@
-//Salmin
 import 'package:flutter/material.dart';
 
-// --- PERUBAHAN IMPORT DI SINI (Disesuaikan dengan struktur tim) ---
-import '../../core/theme/app_colors.dart';
-import '../../core/utils/constants.dart';
+import '../../core/theme/app_theme.dart';
+import '../../core/utils/formatter.dart';
 import 'register_screen.dart';
 import 'forgot_password_screen.dart';
-import '../home/home_page.dart'; // <-- Gw sesuaikan jadi home_page.dart sesuai struktur tim
+import '../home/home_page.dart'; // <-- Import file home tim lu
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -52,12 +50,12 @@ class _LoginScreenState extends State<LoginScreen> {
       if (mounted) {
         setState(() => _isLoading = false);
 
-        // NAVIGASI KE HOME SCREEN SETELAH LOGIN BERHASIL
-        // Catatan: Gw pakai 'HomePage' karena file tim biasanya bernama home_page.dart.
-        // Jika class di file tim bernama 'HomeScreen', ubah 'HomePage()' jadi 'HomeScreen()'
+        // NAVIGASI KE HOME SCREEN
+        // CATATAN: Gw pakai 'HomeScreen' di sini.
+        // Kalau di file home_page.dart tim lu namanya 'HomePage', ubah 'HomeScreen()' jadi 'HomePage()'
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const HomePage()),
+          MaterialPageRoute(builder: (context) => const HomeScreen()),
         );
       }
     });

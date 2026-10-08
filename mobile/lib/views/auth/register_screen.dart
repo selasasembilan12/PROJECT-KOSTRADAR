@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 
-// --- PERUBAHAN IMPORT DI SINI (Disesuaikan dengan struktur tim) ---
-import '../../core/theme/app_colors.dart';
-import '../../core/utils/constants.dart';
+import '../../core/theme/app_theme.dart';
+import '../../core/utils/formatter.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -21,7 +20,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   String _selectedRole = 'Mahasiswa';
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
-  bool _isLoading = false; // Buat loading state
+  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -32,14 +31,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
     super.dispose();
   }
 
-  // Fungsi validasi & register
   void _handleRegister() {
     final name = _nameController.text.trim();
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
     final confirmPassword = _confirmPasswordController.text.trim();
 
-    // Validasi form kosong
     if (name.isEmpty ||
         email.isEmpty ||
         password.isEmpty ||
@@ -53,7 +50,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
       return;
     }
 
-    // Validasi password sama
     if (password != confirmPassword) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -64,7 +60,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
       return;
     }
 
-    // Validasi min 8 karakter
     if (password.length < 8) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -75,10 +70,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
       return;
     }
 
-    // Mulai loading
     setState(() => _isLoading = true);
 
-    // Simulasi delay proses register (Nanti diganti logic Supabase)
     Future.delayed(const Duration(seconds: 2), () {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -88,8 +81,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
             backgroundColor: AppColors.success,
           ),
         );
-        // Opsional: Bisa langsung pop ke login screen setelah berhasil
-        // Navigator.pop(context);
       }
     });
   }
@@ -269,7 +260,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 ),
               ),
               const SizedBox(height: 32),
-              // Tombol Daftar dengan Loading State
               SizedBox(
                 width: double.infinity,
                 height: 50,
