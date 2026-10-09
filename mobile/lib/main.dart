@@ -1,7 +1,6 @@
 // YANG DI SINI JANG KORE
 // LIAT ADA YANG JANGGAL KASE INFO DI GC NANTI SA YG PERBAIKI
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 
 //CORE SERVICE
 import 'core/theme/app_theme.dart';
@@ -46,39 +45,41 @@ class KostRadarApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // MultiProvider disiapkan di sini agar state management bisa diakses di seluruh halaman
-    return MultiProvider(
-      providers: [
-        // Contoh penambahan Provider nanti ke depannya di sini:
-        // ChangeNotifierProvider(create: (_) => AuthProvider()),
-        // ChangeNotifierProvider(create: (_) => KostProvider()),
-      ],
-      child: MaterialApp(
-        debugShowCheckedModeBanner: false,
-        theme: AppTheme.light,
-        initialRoute: '/splash',
-        routes: {
-          '/splash': (c) => const SplashScreen(), // 1 Salmin
-          '/login': (c) => const LoginScreen(), // 2 Salmin
-          '/register': (c) => const RegisterScreen(), // 3 Salmin
-          '/home': (c) => const HomePage(), // 4 Hesti
-          '/pencarian': (c) => const PencarianPage(), // 5 Hesti - FIX
-          '/hasil-pencarian': (c) => const HasilPencarian(), // 6 Hesti - FIX
-          '/detail-kost': (c) => const DetailKostPage(), // 7 Ilham
-          '/daftar-favorite': (c) =>
-              const DaftarFavoritePage(), // 8 Ilham - FIX
-          '/daftar-chat': (c) => const DaftarChatPage(), // 10 salsa - FIX
-          '/ruang-chat': (c) => const RuangChatPage(), // 11 salsa - FIX
-          '/profil': (c) => const ProfilPage(), // 12 salsa - FIX
-          '/home-admin': (c) => const HomeAdminPage(), // 13 Dina - FIX
-          '/data-kost': (c) => const DataKostPage(), // 14 Dina - FIX
-          '/tambah-edit-kost': (c) =>
-              const TambahEditKostPage(), // 15 Dina - FIX
-          '/daftar-chat-admin': (c) =>
-              const DaftarChatAdminPage(), // 16 Riana - FIX
-          '/profil-admin': (c) => const ProfilAdminPage(), // 17 Riana - FIX
-        },
-      ),
+    // Hapus MultiProvider, langsung return MaterialApp aja
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: AppTheme.lightTheme,
+      initialRoute: '/splash',
+      routes: {
+        '/splash': (c) => const SplashScreen(), // 1 Salmin
+        '/login': (c) => const LoginScreen(), // 2 Salmin
+        '/register': (c) => const RegisterScreen(), // 3 Salmin
+        '/home': (c) => const HomePage(), // 4 Hesti
+        '/pencarian': (c) => const PencarianPage(), // 5 Hesti - FIX
+        '/hasil-pencarian': (c) => const HasilPencarianPage(), // 6 Hesti - FIX
+        '/detail-kost': (c) => DetailKostPage(
+          kost: KostModel(
+            idKost: 'dummy',
+            nama: 'Dummy Kost',
+            alamat: 'Alamat',
+            harga: 0,
+            deskripsi: 'Deskripsi',
+            ketersediaanKamar: 1,
+            foto: [],
+            fasilitas: [],
+          ),
+        ), // 7 Ilham
+        '/daftar-favorite': (c) => const DaftarFavoritePage(), // 8 Ilham - FIX
+        '/daftar-chat': (c) => const DaftarChatPage(), // 10 salsa - FIX
+        '/ruang-chat': (c) => const RuangChatPage(), // 11 salsa - FIX
+        '/profil': (c) => const ProfilPage(), // 12 salsa - FIX
+        '/home-admin': (c) => const HomeAdminPage(), // 13 Dina - FIX
+        '/data-kost': (c) => const DataKostView(), // 14 Dina - FIX
+        '/tambah-edit-kost': (c) => const KostFormView(), // 15 Dina - FIX
+        '/daftar-chat-admin': (c) =>
+            const DaftarChatAdminPage(), // 16 Riana - FIX
+        '/profil-admin': (c) => const ProfilAdminPage(), // 17 Riana - FIX
+      },
     );
   }
 }
