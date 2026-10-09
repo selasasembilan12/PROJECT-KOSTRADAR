@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 // --- IMPORT STANDAR TIM ---
 import '../../core/theme/app_theme.dart';
+import '../../models/kost_model.dart';
 
 // ==========================================
 // MODEL DATA KOST

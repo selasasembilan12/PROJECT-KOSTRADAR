@@ -5,6 +5,7 @@ import '../../core/theme/app_theme.dart';
 
 import 'pencarian_page.dart';
 import 'hasil_pencarian.dart';
+import '../kost/detail_kost_page.dart';
 
 // ========================================
 // HALAMAN HOME
@@ -35,6 +36,15 @@ class _HomePageState extends State<HomePage> {
     Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => const SearchResultsScreen()),
+    );
+  }
+
+  void _openDetail(KostResult kost) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => DetailKostPage(kost: kost.toKostModel()),
+      ),
     );
   }
 
@@ -492,12 +502,9 @@ class _HomePageState extends State<HomePage> {
                     ),
                     TextButton.icon(
                       onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('Detail ${kost.name} belum tersedia'),
-                          ),
-                        );
+                        _openDetail(kost);
                       },
+
                       icon: const Icon(Icons.arrow_forward, size: 14),
                       label: const Text(
                         'Detail',
