@@ -4,7 +4,10 @@ import '../../core/theme/app_theme.dart';
 import '../../core/utils/formatter.dart';
 import 'register_screen.dart';
 import 'forgot_password_screen.dart';
-import '../home/home_page.dart'; // <-- Import file home tim lu
+
+// --- IMPORT HALAMAN TUJUAN ---
+import '../home/home_page.dart'; // Untuk Mahasiswa
+import '../admin/home_admin_page.dart'; // Untuk Admin
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -45,18 +48,27 @@ class _LoginScreenState extends State<LoginScreen> {
     // Mulai loading
     setState(() => _isLoading = true);
 
-    // Simulasi proses login 2 detik, lalu masuk ke Home
+    // Simulasi proses login 2 detik
     Future.delayed(const Duration(seconds: 2), () {
       if (mounted) {
         setState(() => _isLoading = false);
 
-        // NAVIGASI KE HOME SCREEN
-        // CATATAN: Gw pakai 'HomeScreen' di sini.
-        // Kalau di file home_page.dart tim lu namanya 'HomePage', ubah 'HomeScreen()' jadi 'HomePage()'
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const HomeScreen()),
-        );
+        // ==========================================
+        // LOGIKA ROUTING BERDASARKAN ROLE
+        // ==========================================
+        if (_selectedRole == 'Admin') {
+          // Jika yang login Admin, arahkan ke HomeAdminPage
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const HomeAdminPage()),
+          );
+        } else {
+          // Jika yang login Mahasiswa, arahkan ke HomePage
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const HomePage()),
+          );
+        }
       }
     });
   }

@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+// --- IMPORT STANDAR TIM ---
+import '../../core/theme/app_theme.dart';
+import '../../core/utils/formatter.dart';
+
 import '../../providers/chat_provider.dart';
 
 class RuangChatPage extends StatefulWidget {
@@ -32,31 +36,44 @@ class _RuangChatPageState extends State<RuangChatPage> {
     return Scaffold(
       appBar: AppBar(
         titleSpacing: 0,
-        title: Row(
-          children: const [
+        title: const Row(
+          children: [
             CircleAvatar(
               radius: 18,
-              backgroundColor: Colors.blueAccent,
+              backgroundColor:
+                  AppColors.primary, // <-- DIUBAH (pengganti blueAccent)
               child: Text(
                 'A',
-                style: TextStyle(color: Colors.white, fontSize: 14),
+                style: TextStyle(
+                  color: AppColors.white,
+                  fontSize: 14,
+                ), // <-- DIUBAH
               ),
             ),
             SizedBox(width: 10),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Admin Kost Adiwarna', style: TextStyle(fontSize: 16)),
+                Text(
+                  'Admin Kost Adiwarna',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: AppColors.textPrimary,
+                  ), // <-- DIUBAH
+                ),
                 Text(
                   'Online',
-                  style: TextStyle(fontSize: 12, color: Colors.greenAccent),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppColors.success,
+                  ), // <-- DIUBAH (pengganti greenAccent)
                 ),
               ],
             ),
           ],
         ),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black87,
+        backgroundColor: AppColors.white, // <-- DIUBAH
+        foregroundColor: AppColors.textPrimary, // <-- DIUBAH
         elevation: 0.5,
       ),
       body: Consumer<ChatProvider>(
@@ -67,13 +84,21 @@ class _RuangChatPageState extends State<RuangChatPage> {
             children: [
               Expanded(
                 child: chatProvider.isLoading
-                    ? const Center(child: CircularProgressIndicator())
+                    ? const Center(
+                        child: CircularProgressIndicator(
+                          color: AppColors.primary,
+                        ),
+                      ) // <-- DIUBAH
                     : messages.isEmpty
                     ? const Center(
                         child: Text(
                           'Belum ada riwayat percakapan.\nKirim pesan untuk mulai terhubung dengan pengelola!',
                           textAlign: TextAlign.center,
-                          style: TextStyle(color: Colors.grey, fontSize: 14),
+                          style: TextStyle(
+                            color: AppColors
+                                .textSecondary, // <-- DIUBAH (pengganti grey)
+                            fontSize: 14,
+                          ),
                         ),
                       )
                     : ListView.builder(
@@ -100,8 +125,9 @@ class _RuangChatPageState extends State<RuangChatPage> {
                               ),
                               decoration: BoxDecoration(
                                 color: isMe
-                                    ? Colors.blueAccent
-                                    : Colors.grey[200],
+                                    ? AppColors
+                                          .primary // <-- DIUBAH (pengganti blueAccent)
+                                    : AppColors.backgroundLight, // <-- DIUBAH (pengganti grey[200])
                                 borderRadius: BorderRadius.only(
                                   topLeft: const Radius.circular(16),
                                   topRight: const Radius.circular(16),
@@ -116,8 +142,9 @@ class _RuangChatPageState extends State<RuangChatPage> {
                                     msg.message,
                                     style: TextStyle(
                                       color: isMe
-                                          ? Colors.white
-                                          : Colors.black87,
+                                          ? AppColors
+                                                .white // <-- DIUBAH
+                                          : AppColors.textPrimary, // <-- DIUBAH (pengganti black87)
                                       fontSize: 15,
                                     ),
                                   ),
@@ -126,8 +153,10 @@ class _RuangChatPageState extends State<RuangChatPage> {
                                     '${msg.createdAt.hour}:${msg.createdAt.minute.toString().padLeft(2, '0')}',
                                     style: TextStyle(
                                       color: isMe
-                                          ? Colors.white70
-                                          : Colors.black54,
+                                          ? AppColors.white.withOpacity(
+                                              0.7,
+                                            ) // <-- DIUBAH (pengganti white70)
+                                          : AppColors.textHint, // <-- DIUBAH (pengganti black54)
                                       fontSize: 10,
                                     ),
                                   ),
@@ -143,7 +172,7 @@ class _RuangChatPageState extends State<RuangChatPage> {
                   horizontal: 12,
                   vertical: 8,
                 ),
-                color: Colors.white,
+                color: AppColors.white, // <-- DIUBAH
                 child: Row(
                   children: [
                     Expanded(
@@ -151,8 +180,11 @@ class _RuangChatPageState extends State<RuangChatPage> {
                         controller: _messageController,
                         decoration: InputDecoration(
                           hintText: 'Tulis pesan...',
+                          hintStyle: const TextStyle(
+                            color: AppColors.textHint,
+                          ), // <-- DIUBAH
                           filled: true,
-                          fillColor: Colors.grey[100],
+                          fillColor: AppColors.backgroundLight, // <-- DIUBAH (pengganti grey[100])
                           contentPadding: const EdgeInsets.symmetric(
                             horizontal: 16,
                             vertical: 10,
@@ -166,11 +198,12 @@ class _RuangChatPageState extends State<RuangChatPage> {
                     ),
                     const SizedBox(width: 8),
                     CircleAvatar(
-                      backgroundColor: Colors.blueAccent,
+                      backgroundColor: AppColors
+                          .primary, // <-- DIUBAH (pengganti blueAccent)
                       child: IconButton(
                         icon: const Icon(
                           Icons.send_rounded,
-                          color: Colors.white,
+                          color: AppColors.white, // <-- DIUBAH
                           size: 18,
                         ),
                         onPressed: _sendMessage,

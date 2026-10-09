@@ -27,6 +27,7 @@ class AppColors {
   ); // Hijau (Tersedia, Terverifikasi)
   static const Color successLight = Color(0xFFD1FAE5); // Hijau muda
   static const Color error = Color(0xFFEF4444); // Merah
+  static const Color errorLight = Color(0xFFFEE2E2); 
   static const Color warning = Color(0xFFF59E0B); // Kuning/Orange
   static const Color warningLight = Color(0xFFFEF3C7); // Kuning muda
 

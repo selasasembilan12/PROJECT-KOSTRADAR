@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 
+// --- IMPORT STANDAR TIM ---
+import '../../core/theme/app_theme.dart';
+
 // Fungsi untuk menampilkan dialog konfirmasi hapus favorit
 // onHapus akan dijalankan ketika tombol "Hapus" ditekan
-void showHapusFavoriteDialog(
-  BuildContext context,
-  VoidCallback onHapus,
-) {
+void showHapusFavoriteDialog(BuildContext context, VoidCallback onHapus) {
   showDialog(
     context: context,
     barrierDismissible: false, // User wajib memilih tombol aksi
@@ -19,7 +19,7 @@ void showHapusFavoriteDialog(
 
           // Tampilan kotak dialog
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: AppColors.white, // <-- DIUBAH
             borderRadius: BorderRadius.circular(18),
           ),
 
@@ -27,19 +27,19 @@ void showHapusFavoriteDialog(
             mainAxisSize: MainAxisSize.min,
 
             children: [
-
               // Icon tempat sampah merah
               Container(
                 padding: const EdgeInsets.all(10),
 
                 decoration: const BoxDecoration(
-                  color: Color(0xffffeeee),
+                  color:
+                      AppColors.errorLight, // <-- DIUBAH (pengganti 0xffffeeee)
                   shape: BoxShape.circle,
                 ),
 
                 child: const Icon(
                   Icons.delete_outline,
-                  color: Colors.red,
+                  color: AppColors.error, // <-- DIUBAH
                   size: 30,
                 ),
               ),
@@ -54,6 +54,7 @@ void showHapusFavoriteDialog(
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary, // <-- DIUBAH
                 ),
               ),
 
@@ -66,7 +67,7 @@ void showHapusFavoriteDialog(
 
                 style: TextStyle(
                   fontSize: 12,
-                  color: Colors.grey,
+                  color: AppColors.textSecondary, // <-- DIUBAH
                 ),
               ),
 
@@ -75,13 +76,14 @@ void showHapusFavoriteDialog(
               // Tombol aksi Batal dan Hapus
               Row(
                 children: [
-
                   // Tombol membatalkan proses hapus
                   Expanded(
                     child: OutlinedButton(
                       style: OutlinedButton.styleFrom(
                         minimumSize: const Size(0, 40),
-
+                        side: const BorderSide(
+                          color: AppColors.border,
+                        ), // <-- DIUBAH
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(8),
                         ),
@@ -94,7 +96,7 @@ void showHapusFavoriteDialog(
                       child: const Text(
                         "Batal",
                         style: TextStyle(
-                          color: Colors.black,
+                          color: AppColors.textPrimary, // <-- DIUBAH
                           fontSize: 12,
                         ),
                       ),
@@ -107,7 +109,7 @@ void showHapusFavoriteDialog(
                   Expanded(
                     child: ElevatedButton(
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red,
+                        backgroundColor: AppColors.error, // <-- DIUBAH
                         minimumSize: const Size(0, 40),
 
                         shape: RoundedRectangleBorder(
@@ -127,13 +129,12 @@ void showHapusFavoriteDialog(
                         "Hapus",
 
                         style: TextStyle(
-                          color: Colors.white,
+                          color: AppColors.white, // <-- DIUBAH
                           fontSize: 12,
                         ),
                       ),
                     ),
                   ),
-
                 ],
               ),
             ],

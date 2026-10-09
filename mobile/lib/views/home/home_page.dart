@@ -1,23 +1,10 @@
 import 'package:flutter/material.dart';
 
+// --- IMPORT STANDAR TIM ---
+import '../../core/theme/app_theme.dart';
+
 import 'pencarian_page.dart';
 import 'hasil_pencarian.dart';
-
-// ========================================
-// WARNA APLIKASI KOSTRADAR
-// ========================================
-
-class AppColors {
-  static const Color primary = Color(0xFF2563EB);
-  static const Color primaryLight = Color(0xFFDBEAFE);
-  static const Color background = Color(0xFFF8FAFC);
-  static const Color white = Colors.white;
-  static const Color textPrimary = Color(0xFF12233F);
-  static const Color textSecondary = Color(0xFF64748B);
-  static const Color border = Color(0xFFE2E8F0);
-  static const Color success = Color(0xFF16A34A);
-  static const Color error = Color(0xFFEF4444);
-}
 
 // ========================================
 // HALAMAN HOME
@@ -205,7 +192,7 @@ class _HomePageState extends State<HomePage> {
                   vertical: 15,
                 ),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: AppColors.white, // <-- DIUBAH
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: AppColors.border),
                 ),
@@ -231,7 +218,10 @@ class _HomePageState extends State<HomePage> {
                 color: AppColors.primary,
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: const Icon(Icons.filter_list, color: Colors.white),
+              child: const Icon(
+                Icons.filter_list,
+                color: AppColors.white,
+              ), // <-- DIUBAH
             ),
           ),
         ],
@@ -269,7 +259,7 @@ class _HomePageState extends State<HomePage> {
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.bold,
-                  color: Colors.white,
+                  color: AppColors.white, // <-- DIUBAH
                 ),
               ),
               SizedBox(height: 12),
@@ -279,14 +269,17 @@ class _HomePageState extends State<HomePage> {
                 style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
-                  color: Colors.white,
+                  color: AppColors.white, // <-- DIUBAH
                 ),
               ),
               SizedBox(height: 8),
               Text(
                 'Cari kost nyaman dengan harga terbaik.',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 12, color: Colors.white),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: AppColors.white,
+                ), // <-- DIUBAH
               ),
             ],
           ),
@@ -334,11 +327,12 @@ class _HomePageState extends State<HomePage> {
     return Container(
       margin: const EdgeInsets.fromLTRB(20, 0, 20, 16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.white, // <-- DIUBAH
         borderRadius: BorderRadius.circular(16),
         boxShadow: const [
           BoxShadow(
-            color: Color(0x14000000),
+            color: AppColors
+                .cardShadow, // <-- DIUBAH (biar konsisten sama file lain)
             blurRadius: 10,
             offset: Offset(0, 2),
           ),
@@ -388,7 +382,10 @@ class _HomePageState extends State<HomePage> {
                     ),
                     child: const Text(
                       '✓ Terverifikasi',
-                      style: TextStyle(color: Colors.white, fontSize: 11),
+                      style: TextStyle(
+                        color: AppColors.white,
+                        fontSize: 11,
+                      ), // <-- DIUBAH
                     ),
                   ),
                 ),
@@ -396,7 +393,7 @@ class _HomePageState extends State<HomePage> {
                 top: 8,
                 right: 8,
                 child: CircleAvatar(
-                  backgroundColor: Colors.white,
+                  backgroundColor: AppColors.white, // <-- DIUBAH
                   child: IconButton(
                     onPressed: () {
                       setState(() {
@@ -428,6 +425,8 @@ class _HomePageState extends State<HomePage> {
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
+                    color:
+                        AppColors.textPrimary, // <-- DIUBAH (biar teks jelas)
                   ),
                 ),
                 const SizedBox(height: 6),
@@ -467,7 +466,10 @@ class _HomePageState extends State<HomePage> {
                     return Chip(
                       label: Text(
                         facility,
-                        style: const TextStyle(fontSize: 11),
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: AppColors.textSecondary,
+                        ), // <-- DIUBAH
                       ),
                       backgroundColor: AppColors.primaryLight,
                       side: BorderSide.none,
@@ -497,7 +499,10 @@ class _HomePageState extends State<HomePage> {
                         );
                       },
                       icon: const Icon(Icons.arrow_forward, size: 14),
-                      label: const Text('Detail'),
+                      label: const Text(
+                        'Detail',
+                        style: TextStyle(color: AppColors.primary),
+                      ), // <-- DIUBAH
                     ),
                   ],
                 ),
@@ -528,7 +533,11 @@ class _HomePageState extends State<HomePage> {
           const SizedBox(height: 16),
           Text(
             isChat ? 'Halaman Chat' : 'Halaman Profil',
-            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            style: const TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: AppColors.textPrimary,
+            ), // <-- DIUBAH
           ),
           const SizedBox(height: 8),
           const Text(

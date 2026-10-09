@@ -1,5 +1,8 @@
-//Salsa
 import 'package:flutter/material.dart';
+
+// --- IMPORT STANDAR TIM ---
+import '../../core/theme/app_theme.dart';
+import '../../core/utils/formatter.dart';
 
 class DaftarChatPage extends StatelessWidget {
   const DaftarChatPage({super.key});
@@ -26,39 +29,50 @@ class DaftarChatPage extends StatelessWidget {
       appBar: AppBar(
         title: const Text(
           'Pesan Masuk',
-          style: TextStyle(fontWeight: FontWeight.bold),
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: AppColors.textPrimary, // <-- DIUBAH
+          ),
         ),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black87,
+        backgroundColor: AppColors.white, // <-- DIUBAH
+        foregroundColor: AppColors.textPrimary, // <-- DIUBAH
         elevation: 0.5,
       ),
       body: ListView.separated(
         itemCount: chatList.length,
-        separatorBuilder: (context, index) => const Divider(height: 1),
+        separatorBuilder: (context, index) => const Divider(
+          height: 1,
+          color: AppColors.border, // <-- DIUBAH (biar garis pembatas rapi)
+        ),
         itemBuilder: (context, index) {
           final chat = chatList[index];
           int unreadCount = int.parse(chat["unread"]!);
 
           return ListTile(
             contentPadding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 8,
+              horizontal: AppSpacing.smallPadding, // <-- DIUBAH (16)
+              vertical: AppSpacing.smallSpacing, // <-- DIUBAH (8)
             ),
             leading: CircleAvatar(
               radius: 28,
-              backgroundColor: Colors.blue.shade100,
+              backgroundColor: AppColors
+                  .primaryLight, // <-- DIUBAH (pengganti blue.shade100)
               child: Text(
                 chat["name"]![0],
                 style: const TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
-                  color: Colors.blueAccent,
+                  color: AppColors.primary, // <-- DIUBAH (pengganti blueAccent)
                 ),
               ),
             ),
             title: Text(
               chat["name"]!,
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+                color: AppColors.textPrimary, // <-- DIUBAH
+              ),
             ),
             subtitle: Padding(
               padding: const EdgeInsets.only(top: 4.0),
@@ -67,9 +81,11 @@ class DaftarChatPage extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  color: unreadCount > 0 ? Colors.black87 : Colors.grey[600],
+                  color: unreadCount > 0
+                      ? AppColors.textPrimary
+                      : AppColors.textSecondary, // <-- DIUBAH
                   fontWeight: unreadCount > 0
-                      ? FontWeight.w500
+                      ? FontWeight.w600
                       : FontWeight.normal,
                 ),
               ),
@@ -80,19 +96,28 @@ class DaftarChatPage extends StatelessWidget {
               children: [
                 Text(
                   chat["time"]!,
-                  style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color:
+                        AppColors.textHint, // <-- DIUBAH (pengganti grey[500])
+                  ),
                 ),
                 const SizedBox(height: 6),
                 if (unreadCount > 0)
                   Container(
                     padding: const EdgeInsets.all(6),
                     decoration: const BoxDecoration(
-                      color: Colors.blueAccent,
+                      color: AppColors
+                          .primary, // <-- DIUBAH (pengganti blueAccent)
                       shape: BoxShape.circle,
                     ),
                     child: Text(
                       chat["unread"]!,
-                      style: const TextStyle(color: Colors.white, fontSize: 10),
+                      style: const TextStyle(
+                        color: AppColors.white, // <-- DIUBAH
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
               ],

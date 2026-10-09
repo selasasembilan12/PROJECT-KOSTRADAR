@@ -11,11 +11,16 @@ class RegisterScreen extends StatefulWidget {
 }
 
 class _RegisterScreenState extends State<RegisterScreen> {
+  // Controller umum (untuk kedua role)
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _confirmPasswordController =
       TextEditingController();
+
+  // Controller khusus Pengelola
+  final TextEditingController _namaKostController = TextEditingController();
+  final TextEditingController _alamatKostController = TextEditingController();
 
   String _selectedRole = 'Mahasiswa';
   bool _obscurePassword = true;
@@ -28,6 +33,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
+    _namaKostController.dispose();
+    _alamatKostController.dispose();
     super.dispose();
   }
 
@@ -37,6 +44,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     final password = _passwordController.text.trim();
     final confirmPassword = _confirmPasswordController.text.trim();
 
+    // Validasi umum
     if (name.isEmpty ||
         email.isEmpty ||
         password.isEmpty ||
@@ -48,6 +56,22 @@ class _RegisterScreenState extends State<RegisterScreen> {
         ),
       );
       return;
+    }
+
+    // Validasi khusus Pengelola
+    if (_selectedRole == 'Pengelola') {
+      final namaKost = _namaKostController.text.trim();
+      final alamatKost = _alamatKostController.text.trim();
+
+      if (namaKost.isEmpty || alamatKost.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Nama Kost dan Alamat Kost wajib diisi!'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+        return;
+      }
     }
 
     if (password != confirmPassword) {
@@ -75,12 +99,20 @@ class _RegisterScreenState extends State<RegisterScreen> {
     Future.delayed(const Duration(seconds: 2), () {
       if (mounted) {
         setState(() => _isLoading = false);
+
+        // Pesan sukses berbeda sesuai role
+        final roleLabel = _selectedRole == 'Pengelola'
+            ? 'Pengelola Kost'
+            : 'Mahasiswa';
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Register berhasil! (Simulasi)'),
+          SnackBar(
+            content: Text('Registrasi $roleLabel berhasil! (Simulasi)'),
             backgroundColor: AppColors.success,
           ),
         );
+
+        // Kembali ke halaman login
+        Navigator.pop(context);
       }
     });
   }
@@ -146,10 +178,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    const Text(
-                      "Daftar sekarang untuk mulai mencari kost impianmu",
+                    Text(
+                      _selectedRole == 'Pengelola'
+                          ? "Daftar untuk mengelola kost Anda"
+                          : "Daftar sekarang untuk mulai mencari kost impianmu",
                       textAlign: TextAlign.center,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontSize: 14,
                         color: AppColors.textSecondary,
                       ),
@@ -187,23 +221,64 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 ],
               ),
               const SizedBox(height: 24),
+
+              // ============================================
+              // FORM DINAMIS BERDASARKAN ROLE
+              // ============================================
+
+              // Field Nama (untuk kedua role)
               _buildTextField(
                 controller: _nameController,
-                label: "Nama Lengkap",
-                hint: "Masukkan nama lengkap",
+                label: _selectedRole == 'Pengelola'
+                    ? "Nama Pengelola"
+                    : "Nama Lengkap",
+                hint: _selectedRole == 'Pengelola'
+                    ? "Masukkan nama pengelola"
+                    : "Masukkan nama lengkap",
                 icon: Icons.person_outline,
                 suffixText: "Wajib",
               ),
               const SizedBox(height: 16),
+
+              // Field Email (untuk kedua role)
               _buildTextField(
                 controller: _emailController,
-                label: "Email Mahasiswa / Pribadi",
-                hint: "contoh: mhs@kampus.ac.id",
+                label: _selectedRole == 'Pengelola'
+                    ? "Email Pengelola"
+                    : "Email Mahasiswa / Pribadi",
+                hint: _selectedRole == 'Pengelola'
+                    ? "contoh: admin@kost.com"
+                    : "contoh: mhs@kampus.ac.id",
                 icon: Icons.email_outlined,
                 keyboardType: TextInputType.emailAddress,
                 suffixText: "Wajib",
               ),
               const SizedBox(height: 16),
+
+              // ============================================
+              // FIELD KHUSUS PENGELOLA (Muncul hanya jika role = Pengelola)
+              // ============================================
+              if (_selectedRole == 'Pengelola') ...[
+                _buildTextField(
+                  controller: _namaKostController,
+                  label: "Nama Kost",
+                  hint: "Contoh: Kost Adiwarna",
+                  icon: Icons.home_outlined,
+                  suffixText: "Wajib",
+                ),
+                const SizedBox(height: 16),
+                _buildTextField(
+                  controller: _alamatKostController,
+                  label: "Alamat Kost",
+                  hint: "Masukkan alamat lengkap kost",
+                  icon: Icons.location_on_outlined,
+                  suffixText: "Wajib",
+                  maxLines: 2,
+                ),
+                const SizedBox(height: 16),
+              ],
+
+              // Field Password (untuk kedua role)
               _buildTextField(
                 controller: _passwordController,
                 label: "Password",
@@ -230,6 +305,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 ),
               ),
               const SizedBox(height: 24),
+
+              // ============================================
+              // INFO BOX (Berbeda sesuai role)
+              // ============================================
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
@@ -237,19 +316,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: AppColors.primary.withOpacity(0.2)),
                 ),
-                child: const Row(
+                child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(
+                    const Icon(
                       Icons.check_circle_outline,
                       color: AppColors.primary,
                       size: 20,
                     ),
-                    SizedBox(width: 12),
+                    const SizedBox(width: 12),
                     Expanded(
                       child: Text(
-                        "Verifikasi identitas mahasiswa saat sewa untuk jaminan bebas deposit & promo eksklusif.",
-                        style: TextStyle(
+                        _selectedRole == 'Pengelola'
+                            ? "Verifikasi data kost Anda akan dilakukan oleh tim KostRadar sebelum akun diaktifkan."
+                            : "Verifikasi identitas mahasiswa saat sewa untuk jaminan bebas deposit & promo eksklusif.",
+                        style: const TextStyle(
                           fontSize: 12,
                           color: AppColors.textSecondary,
                           height: 1.4,
@@ -260,6 +341,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 ),
               ),
               const SizedBox(height: 32),
+
+              // Tombol Daftar
               SizedBox(
                 width: double.infinity,
                 height: 50,
@@ -321,6 +404,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     bool? obscureState,
     VoidCallback? onToggleVisibility,
     TextInputType keyboardType = TextInputType.text,
+    int maxLines = 1,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -351,6 +435,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           controller: controller,
           obscureText: obscureText,
           keyboardType: keyboardType,
+          maxLines: maxLines,
           decoration: InputDecoration(
             hintText: hint,
             hintStyle: const TextStyle(color: AppColors.textHint, fontSize: 14),

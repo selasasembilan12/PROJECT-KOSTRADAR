@@ -1,16 +1,8 @@
 import 'package:flutter/material.dart';
 
-// ============================================================
-// WARNA APLIKASI
-// ============================================================
-class AppColors {
-  static const primary = Color(0xFF2E75D6);
-  static const primaryDark = Color(0xFF1A4D8F);
-  static const success = Color(0xFF2E9E5B);
-  static const bgLight = Color(0xFFF5F7FA);
-  static const cardBorder = Color(0xFFE5E8EC);
-  static const textGrey = Color(0xFF8A94A6);
-}
+// --- IMPORT STANDAR TIM ---
+import '../../core/theme/app_theme.dart';
+import '../../core/utils/formatter.dart';
 
 // ============================================================
 // HALAMAN HOME ADMIN
@@ -30,7 +22,7 @@ class AdminHomeView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.bgLight,
+      backgroundColor: AppColors.background, // <-- DIUBAH (pengganti bgLight)
       body: SafeArea(
         child: Column(
           children: [
@@ -75,7 +67,7 @@ class AdminHomeView extends StatelessWidget {
   Widget _buildTopBar() {
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-      color: Colors.white,
+      color: AppColors.white, // <-- DIUBAH
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -88,7 +80,11 @@ class AdminHomeView extends StatelessWidget {
                   color: AppColors.primary,
                   borderRadius: BorderRadius.circular(6),
                 ),
-                child: const Icon(Icons.radar, size: 14, color: Colors.white),
+                child: const Icon(
+                  Icons.radar,
+                  size: 14,
+                  color: AppColors.white,
+                ), // <-- DIUBAH
               ),
               const SizedBox(width: 6),
               const Text(
@@ -96,7 +92,8 @@ class AdminHomeView extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
-                  color: AppColors.textGrey,
+                  color: AppColors
+                      .textSecondary, // <-- DIUBAH (pengganti textGrey)
                   letterSpacing: 0.5,
                 ),
               ),
@@ -108,12 +105,20 @@ class AdminHomeView extends StatelessWidget {
             children: [
               const Text(
                 'Home',
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary, // <-- DIUBAH
+                ),
               ),
-              CircleAvatar(
+              const CircleAvatar(
                 radius: 18,
                 backgroundColor: AppColors.primary,
-                child: const Icon(Icons.person, color: Colors.white, size: 20),
+                child: Icon(
+                  Icons.person,
+                  color: AppColors.white,
+                  size: 20,
+                ), // <-- DIUBAH
               ),
             ],
           ),
@@ -128,9 +133,11 @@ class AdminHomeView extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.white, // <-- DIUBAH
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.cardBorder),
+        border: Border.all(
+          color: AppColors.border,
+        ), // <-- DIUBAH (pengganti cardBorder)
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -144,12 +151,20 @@ class AdminHomeView extends StatelessWidget {
                   children: [
                     Text(
                       'Ringkasan Properti',
-                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary, // <-- DIUBAH
+                      ),
                     ),
                     SizedBox(height: 2),
                     Text(
                       'Pantau aktivitas kost dan calon penghuni hari ini',
-                      style: TextStyle(fontSize: 11, color: AppColors.textGrey),
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: AppColors
+                            .textSecondary, // <-- DIUBAH (pengganti textGrey)
+                      ),
                     ),
                   ],
                 ),
@@ -253,7 +268,7 @@ class AdminHomeView extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.bgLight,
+        color: AppColors.backgroundLight, // <-- DIUBAH (pengganti bgLight)
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
@@ -267,18 +282,29 @@ class AdminHomeView extends StatelessWidget {
               if (trailingText != null)
                 Text(
                   trailingText,
-                  style: const TextStyle(fontSize: 10, color: AppColors.textGrey),
+                  style: const TextStyle(
+                    fontSize: 10,
+                    color: AppColors
+                        .textSecondary, // <-- DIUBAH (pengganti textGrey)
+                  ),
                 ),
             ],
           ),
           const SizedBox(height: 8),
           Text(
             value,
-            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            style: const TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: AppColors.textPrimary, // <-- DIUBAH
+            ),
           ),
           Text(
             label,
-            style: const TextStyle(fontSize: 11, color: AppColors.textGrey),
+            style: const TextStyle(
+              fontSize: 11,
+              color: AppColors.textSecondary, // <-- DIUBAH (pengganti textGrey)
+            ),
           ),
         ],
       ),
@@ -322,10 +348,14 @@ class AdminHomeView extends StatelessWidget {
             width: 36,
             height: 36,
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.15),
+              color: AppColors.white.withOpacity(0.15), // <-- DIUBAH
               borderRadius: BorderRadius.circular(10),
             ),
-            child: const Icon(Icons.home_work_outlined, color: Colors.white, size: 20),
+            child: const Icon(
+              Icons.home_work_outlined,
+              color: AppColors.white,
+              size: 20,
+            ), // <-- DIUBAH
           ),
           const SizedBox(width: 12),
           const Expanded(
@@ -335,19 +365,23 @@ class AdminHomeView extends StatelessWidget {
                 Text(
                   'Kelola Unit Baru',
                   style: TextStyle(
-                    color: Colors.white,
+                    color: AppColors.white, // <-- DIUBAH
                     fontWeight: FontWeight.bold,
                     fontSize: 14,
                   ),
                 ),
                 Text(
                   'Tambahkan kamar & perbarui ketersediaan',
-                  style: TextStyle(color: Colors.white70, fontSize: 11),
+                  style: TextStyle(
+                    color: AppColors.white, // <-- DIUBAH (pengganti white70)
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ],
             ),
           ),
-          const Icon(Icons.chevron_right, color: Colors.white),
+          const Icon(Icons.chevron_right, color: AppColors.white), // <-- DIUBAH
         ],
       ),
     );
@@ -360,13 +394,21 @@ class AdminHomeView extends StatelessWidget {
       children: [
         const Text(
           'Kost Terbaru',
-          style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+          style: TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.bold,
+            color: AppColors.textPrimary, // <-- DIUBAH
+          ),
         ),
         Row(
           children: const [
             Text(
               'Lihat Semua',
-              style: TextStyle(fontSize: 12, color: AppColors.primary, fontWeight: FontWeight.w600),
+              style: TextStyle(
+                fontSize: 12,
+                color: AppColors.primary,
+                fontWeight: FontWeight.w600,
+              ),
             ),
             Icon(Icons.chevron_right, size: 16, color: AppColors.primary),
           ],
@@ -384,9 +426,11 @@ class AdminHomeView extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.white, // <-- DIUBAH
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.cardBorder),
+        border: Border.all(
+          color: AppColors.border,
+        ), // <-- DIUBAH (pengganti cardBorder)
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -395,10 +439,14 @@ class AdminHomeView extends StatelessWidget {
             width: 56,
             height: 56,
             decoration: BoxDecoration(
-              color: AppColors.bgLight,
+              color:
+                  AppColors.backgroundLight, // <-- DIUBAH (pengganti bgLight)
               borderRadius: BorderRadius.circular(10),
             ),
-            child: const Icon(Icons.apartment, color: AppColors.textGrey),
+            child: const Icon(
+              Icons.apartment,
+              color: AppColors.textSecondary,
+            ), // <-- DIUBAH (pengganti textGrey)
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -410,11 +458,19 @@ class AdminHomeView extends StatelessWidget {
                   children: [
                     Text(
                       nama,
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                        color: AppColors.textPrimary, // <-- DIUBAH
+                      ),
                     ),
                     Text(
                       waktu,
-                      style: const TextStyle(fontSize: 11, color: AppColors.textGrey),
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: AppColors
+                            .textSecondary, // <-- DIUBAH (pengganti textGrey)
+                      ),
                     ),
                   ],
                 ),
@@ -442,12 +498,23 @@ class AdminHomeView extends StatelessWidget {
                       const SizedBox(width: 5),
                       Text(
                         status,
-                        style: const TextStyle(fontSize: 11, color: AppColors.success),
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: AppColors.success,
+                        ),
                       ),
                       const Spacer(),
-                      const Icon(Icons.wifi, size: 14, color: AppColors.textGrey),
+                      const Icon(
+                        Icons.wifi,
+                        size: 14,
+                        color: AppColors.textSecondary,
+                      ), // <-- DIUBAH
                       const SizedBox(width: 6),
-                      const Icon(Icons.ac_unit, size: 14, color: AppColors.textGrey),
+                      const Icon(
+                        Icons.ac_unit,
+                        size: 14,
+                        color: AppColors.textSecondary,
+                      ), // <-- DIUBAH
                     ],
                   ),
                 ],
@@ -463,15 +530,21 @@ class AdminHomeView extends StatelessWidget {
   Widget _buildBottomNav() {
     return Container(
       decoration: const BoxDecoration(
-        color: Colors.white,
-        border: Border(top: BorderSide(color: AppColors.cardBorder)),
+        color: AppColors.white, // <-- DIUBAH
+        border: Border(
+          top: BorderSide(color: AppColors.border),
+        ), // <-- DIUBAH (pengganti cardBorder)
       ),
       child: SafeArea(
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: [
             _buildNavItem(Icons.home, 'Home', isActive: true),
-            _buildNavItem(Icons.apartment_outlined, 'Data Kost', isActive: false),
+            _buildNavItem(
+              Icons.apartment_outlined,
+              'Data Kost',
+              isActive: false,
+            ),
             _buildNavItem(Icons.chat_bubble_outline, 'Chat', isActive: false),
             _buildNavItem(Icons.person_outline, 'Profil', isActive: false),
           ],
@@ -481,7 +554,9 @@ class AdminHomeView extends StatelessWidget {
   }
 
   Widget _buildNavItem(IconData icon, String label, {required bool isActive}) {
-    final color = isActive ? AppColors.primary : AppColors.textGrey;
+    final color = isActive
+        ? AppColors.primary
+        : AppColors.textSecondary; // <-- DIUBAH (pengganti textGrey)
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Column(

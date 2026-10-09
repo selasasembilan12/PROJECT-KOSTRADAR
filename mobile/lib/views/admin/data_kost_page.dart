@@ -1,16 +1,8 @@
-//Dina
 import 'package:flutter/material.dart';
 
-/// Palet warna disesuaikan dengan mockup KostRadar Admin
-class AppColors {
-  static const primary = Color(0xFF2E75D6);
-  static const success = Color(0xFF2E9E5B);
-  static const danger = Color(0xFFE05B5B);
-  static const bgLight = Color(0xFFF5F7FA);
-  static const cardBorder = Color(0xFFE5E8EC);
-  static const textGrey = Color(0xFF8A94A6);
-  static const infoBg = Color(0xFFEAF1FB);
-}
+// --- IMPORT STANDAR TIM ---
+import '../../core/theme/app_theme.dart';
+import '../../core/utils/formatter.dart';
 
 class KostItem {
   final String nama;
@@ -28,15 +20,27 @@ class DataKostView extends StatelessWidget {
   const DataKostView({super.key});
 
   static const List<KostItem> _daftarKost = [
-    KostItem(nama: 'Kost Adiwarna', harga: 'Rp 1.200.000', ketersediaan: 'Tersedia 3 kamar'),
-    KostItem(nama: 'Kost Melati', harga: 'Rp 1.000.000', ketersediaan: 'Tersedia 2 kamar'),
-    KostItem(nama: 'Kost Cemara', harga: 'Rp 950.000', ketersediaan: 'Tersedia 5 kamar'),
+    KostItem(
+      nama: 'Kost Adiwarna',
+      harga: 'Rp 1.200.000',
+      ketersediaan: 'Tersedia 3 kamar',
+    ),
+    KostItem(
+      nama: 'Kost Melati',
+      harga: 'Rp 1.000.000',
+      ketersediaan: 'Tersedia 2 kamar',
+    ),
+    KostItem(
+      nama: 'Kost Cemara',
+      harga: 'Rp 950.000',
+      ketersediaan: 'Tersedia 5 kamar',
+    ),
   ];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.bgLight,
+      backgroundColor: AppColors.background, // <-- DIUBAH (pengganti bgLight)
       body: SafeArea(
         child: Column(
           children: [
@@ -67,25 +71,33 @@ class DataKostView extends StatelessWidget {
   Widget _buildTopBar() {
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-      color: Colors.white,
+      color: AppColors.white, // <-- DIUBAH
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Row(
             children: [
-              const Icon(Icons.menu, size: 22),
+              const Icon(
+                Icons.menu,
+                size: 22,
+                color: AppColors.textPrimary,
+              ), // <-- DIUBAH
               const SizedBox(width: 10),
               const Text(
                 'Data Kost',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary, // <-- DIUBAH
+                ),
               ),
             ],
           ),
           ElevatedButton.icon(
             onPressed: () {},
             style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              foregroundColor: Colors.white,
+              backgroundColor: AppColors.primary, // <-- DIUBAH
+              foregroundColor: AppColors.white, // <-- DIUBAH
               elevation: 0,
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               shape: RoundedRectangleBorder(
@@ -108,9 +120,11 @@ class DataKostView extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.white, // <-- DIUBAH
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.cardBorder),
+        border: Border.all(
+          color: AppColors.border,
+        ), // <-- DIUBAH (pengganti cardBorder)
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -119,10 +133,14 @@ class DataKostView extends StatelessWidget {
             width: 64,
             height: 64,
             decoration: BoxDecoration(
-              color: AppColors.bgLight,
+              color:
+                  AppColors.backgroundLight, // <-- DIUBAH (pengganti bgLight)
               borderRadius: BorderRadius.circular(10),
             ),
-            child: const Icon(Icons.apartment, color: AppColors.textGrey),
+            child: const Icon(
+              Icons.apartment,
+              color: AppColors.textSecondary,
+            ), // <-- DIUBAH (pengganti textGrey)
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -131,7 +149,11 @@ class DataKostView extends StatelessWidget {
               children: [
                 Text(
                   kost.nama,
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                    color: AppColors.textPrimary, // <-- DIUBAH
+                  ),
                 ),
                 const SizedBox(height: 2),
                 Text(
@@ -139,7 +161,7 @@ class DataKostView extends StatelessWidget {
                   style: const TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
-                    color: AppColors.primary,
+                    color: AppColors.primary, // <-- DIUBAH
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -149,14 +171,17 @@ class DataKostView extends StatelessWidget {
                       width: 6,
                       height: 6,
                       decoration: const BoxDecoration(
-                        color: AppColors.success,
+                        color: AppColors.success, // <-- DIUBAH
                         shape: BoxShape.circle,
                       ),
                     ),
                     const SizedBox(width: 5),
                     Text(
                       kost.ketersediaan,
-                      style: const TextStyle(fontSize: 11, color: AppColors.success),
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: AppColors.success, // <-- DIUBAH
+                      ),
                     ),
                   ],
                 ),
@@ -167,14 +192,22 @@ class DataKostView extends StatelessWidget {
             children: [
               IconButton(
                 onPressed: () {},
-                icon: const Icon(Icons.edit, color: AppColors.primary, size: 18),
+                icon: const Icon(
+                  Icons.edit,
+                  color: AppColors.primary,
+                  size: 18,
+                ), // <-- DIUBAH
                 constraints: const BoxConstraints(),
                 padding: const EdgeInsets.all(4),
               ),
               const SizedBox(height: 8),
               IconButton(
                 onPressed: () {},
-                icon: const Icon(Icons.delete_outline, color: AppColors.danger, size: 18),
+                icon: const Icon(
+                  Icons.delete_outline,
+                  color: AppColors.error,
+                  size: 18,
+                ), // <-- DIUBAH (pengganti danger)
                 constraints: const BoxConstraints(),
                 padding: const EdgeInsets.all(4),
               ),
@@ -191,13 +224,17 @@ class DataKostView extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.infoBg,
+        color: AppColors.primaryLight, // <-- DIUBAH (pengganti infoBg)
         borderRadius: BorderRadius.circular(14),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.info_outline, color: AppColors.primary, size: 20),
+          const Icon(
+            Icons.info_outline,
+            color: AppColors.primary,
+            size: 20,
+          ), // <-- DIUBAH
           const SizedBox(width: 10),
           const Expanded(
             child: Column(
@@ -205,12 +242,20 @@ class DataKostView extends StatelessWidget {
               children: [
                 Text(
                   'Manajemen Kamar',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                    color: AppColors.textPrimary, // <-- DIUBAH
+                  ),
                 ),
                 SizedBox(height: 2),
                 Text(
                   'Perbarui data ketersediaan kamar secara berkala untuk memudahkan calon penghuni menemukan unit Anda.',
-                  style: TextStyle(fontSize: 11, color: AppColors.textGrey),
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: AppColors
+                        .textSecondary, // <-- DIUBAH (pengganti textGrey)
+                  ),
                 ),
               ],
             ),
@@ -224,14 +269,20 @@ class DataKostView extends StatelessWidget {
   Widget _buildBottomNav() {
     return Container(
       decoration: const BoxDecoration(
-        color: Colors.white,
-        border: Border(top: BorderSide(color: AppColors.cardBorder)),
+        color: AppColors.white, // <-- DIUBAH
+        border: Border(
+          top: BorderSide(color: AppColors.border),
+        ), // <-- DIUBAH (pengganti cardBorder)
       ),
       child: SafeArea(
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: [
-            _buildNavItem(Icons.dashboard_outlined, 'Dashboard', isActive: false),
+            _buildNavItem(
+              Icons.dashboard_outlined,
+              'Dashboard',
+              isActive: false,
+            ),
             _buildNavItem(Icons.apartment, 'Data Kost', isActive: true),
             _buildNavItem(Icons.chat_bubble_outline, 'Chat', isActive: false),
             _buildNavItem(Icons.person_outline, 'Profil', isActive: false),
@@ -242,7 +293,9 @@ class DataKostView extends StatelessWidget {
   }
 
   Widget _buildNavItem(IconData icon, String label, {required bool isActive}) {
-    final color = isActive ? AppColors.primary : AppColors.textGrey;
+    final color = isActive
+        ? AppColors.primary
+        : AppColors.textSecondary; // <-- DIUBAH (pengganti textGrey)
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Column(

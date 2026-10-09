@@ -1,20 +1,9 @@
 import 'package:flutter/material.dart';
 
+// --- IMPORT STANDAR TIM ---
+import '../../core/theme/app_theme.dart';
+
 import 'hasil_pencarian.dart';
-
-// ==========================================
-// WARNA HALAMAN PENCARIAN
-// ==========================================
-
-class PencarianColors {
-  static const Color primary = Color(0xFF2563EB);
-  static const Color background = Color(0xFFF8FAFC);
-  static const Color white = Colors.white;
-  static const Color textPrimary = Color(0xFF12233F);
-  static const Color textSecondary = Color(0xFF64748B);
-  static const Color border = Color(0xFFE2E8F0);
-  static const Color success = Color(0xFF16A34A);
-}
 
 // ==========================================
 // HALAMAN PENCARIAN KOST
@@ -117,10 +106,10 @@ class _SearchScreenState extends State<SearchScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: PencarianColors.background,
+      backgroundColor: AppColors.background, // <-- DIUBAH
 
       appBar: AppBar(
-        backgroundColor: PencarianColors.background,
+        backgroundColor: AppColors.background, // <-- DIUBAH
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         centerTitle: true,
@@ -128,7 +117,7 @@ class _SearchScreenState extends State<SearchScreen> {
         leading: IconButton(
           icon: const Icon(
             Icons.arrow_back_ios_new,
-            color: PencarianColors.textPrimary,
+            color: AppColors.textPrimary, // <-- DIUBAH
           ),
           onPressed: () {
             Navigator.pop(context);
@@ -138,7 +127,7 @@ class _SearchScreenState extends State<SearchScreen> {
         title: const Text(
           'Pencarian Kost',
           style: TextStyle(
-            color: PencarianColors.textPrimary,
+            color: AppColors.textPrimary, // <-- DIUBAH
             fontWeight: FontWeight.bold,
             fontSize: 18,
           ),
@@ -150,7 +139,7 @@ class _SearchScreenState extends State<SearchScreen> {
             child: const Text(
               'Reset',
               style: TextStyle(
-                color: PencarianColors.primary,
+                color: AppColors.primary, // <-- DIUBAH
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -176,16 +165,16 @@ class _SearchScreenState extends State<SearchScreen> {
                 ),
 
                 decoration: BoxDecoration(
-                  color: PencarianColors.white,
+                  color: AppColors.white, // <-- DIUBAH
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: PencarianColors.border),
+                  border: Border.all(color: AppColors.border), // <-- DIUBAH
                 ),
 
                 child: Row(
                   children: [
                     const Icon(
                       Icons.search,
-                      color: PencarianColors.textSecondary,
+                      color: AppColors.textSecondary, // <-- DIUBAH
                     ),
 
                     const SizedBox(width: 12),
@@ -211,7 +200,10 @@ class _SearchScreenState extends State<SearchScreen> {
                           _searchController.clear();
                           setState(() {});
                         },
-                        icon: const Icon(Icons.close),
+                        icon: const Icon(
+                          Icons.close,
+                          color: AppColors.textSecondary,
+                        ), // <-- DIUBAH (biar icon close juga rapi)
                       ),
                   ],
                 ),
@@ -245,7 +237,7 @@ class _SearchScreenState extends State<SearchScreen> {
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
-                  color: PencarianColors.textPrimary,
+                  color: AppColors.textPrimary, // <-- DIUBAH
                 ),
               ),
 
@@ -253,9 +245,9 @@ class _SearchScreenState extends State<SearchScreen> {
 
               Container(
                 decoration: BoxDecoration(
-                  color: PencarianColors.white,
+                  color: AppColors.white, // <-- DIUBAH
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: PencarianColors.border),
+                  border: Border.all(color: AppColors.border), // <-- DIUBAH
                 ),
 
                 child: Column(
@@ -263,10 +255,13 @@ class _SearchScreenState extends State<SearchScreen> {
                     return CheckboxListTile(
                       title: Text(
                         facility,
-                        style: const TextStyle(fontSize: 14),
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: AppColors.textPrimary,
+                        ), // <-- DIUBAH
                       ),
                       value: _facilities[facility] ?? false,
-                      activeColor: PencarianColors.primary,
+                      activeColor: AppColors.primary, // <-- DIUBAH
                       controlAffinity: ListTileControlAffinity.trailing,
                       onChanged: (value) {
                         setState(() {
@@ -326,8 +321,8 @@ class _SearchScreenState extends State<SearchScreen> {
                   onPressed: _applyFilters,
 
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: PencarianColors.primary,
-                    foregroundColor: Colors.white,
+                    backgroundColor: AppColors.primary, // <-- DIUBAH
+                    foregroundColor: AppColors.white, // <-- DIUBAH
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
@@ -368,7 +363,7 @@ class _SearchScreenState extends State<SearchScreen> {
           style: const TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.bold,
-            color: PencarianColors.textPrimary,
+            color: AppColors.textPrimary, // <-- DIUBAH
           ),
         ),
 
@@ -377,16 +372,19 @@ class _SearchScreenState extends State<SearchScreen> {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           decoration: BoxDecoration(
-            color: PencarianColors.white,
+            color: AppColors.white, // <-- DIUBAH
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: PencarianColors.border),
+            border: Border.all(color: AppColors.border), // <-- DIUBAH
           ),
 
           child: DropdownButtonHideUnderline(
             child: DropdownButton<String>(
               value: value,
               isExpanded: true,
-              icon: const Icon(Icons.keyboard_arrow_down),
+              icon: const Icon(
+                Icons.keyboard_arrow_down,
+                color: AppColors.textSecondary,
+              ), // <-- DIUBAH
               items: items.map((item) {
                 return DropdownMenuItem<String>(
                   value: item,
@@ -395,7 +393,7 @@ class _SearchScreenState extends State<SearchScreen> {
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       fontSize: 14,
-                      color: PencarianColors.textPrimary,
+                      color: AppColors.textPrimary, // <-- DIUBAH
                     ),
                   ),
                 );

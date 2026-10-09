@@ -1,16 +1,8 @@
-//Dina
 import 'package:flutter/material.dart';
 
-/// Palet warna disesuaikan dengan mockup KostRadar Admin
-class AppColors {
-  static const primary = Color(0xFF2E75D6);
-  static const success = Color(0xFF2E9E5B);
-  static const bgLight = Color(0xFFF5F7FA);
-  static const cardBorder = Color(0xFFE5E8EC);
-  static const textGrey = Color(0xFF8A94A6);
-  static const infoBg = Color(0xFFEFF1FD);
-  static const successBg = Color(0xFFE6F4EA);
-}
+// --- IMPORT STANDAR TIM ---
+import '../../core/theme/app_theme.dart';
+import '../../core/utils/formatter.dart';
 
 class KostFormView extends StatefulWidget {
   const KostFormView({super.key});
@@ -22,10 +14,12 @@ class KostFormView extends StatefulWidget {
 class _KostFormViewState extends State<KostFormView> {
   static const int _maxFoto = 5;
 
-  final TextEditingController _namaController =
-      TextEditingController(text: 'Kost Adiwarna Eksklusif');
-  final TextEditingController _hargaController =
-      TextEditingController(text: '1.200.000');
+  final TextEditingController _namaController = TextEditingController(
+    text: 'Kost Adiwarna Eksklusif',
+  );
+  final TextEditingController _hargaController = TextEditingController(
+    text: '1.200.000',
+  );
   final TextEditingController _alamatController = TextEditingController(
     text: 'Jl. Gegerkalong Hilir No. 12, Sukasari, Bandung /5 menit jalan kaki dari Gerbang Kampus',
   );
@@ -56,7 +50,7 @@ class _KostFormViewState extends State<KostFormView> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.bgLight,
+      backgroundColor: AppColors.background, // <-- DIUBAH (pengganti bgLight)
       body: SafeArea(
         child: Column(
           children: [
@@ -106,23 +100,35 @@ class _KostFormViewState extends State<KostFormView> {
   Widget _buildTopBar(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-      color: Colors.white,
+      color: AppColors.white, // <-- DIUBAH
       child: Row(
         children: [
           IconButton(
             onPressed: () => Navigator.of(context).maybePop(),
-            icon: const Icon(Icons.arrow_back, size: 22),
+            icon: const Icon(
+              Icons.arrow_back,
+              size: 22,
+              color: AppColors.textPrimary,
+            ), // <-- DIUBAH
           ),
           const Expanded(
             child: Text(
               'Tambah / Edit Kost',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: AppColors.textPrimary, // <-- DIUBAH
+              ),
             ),
           ),
           IconButton(
             onPressed: () {},
-            icon: const Icon(Icons.help_outline, size: 22, color: AppColors.textGrey),
+            icon: const Icon(
+              Icons.help_outline,
+              size: 22,
+              color: AppColors.textSecondary,
+            ), // <-- DIUBAH (pengganti textGrey)
           ),
         ],
       ),
@@ -135,7 +141,7 @@ class _KostFormViewState extends State<KostFormView> {
       width: double.infinity,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.infoBg,
+        color: AppColors.primaryLight, // <-- DIUBAH (pengganti infoBg)
         borderRadius: BorderRadius.circular(14),
       ),
       child: Row(
@@ -148,7 +154,11 @@ class _KostFormViewState extends State<KostFormView> {
               color: AppColors.primary,
               borderRadius: BorderRadius.circular(10),
             ),
-            child: const Icon(Icons.home_work_outlined, color: Colors.white, size: 18),
+            child: const Icon(
+              Icons.home_work_outlined,
+              color: AppColors.white,
+              size: 18,
+            ), // <-- DIUBAH
           ),
           const SizedBox(width: 10),
           const Expanded(
@@ -157,12 +167,20 @@ class _KostFormViewState extends State<KostFormView> {
               children: [
                 Text(
                   'Formulir Unit Kost',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                    color: AppColors.textPrimary, // <-- DIUBAH
+                  ),
                 ),
                 SizedBox(height: 2),
                 Text(
                   'Lengkapi data akurat properti Anda agar mahasiswa mudah menemukan dan memilih kamar sesuai kebutuhan.',
-                  style: TextStyle(fontSize: 11, color: AppColors.textGrey),
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: AppColors
+                        .textSecondary, // <-- DIUBAH (pengganti textGrey)
+                  ),
                 ),
               ],
             ),
@@ -198,9 +216,11 @@ class _KostFormViewState extends State<KostFormView> {
         width: double.infinity,
         padding: const EdgeInsets.symmetric(vertical: 22),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: AppColors.white, // <-- DIUBAH
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppColors.cardBorder),
+          border: Border.all(
+            color: AppColors.border,
+          ), // <-- DIUBAH (pengganti cardBorder)
         ),
         child: Column(
           children: [
@@ -208,10 +228,14 @@ class _KostFormViewState extends State<KostFormView> {
               width: 42,
               height: 42,
               decoration: BoxDecoration(
-                color: AppColors.infoBg,
+                color: AppColors.primaryLight, // <-- DIUBAH (pengganti infoBg)
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.camera_alt_outlined, color: AppColors.primary, size: 20),
+              child: const Icon(
+                Icons.camera_alt_outlined,
+                color: AppColors.primary,
+                size: 20,
+              ), // <-- DIUBAH
             ),
             const SizedBox(height: 10),
             const Text(
@@ -225,19 +249,28 @@ class _KostFormViewState extends State<KostFormView> {
             const SizedBox(height: 2),
             const Text(
               'Format JPG, PNG (Maksimal 5MB per file)',
-              style: TextStyle(fontSize: 11, color: AppColors.textGrey),
+              style: TextStyle(
+                fontSize: 11,
+                color:
+                    AppColors.textSecondary, // <-- DIUBAH (pengganti textGrey)
+              ),
             ),
             const SizedBox(height: 10),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
               decoration: BoxDecoration(
-                color: AppColors.successBg,
+                color:
+                    AppColors.successLight, // <-- DIUBAH (pengganti successBg)
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: const [
-                  Icon(Icons.check_circle, size: 12, color: AppColors.success),
+                  Icon(
+                    Icons.check_circle,
+                    size: 12,
+                    color: AppColors.success,
+                  ), // <-- DIUBAH
                   SizedBox(width: 5),
                   Text(
                     'Tampak depan, dalam kamar, & fasilitas',
@@ -283,14 +316,21 @@ class _KostFormViewState extends State<KostFormView> {
           padding: const EdgeInsets.all(6),
           child: isUtama
               ? Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     color: AppColors.primary,
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: const Text(
                     'Utama',
-                    style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w600),
+                    style: TextStyle(
+                      color: AppColors.white, // <-- DIUBAH
+                      fontSize: 9,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 )
               : null,
@@ -303,11 +343,17 @@ class _KostFormViewState extends State<KostFormView> {
             child: Container(
               width: 20,
               height: 20,
-              decoration: const BoxDecoration(
-                color: Color(0xCC000000),
+              decoration: BoxDecoration(
+                color: AppColors.textPrimary.withOpacity(
+                  0.8,
+                ), // <-- DIUBAH (pengganti 0xCC000000)
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.close, size: 12, color: Colors.white),
+              child: const Icon(
+                Icons.close,
+                size: 12,
+                color: AppColors.white,
+              ), // <-- DIUBAH
             ),
           ),
         ),
@@ -324,16 +370,28 @@ class _KostFormViewState extends State<KostFormView> {
         height: 78,
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: AppColors.white, // <-- DIUBAH
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.cardBorder),
+          border: Border.all(
+            color: AppColors.border,
+          ), // <-- DIUBAH (pengganti cardBorder)
         ),
         child: const Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.add_circle_outline, color: AppColors.textGrey, size: 18),
+            Icon(
+              Icons.add_circle_outline,
+              color: AppColors.textSecondary,
+              size: 18,
+            ), // <-- DIUBAH
             SizedBox(height: 4),
-            Text('Tambah', style: TextStyle(fontSize: 10, color: AppColors.textGrey)),
+            Text(
+              'Tambah',
+              style: TextStyle(
+                fontSize: 10,
+                color: AppColors.textSecondary,
+              ), // <-- DIUBAH
+            ),
           ],
         ),
       ),
@@ -350,10 +408,14 @@ class _KostFormViewState extends State<KostFormView> {
           style: const TextStyle(
             fontSize: 13,
             fontWeight: FontWeight.w600,
-            color: Colors.black87,
+            color:
+                AppColors.textPrimary, // <-- DIUBAH (pengganti Colors.black87)
           ),
           children: const [
-            TextSpan(text: ' *', style: TextStyle(color: Colors.red)),
+            TextSpan(
+              text: ' *',
+              style: TextStyle(color: AppColors.error),
+            ), // <-- DIUBAH (pengganti Colors.red)
           ],
         ),
       ),
@@ -367,24 +429,35 @@ class _KostFormViewState extends State<KostFormView> {
   }) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.white, // <-- DIUBAH
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.cardBorder),
+        border: Border.all(
+          color: AppColors.border,
+        ), // <-- DIUBAH (pengganti cardBorder)
       ),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       child: Row(
-        crossAxisAlignment: maxLines > 1 ? CrossAxisAlignment.start : CrossAxisAlignment.center,
+        crossAxisAlignment: maxLines > 1
+            ? CrossAxisAlignment.start
+            : CrossAxisAlignment.center,
         children: [
           Padding(
             padding: const EdgeInsets.only(top: 12),
-            child: Icon(prefixIcon, size: 18, color: AppColors.textGrey),
+            child: Icon(
+              prefixIcon,
+              size: 18,
+              color: AppColors.textSecondary,
+            ), // <-- DIUBAH (pengganti textGrey)
           ),
           const SizedBox(width: 8),
           Expanded(
             child: TextField(
               controller: controller,
               maxLines: maxLines,
-              style: const TextStyle(fontSize: 13),
+              style: const TextStyle(
+                fontSize: 13,
+                color: AppColors.textPrimary, // <-- DIUBAH
+              ),
               decoration: const InputDecoration(
                 border: InputBorder.none,
                 isDense: true,
@@ -400,9 +473,11 @@ class _KostFormViewState extends State<KostFormView> {
   Widget _buildHargaField() {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.white, // <-- DIUBAH
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.cardBorder),
+        border: Border.all(
+          color: AppColors.border,
+        ), // <-- DIUBAH (pengganti cardBorder)
       ),
       padding: const EdgeInsets.symmetric(horizontal: 12),
       child: Row(
@@ -420,7 +495,10 @@ class _KostFormViewState extends State<KostFormView> {
             child: TextField(
               controller: _hargaController,
               keyboardType: TextInputType.number,
-              style: const TextStyle(fontSize: 13),
+              style: const TextStyle(
+                fontSize: 13,
+                color: AppColors.textPrimary, // <-- DIUBAH
+              ),
               decoration: const InputDecoration(
                 border: InputBorder.none,
                 isDense: true,
@@ -430,7 +508,10 @@ class _KostFormViewState extends State<KostFormView> {
           ),
           const Text(
             '/ bulan',
-            style: TextStyle(fontSize: 12, color: AppColors.textGrey),
+            style: TextStyle(
+              fontSize: 12,
+              color: AppColors.textSecondary, // <-- DIUBAH (pengganti textGrey)
+            ),
           ),
         ],
       ),
@@ -442,12 +523,12 @@ class _KostFormViewState extends State<KostFormView> {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
-      color: Colors.white,
+      color: AppColors.white, // <-- DIUBAH
       child: ElevatedButton.icon(
         onPressed: () {},
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.primary,
-          foregroundColor: Colors.white,
+          foregroundColor: AppColors.white, // <-- DIUBAH
           elevation: 0,
           padding: const EdgeInsets.symmetric(vertical: 14),
           shape: RoundedRectangleBorder(

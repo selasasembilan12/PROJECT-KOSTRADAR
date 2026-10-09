@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+// --- IMPORT STANDAR TIM ---
+import '../../core/theme/app_theme.dart';
+import '../../core/utils/formatter.dart';
+
 import '../../models/kost_model.dart';
 import 'detail_kost_page.dart';
 import 'hapus_favorite_dialog.dart';
@@ -59,11 +63,9 @@ class _DaftarFavoritePageState extends State<DaftarFavoritePage> {
         harga: kost['harga'] ?? 0,
         deskripsi: kost['deskripsi'] ?? "",
         ketersediaanKamar: kost['ketersediaan_kamar'] ?? 0,
-        // Mengambil foto dari tabel foto_kost
         foto: (kost['foto_kost'] as List)
             .map<String>((e) => e['foto'].toString())
             .toList(),
-        // Mengambil fasilitas dari tabel fasilitas_kost
         fasilitas: (kost['fasilitas_kost'] as List)
             .map<String>((e) => e['fasilitas'].toString())
             .toList(),
@@ -98,22 +100,32 @@ class _DaftarFavoritePageState extends State<DaftarFavoritePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.background, // <-- DIUBAH
       body: SafeArea(
         child: Column(
           children: [
             // Header halaman
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.smallPadding,
+                10,
+                AppSpacing.smallPadding,
+                AppSpacing.smallSpacing,
+              ), // <-- DIUBAH
               child: Row(
                 children: [
-                  const Icon(Icons.arrow_back_ios, size: 18),
+                  const Icon(
+                    Icons.arrow_back_ios,
+                    size: 18,
+                    color: AppColors.textPrimary,
+                  ), // <-- DIUBAH
                   const SizedBox(width: 6),
                   const Text(
                     "Kost Favorit",
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary, // <-- DIUBAH
                     ),
                   ),
                   const Spacer(),
@@ -123,14 +135,15 @@ class _DaftarFavoritePageState extends State<DaftarFavoritePage> {
                       vertical: 5,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.red.shade50,
+                      color: AppColors.errorLight, // <-- DIUBAH (pengganti Colors.red.shade50)
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(
                       "${daftarKost.length} Tersimpan",
                       style: const TextStyle(
-                        color: Colors.red,
+                        color: AppColors.error, // <-- DIUBAH
                         fontSize: 11,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ),
@@ -139,58 +152,97 @@ class _DaftarFavoritePageState extends State<DaftarFavoritePage> {
             ),
             Expanded(
               child: isLoading
-                  ? const Center(child: CircularProgressIndicator())
+                  ? const Center(
+                      child: CircularProgressIndicator(
+                        color: AppColors.primary,
+                      ),
+                    ) // <-- DIUBAH
                   : ListView.builder(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.smallPadding,
+                      ), // <-- DIUBAH
                       itemCount: daftarKost.length,
                       itemBuilder: (context, index) {
                         final kost = daftarKost[index];
 
                         return GestureDetector(
-                          // Membuka detail kost
                           onTap: () {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (context) => DetailKostPage(
-                                  kost: kost,
-                                ),
+                                builder: (context) =>
+                                    DetailKostPage(kost: kost),
                               ),
                             ).then((value) {
                               loadFavorite();
                             });
                           },
                           child: Card(
-                            margin: const EdgeInsets.only(bottom: 10),
+                            margin: const EdgeInsets.only(
+                              bottom: AppSpacing.smallSpacing,
+                            ), // <-- DIUBAH
+                            color: AppColors.white, // <-- DIUBAH
                             child: ListTile(
-                              leading: Image.network(
-                                kost.foto.isNotEmpty ? kost.foto[0] : "",
-                                width: 70,
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) =>
-                                    const Icon(Icons.broken_image, size: 70),
+                              leading: ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: Image.network(
+                                  kost.foto.isNotEmpty ? kost.foto[0] : "",
+                                  width: 70,
+                                  height: 70,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) =>
+                                      const Icon(
+                                        Icons.broken_image,
+                                        size: 70,
+                                        color: AppColors.textHint,
+                                      ),
+                                ),
                               ),
-                              title: Text(kost.nama),
+                              title: Text(
+                                kost.nama,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.textPrimary, // <-- DIUBAH
+                                ),
+                              ),
                               subtitle: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text("Rp ${kost.harga}/bulan"),
-                                  Text(kost.alamat),
-                                  Text(kost.fasilitas.join(" • ")),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    "Rp ${kost.harga}/bulan",
+                                    style: const TextStyle(
+                                      color: AppColors.primary, // <-- DIUBAH
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    kost.alamat,
+                                    style: const TextStyle(
+                                      color: AppColors.textSecondary,
+                                    ), // <-- DIUBAH
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    kost.fasilitas.join(" • "),
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      color:
+                                          AppColors.textSecondary, // <-- DIUBAH
+                                    ),
+                                  ),
                                 ],
                               ),
                               trailing: GestureDetector(
                                 onTap: () {
-                                  showHapusFavoriteDialog(
-                                    context,
-                                    () {
-                                      hapusFavorite(index);
-                                    },
-                                  );
+                                  showHapusFavoriteDialog(context, () {
+                                    hapusFavorite(index);
+                                  });
                                 },
                                 child: const Icon(
                                   Icons.favorite,
-                                  color: Colors.red,
+                                  color: AppColors.error, // <-- DIUBAH
                                 ),
                               ),
                             ),

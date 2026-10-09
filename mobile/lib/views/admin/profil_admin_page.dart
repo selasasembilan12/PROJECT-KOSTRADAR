@@ -1,6 +1,8 @@
-//Riana
-
 import 'package:flutter/material.dart';
+
+// --- IMPORT STANDAR TIM ---
+import '../../core/theme/app_theme.dart';
+import '../../core/utils/formatter.dart';
 
 class ProfilAdminPage extends StatefulWidget {
   const ProfilAdminPage({super.key});
@@ -28,17 +30,16 @@ class _ProfilAdminPageState extends State<ProfilAdminPage> {
     final String fotoProfile = admin['foto_profile'] ?? '';
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F8FA),
+      backgroundColor:
+          AppColors.background, // <-- DIUBAH (pengganti 0xFFF7F8FA)
       appBar: AppBar(
         elevation: 0,
-        backgroundColor: Colors.white,
-        foregroundColor: const Color(0xFF1F2937),
+        backgroundColor: AppColors.white, // <-- DIUBAH
+        foregroundColor:
+            AppColors.textPrimary, // <-- DIUBAH (pengganti 0xFF1F2937)
         title: const Text(
           'KOSTRADAR ADMIN',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-          ),
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
       ),
       body: SingleChildScrollView(
@@ -51,7 +52,8 @@ class _ProfilAdminPageState extends State<ProfilAdminPage> {
               style: TextStyle(
                 fontSize: 28,
                 fontWeight: FontWeight.bold,
-                color: Color(0xFF111827),
+                color:
+                    AppColors.textPrimary, // <-- DIUBAH (pengganti 0xFF111827)
               ),
             ),
             const SizedBox(height: 6),
@@ -59,7 +61,8 @@ class _ProfilAdminPageState extends State<ProfilAdminPage> {
               'Kelola informasi akun admin Anda',
               style: TextStyle(
                 fontSize: 14,
-                color: Color(0xFF6B7280),
+                color: AppColors
+                    .textSecondary, // <-- DIUBAH (pengganti 0xFF6B7280)
               ),
             ),
             const SizedBox(height: 24),
@@ -69,11 +72,11 @@ class _ProfilAdminPageState extends State<ProfilAdminPage> {
               width: double.infinity,
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: AppColors.white, // <-- DIUBAH
                 borderRadius: BorderRadius.circular(18),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
+                    color: AppColors.cardShadow, // <-- DIUBAH (pengganti Colors.black.withValues)
                     blurRadius: 12,
                     offset: const Offset(0, 4),
                   ),
@@ -81,10 +84,7 @@ class _ProfilAdminPageState extends State<ProfilAdminPage> {
               ),
               child: Column(
                 children: [
-                  _buildAvatar(
-                    username: username,
-                    fotoProfile: fotoProfile,
-                  ),
+                  _buildAvatar(username: username, fotoProfile: fotoProfile),
                   const SizedBox(height: 16),
                   Text(
                     username,
@@ -92,7 +92,7 @@ class _ProfilAdminPageState extends State<ProfilAdminPage> {
                     style: const TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
-                      color: Color(0xFF111827),
+                      color: AppColors.textPrimary, // <-- DIUBAH
                     ),
                   ),
                   const SizedBox(height: 6),
@@ -101,7 +101,7 @@ class _ProfilAdminPageState extends State<ProfilAdminPage> {
                     textAlign: TextAlign.center,
                     style: const TextStyle(
                       fontSize: 14,
-                      color: Color(0xFF6B7280),
+                      color: AppColors.textSecondary, // <-- DIUBAH
                     ),
                   ),
                   const SizedBox(height: 20),
@@ -113,6 +113,8 @@ class _ProfilAdminPageState extends State<ProfilAdminPage> {
                       icon: const Icon(Icons.edit_outlined),
                       label: const Text('Edit Profil'),
                       style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary, // <-- DIUBAH
+                        foregroundColor: AppColors.white, // <-- DIUBAH
                         elevation: 0,
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(
@@ -132,7 +134,7 @@ class _ProfilAdminPageState extends State<ProfilAdminPage> {
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
-                color: Color(0xFF111827),
+                color: AppColors.textPrimary, // <-- DIUBAH
               ),
             ),
             const SizedBox(height: 12),
@@ -150,8 +152,8 @@ class _ProfilAdminPageState extends State<ProfilAdminPage> {
               icon: Icons.logout_outlined,
               title: 'Logout',
               subtitle: 'Keluar dari akun admin',
-              iconColor: Colors.red,
-              titleColor: Colors.red,
+              iconColor: AppColors.error, // <-- DIUBAH (pengganti Colors.red)
+              titleColor: AppColors.error, // <-- DIUBAH
               onTap: _showLogoutConfirmation,
             ),
           ],
@@ -160,10 +162,7 @@ class _ProfilAdminPageState extends State<ProfilAdminPage> {
     );
   }
 
-  Widget _buildAvatar({
-    required String username,
-    required String fotoProfile,
-  }) {
+  Widget _buildAvatar({required String username, required String fotoProfile}) {
     final bool hasPhoto = fotoProfile.trim().isNotEmpty;
 
     if (hasPhoto) {
@@ -173,16 +172,19 @@ class _ProfilAdminPageState extends State<ProfilAdminPage> {
       );
     }
 
-    final String initial =
-        username.trim().isNotEmpty ? username.trim()[0].toUpperCase() : 'A';
+    final String initial = username.trim().isNotEmpty
+        ? username.trim()[0].toUpperCase()
+        : 'A';
 
     return CircleAvatar(
       radius: 48,
+      backgroundColor: AppColors.primaryLight, // <-- DIUBAH (biar avatar default ada background biru muda)
       child: Text(
         initial,
         style: const TextStyle(
           fontSize: 34,
           fontWeight: FontWeight.bold,
+          color: AppColors.primary, // <-- DIUBAH
         ),
       ),
     );
@@ -197,7 +199,7 @@ class _ProfilAdminPageState extends State<ProfilAdminPage> {
     Color? titleColor,
   }) {
     return Material(
-      color: Colors.white,
+      color: AppColors.white, // <-- DIUBAH
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
         onTap: onTap,
@@ -210,11 +212,15 @@ class _ProfilAdminPageState extends State<ProfilAdminPage> {
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
+                  color: AppColors.backgroundLight, // <-- DIUBAH (biar icon ada background tipis)
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(
                   icon,
-                  color: iconColor ?? const Color(0xFF374151),
+                  color:
+                      iconColor ??
+                      AppColors
+                          .textSecondary, // <-- DIUBAH (pengganti 0xFF374151)
                 ),
               ),
               const SizedBox(width: 14),
@@ -227,7 +233,7 @@ class _ProfilAdminPageState extends State<ProfilAdminPage> {
                       style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
-                        color: titleColor ?? const Color(0xFF111827),
+                        color: titleColor ?? AppColors.textPrimary, // <-- DIUBAH (pengganti 0xFF111827)
                       ),
                     ),
                     const SizedBox(height: 3),
@@ -235,7 +241,8 @@ class _ProfilAdminPageState extends State<ProfilAdminPage> {
                       subtitle,
                       style: const TextStyle(
                         fontSize: 12,
-                        color: Color(0xFF6B7280),
+                        color: AppColors
+                            .textSecondary, // <-- DIUBAH (pengganti 0xFF6B7280)
                       ),
                     ),
                   ],
@@ -243,7 +250,7 @@ class _ProfilAdminPageState extends State<ProfilAdminPage> {
               ),
               const Icon(
                 Icons.chevron_right,
-                color: Color(0xFF9CA3AF),
+                color: AppColors.textHint, // <-- DIUBAH (pengganti 0xFF9CA3AF)
               ),
             ],
           ),
@@ -256,14 +263,12 @@ class _ProfilAdminPageState extends State<ProfilAdminPage> {
     final usernameController = TextEditingController(
       text: admin['username'] ?? '',
     );
-    final emailController = TextEditingController(
-      text: admin['email'] ?? '',
-    );
+    final emailController = TextEditingController(text: admin['email'] ?? '');
 
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.white, // <-- DIUBAH
       builder: (context) {
         return Padding(
           padding: EdgeInsets.fromLTRB(
@@ -281,6 +286,7 @@ class _ProfilAdminPageState extends State<ProfilAdminPage> {
                 style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary, // <-- DIUBAH
                 ),
               ),
               const SizedBox(height: 20),
@@ -288,8 +294,29 @@ class _ProfilAdminPageState extends State<ProfilAdminPage> {
                 controller: usernameController,
                 decoration: const InputDecoration(
                   labelText: 'Username',
-                  prefixIcon: Icon(Icons.person_outline),
-                  border: OutlineInputBorder(),
+                  labelStyle: TextStyle(
+                    color: AppColors.textSecondary,
+                  ), // <-- DIUBAH
+                  prefixIcon: Icon(
+                    Icons.person_outline,
+                    color: AppColors.textSecondary,
+                  ), // <-- DIUBAH
+                  border: OutlineInputBorder(
+                    borderSide: BorderSide(
+                      color: AppColors.border,
+                    ), // <-- DIUBAH
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderSide: BorderSide(
+                      color: AppColors.border,
+                    ), // <-- DIUBAH
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderSide: BorderSide(
+                      color: AppColors.primary,
+                      width: 2,
+                    ), // <-- DIUBAH
+                  ),
                 ),
               ),
               const SizedBox(height: 14),
@@ -298,8 +325,29 @@ class _ProfilAdminPageState extends State<ProfilAdminPage> {
                 keyboardType: TextInputType.emailAddress,
                 decoration: const InputDecoration(
                   labelText: 'Email',
-                  prefixIcon: Icon(Icons.email_outlined),
-                  border: OutlineInputBorder(),
+                  labelStyle: TextStyle(
+                    color: AppColors.textSecondary,
+                  ), // <-- DIUBAH
+                  prefixIcon: Icon(
+                    Icons.email_outlined,
+                    color: AppColors.textSecondary,
+                  ), // <-- DIUBAH
+                  border: OutlineInputBorder(
+                    borderSide: BorderSide(
+                      color: AppColors.border,
+                    ), // <-- DIUBAH
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderSide: BorderSide(
+                      color: AppColors.border,
+                    ), // <-- DIUBAH
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderSide: BorderSide(
+                      color: AppColors.primary,
+                      width: 2,
+                    ), // <-- DIUBAH
+                  ),
                 ),
               ),
               const SizedBox(height: 18),
@@ -314,12 +362,20 @@ class _ProfilAdminPageState extends State<ProfilAdminPage> {
 
                     Navigator.pop(context);
 
-                    ScaffoldMessenger.of(this.context).showSnackBar(
+                    ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
                         content: Text('Profil berhasil diperbarui.'),
+                        backgroundColor: AppColors.success, // <-- DIUBAH
                       ),
                     );
                   },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary, // <-- DIUBAH
+                    foregroundColor: AppColors.white, // <-- DIUBAH
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ), // <-- DIUBAH
+                  ),
                   child: const Text('Simpan'),
                 ),
               ),
@@ -337,7 +393,7 @@ class _ProfilAdminPageState extends State<ProfilAdminPage> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.white, // <-- DIUBAH
       builder: (context) {
         return Padding(
           padding: EdgeInsets.fromLTRB(
@@ -355,6 +411,7 @@ class _ProfilAdminPageState extends State<ProfilAdminPage> {
                 style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary, // <-- DIUBAH
                 ),
               ),
               const SizedBox(height: 20),
@@ -363,8 +420,29 @@ class _ProfilAdminPageState extends State<ProfilAdminPage> {
                 obscureText: true,
                 decoration: const InputDecoration(
                   labelText: 'Password Baru',
-                  prefixIcon: Icon(Icons.lock_outline),
-                  border: OutlineInputBorder(),
+                  labelStyle: TextStyle(
+                    color: AppColors.textSecondary,
+                  ), // <-- DIUBAH
+                  prefixIcon: Icon(
+                    Icons.lock_outline,
+                    color: AppColors.textSecondary,
+                  ), // <-- DIUBAH
+                  border: OutlineInputBorder(
+                    borderSide: BorderSide(
+                      color: AppColors.border,
+                    ), // <-- DIUBAH
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderSide: BorderSide(
+                      color: AppColors.border,
+                    ), // <-- DIUBAH
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderSide: BorderSide(
+                      color: AppColors.primary,
+                      width: 2,
+                    ), // <-- DIUBAH
+                  ),
                 ),
               ),
               const SizedBox(height: 14),
@@ -373,8 +451,29 @@ class _ProfilAdminPageState extends State<ProfilAdminPage> {
                 obscureText: true,
                 decoration: const InputDecoration(
                   labelText: 'Konfirmasi Password',
-                  prefixIcon: Icon(Icons.lock_outline),
-                  border: OutlineInputBorder(),
+                  labelStyle: TextStyle(
+                    color: AppColors.textSecondary,
+                  ), // <-- DIUBAH
+                  prefixIcon: Icon(
+                    Icons.lock_outline,
+                    color: AppColors.textSecondary,
+                  ), // <-- DIUBAH
+                  border: OutlineInputBorder(
+                    borderSide: BorderSide(
+                      color: AppColors.border,
+                    ), // <-- DIUBAH
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderSide: BorderSide(
+                      color: AppColors.border,
+                    ), // <-- DIUBAH
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderSide: BorderSide(
+                      color: AppColors.primary,
+                      width: 2,
+                    ), // <-- DIUBAH
+                  ),
                 ),
               ),
               const SizedBox(height: 18),
@@ -387,6 +486,7 @@ class _ProfilAdminPageState extends State<ProfilAdminPage> {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
                           content: Text('Password belum diisi.'),
+                          backgroundColor: AppColors.error, // <-- DIUBAH
                         ),
                       );
                       return;
@@ -396,6 +496,7 @@ class _ProfilAdminPageState extends State<ProfilAdminPage> {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
                           content: Text('Konfirmasi password tidak sama.'),
+                          backgroundColor: AppColors.error, // <-- DIUBAH
                         ),
                       );
                       return;
@@ -403,14 +504,22 @@ class _ProfilAdminPageState extends State<ProfilAdminPage> {
 
                     Navigator.pop(context);
 
-                    ScaffoldMessenger.of(this.context).showSnackBar(
+                    ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
                         content: Text(
                           'Password berhasil diperbarui secara lokal.',
                         ),
+                        backgroundColor: AppColors.success, // <-- DIUBAH
                       ),
                     );
                   },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary, // <-- DIUBAH
+                    foregroundColor: AppColors.white, // <-- DIUBAH
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ), // <-- DIUBAH
+                  ),
                   child: const Text('Simpan Password'),
                 ),
               ),
@@ -426,25 +535,41 @@ class _ProfilAdminPageState extends State<ProfilAdminPage> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text('Logout'),
+          backgroundColor: AppColors.white, // <-- DIUBAH
+          title: const Text(
+            'Logout',
+            style: TextStyle(color: AppColors.textPrimary), // <-- DIUBAH
+          ),
           content: const Text(
             'Apakah Anda yakin ingin keluar dari akun admin?',
+            style: TextStyle(color: AppColors.textSecondary), // <-- DIUBAH
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Batal'),
+              child: const Text(
+                'Batal',
+                style: TextStyle(color: AppColors.textSecondary), // <-- DIUBAH
+              ),
             ),
             ElevatedButton(
               onPressed: () {
                 Navigator.pop(context);
 
-                ScaffoldMessenger.of(this.context).showSnackBar(
+                ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
                     content: Text('Logout masih bersifat lokal.'),
+                    backgroundColor: AppColors.error, // <-- DIUBAH
                   ),
                 );
               },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.error, // <-- DIUBAH
+                foregroundColor: AppColors.white, // <-- DIUBAH
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ), // <-- DIUBAH
+              ),
               child: const Text('Logout'),
             ),
           ],
@@ -453,4 +578,3 @@ class _ProfilAdminPageState extends State<ProfilAdminPage> {
     );
   }
 }
-
