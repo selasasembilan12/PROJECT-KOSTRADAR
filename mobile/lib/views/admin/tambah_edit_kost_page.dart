@@ -1,546 +1,2876 @@
 import 'package:flutter/material.dart';
 
-// --- IMPORT STANDAR TIM ---
 import '../../core/theme/app_theme.dart';
-import '../../core/utils/formatter.dart';
 
-class KostFormView extends StatefulWidget {
-  const KostFormView({super.key});
+
+
+
+// ============================================================
+// TAMBAH / EDIT KOST PAGE
+// ============================================================
+
+
+class TambahEditKostPage extends StatefulWidget {
+
+
+  final Map<String,dynamic>? kostData;
+
+
+
+
+
+  const TambahEditKostPage({
+
+
+
+    super.key,
+
+
+
+    this.kostData,
+
+
+
+  });
+
+
+
+
+
+
 
   @override
-  State<KostFormView> createState() => _KostFormViewState();
+  State<TambahEditKostPage> createState() =>
+
+      _TambahEditKostPageState();
+
+
+
 }
 
-class _KostFormViewState extends State<KostFormView> {
-  static const int _maxFoto = 5;
 
-  final TextEditingController _namaController = TextEditingController(
-    text: 'Kost Adiwarna Eksklusif',
-  );
-  final TextEditingController _hargaController = TextEditingController(
-    text: '1.200.000',
-  );
-  final TextEditingController _alamatController = TextEditingController(
-    text: 'Jl. Gegerkalong Hilir No. 12, Sukasari, Bandung /5 menit jalan kaki dari Gerbang Kampus',
-  );
 
-  // Placeholder warna, mewakili foto yang sudah diunggah (foto asli diganti lewat image_picker)
-  final List<Color> _fotoTerunggah = [
+
+
+
+
+
+
+class _TambahEditKostPageState
+
+extends State<TambahEditKostPage>{
+
+
+
+
+
+  static const int maxFoto = 5;
+
+
+
+
+
+
+
+  final TextEditingController namaController =
+
+  TextEditingController();
+
+
+
+
+
+  final TextEditingController hargaController =
+
+  TextEditingController();
+
+
+
+
+
+  final TextEditingController alamatController =
+
+  TextEditingController();
+
+
+
+
+
+
+
+  final List<Color> fotoTerunggah = [
+
+
+
     const Color(0xFFD7C9A6),
+
+
+
     const Color(0xFFB9D8E3),
+
+
+
   ];
 
-  void _hapusFoto(int index) {
-    setState(() => _fotoTerunggah.removeAt(index));
-  }
 
-  void _tambahFoto() {
-    if (_fotoTerunggah.length >= _maxFoto) return;
-    setState(() => _fotoTerunggah.add(const Color(0xFFCBD5E0)));
-  }
+
+
+
+
+
+
 
   @override
-  void dispose() {
-    _namaController.dispose();
-    _hargaController.dispose();
-    _alamatController.dispose();
+
+  void initState(){
+
+
+
+    super.initState();
+
+
+
+
+
+
+
+    if(widget.kostData != null){
+
+
+
+
+
+      namaController.text =
+
+          widget.kostData!['nama'] ?? '';
+
+
+
+
+
+
+
+      hargaController.text =
+
+          widget.kostData!['harga']
+
+              .toString()
+
+              .replaceAll(
+
+              'Rp ',
+
+              ''
+
+          )
+
+              .replaceAll(
+
+              '.',
+
+              ''
+
+          );
+
+
+
+
+
+
+
+      alamatController.text =
+
+          widget.kostData!['alamat'] ??
+
+              '';
+
+
+
+
+
+
+
+    }
+
+    else{
+
+
+
+
+
+
+
+      namaController.text =
+
+      'Kost Adiwarna Eksklusif';
+
+
+
+
+
+
+
+      hargaController.text =
+
+      '1200000';
+
+
+
+
+
+
+
+      alamatController.text =
+
+      'Jl. Gegerkalong Hilir No.12, Sukasari, Bandung';
+
+
+
+
+
+
+
+    }
+
+
+
+
+
+  }
+
+
+
+
+
+
+
+
+
+  @override
+
+  void dispose(){
+
+
+
+
+
+    namaController.dispose();
+
+
+
+    hargaController.dispose();
+
+
+
+    alamatController.dispose();
+
+
+
+
+
+
+
     super.dispose();
+
+
+
+
+
   }
+
+
+
+
+
+
+
+
 
   @override
+
   Widget build(BuildContext context) {
+
+
+
     return Scaffold(
-      backgroundColor: AppColors.background, // <-- DIUBAH (pengganti bgLight)
-      body: SafeArea(
-        child: Column(
+
+
+
+
+
+      backgroundColor:
+
+      AppColors.background,
+
+
+
+
+
+
+
+
+
+      body:
+
+
+
+      SafeArea(
+
+
+
+        child:
+
+        Column(
+
+
+
           children: [
+
+
+
+
+
             _buildTopBar(context),
+
+
+
+
+
+
+
             Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+
+
+
+              child:
+
+
+
+              SingleChildScrollView(
+
+
+
+                padding:
+
+                const EdgeInsets.fromLTRB(
+
+
+
+                  16,
+
+                  12,
+
+                  16,
+
+                  20,
+
+
+
+                ),
+
+
+
+
+
+
+
+                child:
+
+
+
+                Column(
+
+
+
+                  crossAxisAlignment:
+
+                  CrossAxisAlignment.start,
+
+
+
                   children: [
-                    _buildFormulirInfoCard(),
-                    const SizedBox(height: 18),
-                    _buildFotoSectionHeader(),
-                    const SizedBox(height: 8),
+
+
+
+
+
+                    _buildFormInfo(),
+
+
+
+
+
+
+
+                    const SizedBox(height:18),
+
+
+
+
+
+
+
+                    _buildFieldLabel(
+
+                      "Foto Unit Kost",
+
+                    ),
+
+
+
+
+
+
+
+                    const SizedBox(height:8),
+
+
+
+
+
+
+
                     _buildUploadBox(),
-                    const SizedBox(height: 10),
+
+
+
+
+
+
+
+                    const SizedBox(height:10),
+
+
+
+
+
+
+
                     _buildFotoThumbnailRow(),
-                    const SizedBox(height: 18),
-                    _buildFieldLabel('Nama Kost'),
-                    _buildTextField(
-                      controller: _namaController,
-                      prefixIcon: Icons.home_outlined,
+
+
+
+
+
+
+
+                    const SizedBox(height:20),
+
+
+
+
+
+
+
+                    _buildFieldLabel(
+
+                      "Nama Kost",
+
                     ),
-                    const SizedBox(height: 16),
-                    _buildFieldLabel('Harga Kost'),
+
+
+
+
+
+
+
+                    _buildTextField(
+
+
+
+                      controller:
+
+                      namaController,
+
+
+
+                      icon:
+
+                      Icons.home_outlined,
+
+
+
+                    ),
+
+
+
+
+
+
+
+                    const SizedBox(height:16),
+
+
+
+
+
+
+
+                    _buildFieldLabel(
+
+                      "Harga Kost",
+
+                    ),
+
+
+
+
+
+
+
                     _buildHargaField(),
-                    const SizedBox(height: 16),
-                    _buildFieldLabel('Alamat / Lokasi Lengkap'),
+
+
+
+
+
+
+
+                    const SizedBox(height:16),
+
+
+
+
+
+
+
+                    _buildFieldLabel(
+
+                      "Alamat / Lokasi Lengkap",
+
+                    ),
+
+
+
+
+
+
+
                     _buildTextField(
-                      controller: _alamatController,
-                      prefixIcon: Icons.location_on_outlined,
-                      maxLines: 2,
+
+
+
+                      controller:
+
+                      alamatController,
+
+
+
+                      icon:
+
+                      Icons.location_on_outlined,
+
+
+
+                      maxLines:
+
+                      3,
+
+
+
                     ),
-                    const SizedBox(height: 24),
+
+
+
+
+
                   ],
+
+
+
                 ),
+
+
+
               ),
+
+
+
             ),
+
+
+
+
+
+
+
             _buildSimpanButton(),
+
+
+
+
+
+
+
           ],
+
+
+
         ),
+
+
+
       ),
+
+
+
     );
+
+
+
   }
 
-  // ---------------- TOP BAR ----------------
-  Widget _buildTopBar(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-      color: AppColors.white, // <-- DIUBAH
-      child: Row(
-        children: [
-          IconButton(
-            onPressed: () => Navigator.of(context).maybePop(),
-            icon: const Icon(
-              Icons.arrow_back,
-              size: 22,
-              color: AppColors.textPrimary,
-            ), // <-- DIUBAH
-          ),
-          const Expanded(
-            child: Text(
-              'Tambah / Edit Kost',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: AppColors.textPrimary, // <-- DIUBAH
-              ),
-            ),
-          ),
-          IconButton(
-            onPressed: () {},
-            icon: const Icon(
-              Icons.help_outline,
-              size: 22,
-              color: AppColors.textSecondary,
-            ), // <-- DIUBAH (pengganti textGrey)
-          ),
-        ],
-      ),
-    );
-  }
+// ============================================================
+// TOP BAR
+// ============================================================
 
-  // ---------------- INFO FORMULIR ----------------
-  Widget _buildFormulirInfoCard() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.primaryLight, // <-- DIUBAH (pengganti infoBg)
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 34,
-            height: 34,
-            decoration: BoxDecoration(
-              color: AppColors.primary,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: const Icon(
-              Icons.home_work_outlined,
-              color: AppColors.white,
-              size: 18,
-            ), // <-- DIUBAH
-          ),
-          const SizedBox(width: 10),
-          const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Formulir Unit Kost',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 13,
-                    color: AppColors.textPrimary, // <-- DIUBAH
-                  ),
-                ),
-                SizedBox(height: 2),
-                Text(
-                  'Lengkapi data akurat properti Anda agar mahasiswa mudah menemukan dan memilih kamar sesuai kebutuhan.',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: AppColors
-                        .textSecondary, // <-- DIUBAH (pengganti textGrey)
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
-  // ---------------- FOTO SECTION ----------------
-  Widget _buildFotoSectionHeader() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+Widget _buildTopBar(
+    BuildContext context
+){
+
+
+  return Container(
+
+
+
+    padding:
+
+    const EdgeInsets.symmetric(
+
+
+
+      horizontal:
+
+      8,
+
+
+
+      vertical:
+
+      10,
+
+
+
+    ),
+
+
+
+
+
+    color:
+
+    AppColors.white,
+
+
+
+
+
+    child:
+
+    Row(
+
+
+
       children: [
-        _buildFieldLabel('Foto Unit Kost', bottomPadding: false),
-        Text(
-          '${_fotoTerunggah.length} dari $_maxFoto Foto',
-          style: const TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            color: AppColors.primary,
-          ),
-        ),
-      ],
-    );
-  }
 
-  Widget _buildUploadBox() {
-    return InkWell(
-      onTap: _tambahFoto,
-      borderRadius: BorderRadius.circular(14),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 22),
-        decoration: BoxDecoration(
-          color: AppColors.white, // <-- DIUBAH
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: AppColors.border,
-          ), // <-- DIUBAH (pengganti cardBorder)
-        ),
-        child: Column(
-          children: [
-            Container(
-              width: 42,
-              height: 42,
-              decoration: BoxDecoration(
-                color: AppColors.primaryLight, // <-- DIUBAH (pengganti infoBg)
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.camera_alt_outlined,
-                color: AppColors.primary,
-                size: 20,
-              ), // <-- DIUBAH
-            ),
-            const SizedBox(height: 10),
-            const Text(
-              'Unggah Foto Kost',
-              style: TextStyle(
-                color: AppColors.primary,
-                fontWeight: FontWeight.bold,
-                fontSize: 13,
-              ),
-            ),
-            const SizedBox(height: 2),
-            const Text(
-              'Format JPG, PNG (Maksimal 5MB per file)',
-              style: TextStyle(
-                fontSize: 11,
-                color:
-                    AppColors.textSecondary, // <-- DIUBAH (pengganti textGrey)
-              ),
-            ),
-            const SizedBox(height: 10),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-              decoration: BoxDecoration(
-                color:
-                    AppColors.successLight, // <-- DIUBAH (pengganti successBg)
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: const [
-                  Icon(
-                    Icons.check_circle,
-                    size: 12,
-                    color: AppColors.success,
-                  ), // <-- DIUBAH
-                  SizedBox(width: 5),
-                  Text(
-                    'Tampak depan, dalam kamar, & fasilitas',
-                    style: TextStyle(fontSize: 10, color: AppColors.success),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
-  Widget _buildFotoThumbnailRow() {
-    return SizedBox(
-      height: 78,
-      child: Row(
-        children: [
-          for (int i = 0; i < _fotoTerunggah.length; i++) ...[
-            _buildFotoThumbnail(i),
-            const SizedBox(width: 10),
-          ],
-          if (_fotoTerunggah.length < _maxFoto) _buildTambahFotoThumbnail(),
-        ],
-      ),
-    );
-  }
 
-  Widget _buildFotoThumbnail(int index) {
-    final isUtama = index == 0;
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        Container(
-          width: 78,
-          height: 78,
-          decoration: BoxDecoration(
-            color: _fotoTerunggah[index],
-            borderRadius: BorderRadius.circular(12),
-          ),
-          alignment: Alignment.bottomLeft,
-          padding: const EdgeInsets.all(6),
-          child: isUtama
-              ? Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.primary,
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: const Text(
-                    'Utama',
-                    style: TextStyle(
-                      color: AppColors.white, // <-- DIUBAH
-                      fontSize: 9,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                )
-              : null,
-        ),
-        Positioned(
-          top: -6,
-          right: -6,
-          child: GestureDetector(
-            onTap: () => _hapusFoto(index),
-            child: Container(
-              width: 20,
-              height: 20,
-              decoration: BoxDecoration(
-                color: AppColors.textPrimary.withOpacity(
-                  0.8,
-                ), // <-- DIUBAH (pengganti 0xCC000000)
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.close,
-                size: 12,
-                color: AppColors.white,
-              ), // <-- DIUBAH
-            ),
-          ),
-        ),
-      ],
-    );
-  }
 
-  Widget _buildTambahFotoThumbnail() {
-    return InkWell(
-      onTap: _tambahFoto,
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        width: 78,
-        height: 78,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: AppColors.white, // <-- DIUBAH
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: AppColors.border,
-          ), // <-- DIUBAH (pengganti cardBorder)
-        ),
-        child: const Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.add_circle_outline,
-              color: AppColors.textSecondary,
-              size: 18,
-            ), // <-- DIUBAH
-            SizedBox(height: 4),
-            Text(
-              'Tambah',
-              style: TextStyle(
-                fontSize: 10,
-                color: AppColors.textSecondary,
-              ), // <-- DIUBAH
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
-  // ---------------- FORM FIELDS ----------------
-  Widget _buildFieldLabel(String label, {bool bottomPadding = true}) {
-    return Padding(
-      padding: EdgeInsets.only(bottom: bottomPadding ? 6 : 0),
-      child: RichText(
-        text: TextSpan(
-          text: label,
-          style: const TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
+        IconButton(
+
+
+
+          onPressed:(){
+
+
+
+            Navigator.pop(context);
+
+
+
+          },
+
+
+
+
+
+          icon:
+
+          const Icon(
+
+
+
+            Icons.arrow_back,
+
+
+
             color:
-                AppColors.textPrimary, // <-- DIUBAH (pengganti Colors.black87)
+
+            AppColors.textPrimary,
+
+
+
           ),
-          children: const [
-            TextSpan(
-              text: ' *',
-              style: TextStyle(color: AppColors.error),
-            ), // <-- DIUBAH (pengganti Colors.red)
-          ],
+
+
+
+
+
         ),
+
+
+
+
+
+
+
+        const Expanded(
+
+
+
+          child:
+
+          Text(
+
+
+
+            "Tambah / Edit Kost",
+
+
+
+            textAlign:
+
+            TextAlign.center,
+
+
+
+            style:
+
+            TextStyle(
+
+
+
+              fontSize:
+
+              16,
+
+
+
+              fontWeight:
+
+              FontWeight.bold,
+
+
+
+              color:
+
+              AppColors.textPrimary,
+
+
+
+            ),
+
+
+
+          ),
+
+
+
+        ),
+
+
+
+
+
+
+
+        IconButton(
+
+
+
+          onPressed:(){
+
+
+
+
+
+            showDialog(
+
+
+
+              context:
+
+              context,
+
+
+
+              builder:(context){
+
+
+
+                return AlertDialog(
+
+
+
+                  title:
+
+                  const Text(
+
+                    "Informasi",
+
+                  ),
+
+
+
+
+
+                  content:
+
+                  const Text(
+
+
+
+                    "Lengkapi data kost dengan benar agar mudah ditemukan calon penghuni.",
+
+
+
+                  ),
+
+
+
+
+
+                  actions:[
+
+
+
+
+
+                    TextButton(
+
+
+
+                      onPressed:(){
+
+
+
+                        Navigator.pop(context);
+
+
+
+                      },
+
+
+
+
+
+                      child:
+
+                      const Text(
+
+                        "OK",
+
+                      ),
+
+
+
+
+
+                    ),
+
+
+
+
+
+                  ],
+
+
+
+
+
+                );
+
+
+
+              },
+
+
+
+            );
+
+
+
+
+
+          },
+
+
+
+
+
+
+
+          icon:
+
+          const Icon(
+
+
+
+            Icons.help_outline,
+
+
+
+            color:
+
+            AppColors.textSecondary,
+
+
+
+          ),
+
+
+
+
+
+        ),
+
+
+
+
+
+      ],
+
+
+
+    ),
+
+
+
+  );
+
+
+}
+
+
+
+
+
+
+
+
+
+
+
+// ============================================================
+// INFO FORM
+// ============================================================
+
+
+Widget _buildFormInfo(){
+
+
+
+  return Container(
+
+
+
+    width:
+
+    double.infinity,
+
+
+
+    padding:
+
+    const EdgeInsets.all(14),
+
+
+
+
+
+    decoration:
+
+    BoxDecoration(
+
+
+
+      color:
+
+      AppColors.primaryLight,
+
+
+
+      borderRadius:
+
+      BorderRadius.circular(14),
+
+
+
+    ),
+
+
+
+
+
+    child:
+
+    Row(
+
+
+
+      crossAxisAlignment:
+
+      CrossAxisAlignment.start,
+
+
+
+      children: [
+
+
+
+
+
+        Container(
+
+
+
+          width:
+
+          34,
+
+
+
+          height:
+
+          34,
+
+
+
+          decoration:
+
+          BoxDecoration(
+
+
+
+            color:
+
+            AppColors.primary,
+
+
+
+            borderRadius:
+
+            BorderRadius.circular(10),
+
+
+
+          ),
+
+
+
+
+
+          child:
+
+          const Icon(
+
+
+
+            Icons.home_work_outlined,
+
+
+
+            color:
+
+            AppColors.white,
+
+
+
+            size:
+
+            18,
+
+
+
+          ),
+
+
+
+
+
+        ),
+
+
+
+
+
+
+
+        const SizedBox(width:10),
+
+
+
+
+
+
+
+        const Expanded(
+
+
+
+          child:
+
+          Column(
+
+
+
+            crossAxisAlignment:
+
+            CrossAxisAlignment.start,
+
+
+
+            children: [
+
+
+
+
+
+              Text(
+
+
+
+                "Formulir Unit Kost",
+
+
+
+                style:
+
+                TextStyle(
+
+
+
+                  fontSize:
+
+                  13,
+
+
+
+                  fontWeight:
+
+                  FontWeight.bold,
+
+
+
+                  color:
+
+                  AppColors.textPrimary,
+
+
+
+                ),
+
+
+
+              ),
+
+
+
+
+
+
+
+              SizedBox(height:4),
+
+
+
+
+
+
+
+              Text(
+
+
+
+                "Lengkapi data akurat properti Anda agar mahasiswa mudah menemukan dan memilih kamar sesuai kebutuhan.",
+
+
+
+                style:
+
+                TextStyle(
+
+
+
+                  fontSize:
+
+                  11,
+
+
+
+                  color:
+
+                  AppColors.textSecondary,
+
+
+
+                ),
+
+
+
+              ),
+
+
+
+
+
+            ],
+
+
+
+          ),
+
+
+
+        ),
+
+
+
+
+
+      ],
+
+
+
+    ),
+
+
+
+  );
+
+
+}
+
+
+
+
+
+
+
+
+
+
+
+// ============================================================
+// LABEL FIELD
+// ============================================================
+
+
+Widget _buildFieldLabel(
+    String text
+){
+
+
+
+  return Text(
+
+
+
+    text,
+
+
+
+    style:
+
+    const TextStyle(
+
+
+
+      fontSize:
+
+      13,
+
+
+
+      fontWeight:
+
+      FontWeight.w600,
+
+
+
+      color:
+
+      AppColors.textPrimary,
+
+
+
+    ),
+
+
+
+  );
+
+
+}
+
+
+
+
+
+
+
+
+
+
+
+// ============================================================
+// UPLOAD FOTO BOX
+// ============================================================
+
+
+Widget _buildUploadBox(){
+
+
+
+  return GestureDetector(
+
+
+
+    onTap:(){
+
+
+
+      if(fotoTerunggah.length < maxFoto){
+
+
+
+        setState(() {
+
+
+
+          fotoTerunggah.add(
+
+            const Color(0xFFE5D6B8),
+
+          );
+
+
+
+        });
+
+
+
+      }
+
+
+
+    },
+
+
+
+
+
+
+
+    child:
+
+    Container(
+
+
+
+      height:
+
+      120,
+
+
+
+      width:
+
+      double.infinity,
+
+
+
+
+
+      decoration:
+
+      BoxDecoration(
+
+
+
+        color:
+
+        AppColors.white,
+
+
+
+        borderRadius:
+
+        BorderRadius.circular(14),
+
+
+
+
+
+        border:
+
+        Border.all(
+
+
+
+          color:
+
+          AppColors.border,
+
+
+
+        ),
+
+
+
       ),
+
+
+
+
+
+      child:
+
+      Column(
+
+
+
+        mainAxisAlignment:
+
+        MainAxisAlignment.center,
+
+
+
+        children: [
+
+
+
+
+
+          Container(
+
+
+
+            width:
+
+            42,
+
+
+
+            height:
+
+            42,
+
+
+
+            decoration:
+
+            BoxDecoration(
+
+
+
+              color:
+
+              AppColors.primaryLight,
+
+
+
+              borderRadius:
+
+              BorderRadius.circular(12),
+
+
+
+            ),
+
+
+
+
+
+            child:
+
+            const Icon(
+
+
+
+              Icons.add_photo_alternate_outlined,
+
+
+
+              color:
+
+              AppColors.primary,
+
+
+
+              size:
+
+              24,
+
+
+
+            ),
+
+
+
+
+
+          ),
+
+
+
+
+
+
+
+          const SizedBox(height:8),
+
+
+
+
+
+
+
+          const Text(
+
+
+
+            "Tambah Foto Kost",
+
+
+
+            style:
+
+            TextStyle(
+
+
+
+              fontSize:
+
+              13,
+
+
+
+              fontWeight:
+
+              FontWeight.w600,
+
+
+
+              color:
+
+              AppColors.textPrimary,
+
+
+
+            ),
+
+
+
+          ),
+
+
+
+
+
+
+
+          const SizedBox(height:4),
+
+
+
+
+
+
+
+          Text(
+
+
+
+            "Maksimal $maxFoto foto",
+
+
+
+            style:
+
+            const TextStyle(
+
+
+
+              fontSize:
+
+              11,
+
+
+
+              color:
+
+              AppColors.textSecondary,
+
+
+
+            ),
+
+
+
+          ),
+
+
+
+
+
+        ],
+
+
+
+      ),
+
+
+
+    ),
+
+
+
+  );
+
+
+}
+
+
+
+
+
+
+
+
+
+
+
+// ============================================================
+// FOTO THUMBNAIL
+// ============================================================
+
+
+Widget _buildFotoThumbnailRow(){
+
+
+
+  return SizedBox(
+
+
+
+    height:
+
+    70,
+
+
+
+
+
+    child:
+
+    ListView.builder(
+
+
+
+      scrollDirection:
+
+      Axis.horizontal,
+
+
+
+      itemCount:
+
+      fotoTerunggah.length,
+
+
+
+      itemBuilder:(context,index){
+
+
+
+
+
+        return Container(
+
+
+
+          margin:
+
+          const EdgeInsets.only(
+
+            right:
+
+            10,
+
+          ),
+
+
+
+          width:
+
+          70,
+
+
+
+          height:
+
+          70,
+
+
+
+
+
+          decoration:
+
+          BoxDecoration(
+
+
+
+            color:
+
+            fotoTerunggah[index],
+
+
+
+            borderRadius:
+
+            BorderRadius.circular(12),
+
+
+
+          ),
+
+
+
+
+
+          child:
+
+          Stack(
+
+
+
+            children: [
+
+
+
+
+
+              Center(
+
+
+
+                child:
+
+                Icon(
+
+
+
+                  Icons.image,
+
+
+
+                  color:
+
+                  AppColors.white.withOpacity(0.8),
+
+
+
+                ),
+
+
+
+              ),
+
+
+
+
+
+
+
+              Positioned(
+
+
+
+                right:
+
+                4,
+
+
+
+                top:
+
+                4,
+
+
+
+
+
+                child:
+
+                GestureDetector(
+
+
+
+                  onTap:(){
+
+
+
+                    setState(() {
+
+
+
+                      fotoTerunggah.removeAt(index);
+
+
+
+                    });
+
+
+
+                  },
+
+
+
+
+
+                  child:
+
+                  Container(
+
+
+
+                    width:
+
+                    20,
+
+
+
+                    height:
+
+                    20,
+
+
+
+
+
+                    decoration:
+
+                    const BoxDecoration(
+
+
+
+                      color:
+
+                      Colors.black54,
+
+
+
+                      shape:
+
+                      BoxShape.circle,
+
+
+
+                    ),
+
+
+
+
+
+                    child:
+
+                    const Icon(
+
+
+
+                      Icons.close,
+
+
+
+                      size:
+
+                      12,
+
+
+
+                      color:
+
+                      AppColors.white,
+
+
+
+                    ),
+
+
+
+
+
+                  ),
+
+
+
+                ),
+
+
+
+              ),
+
+
+
+
+
+            ],
+
+
+
+          ),
+
+
+
+        );
+
+
+
+
+
+      },
+
+
+
+    ),
+
+
+
+  );
+
+
+}
+
+// ============================================================
+// TEXT FIELD
+// ============================================================
+
+
+Widget _buildTextField({
+
+
+
+  required TextEditingController controller,
+
+
+
+  required IconData icon,
+
+
+
+  int maxLines = 1,
+
+
+
+}){
+
+
+
+  return TextField(
+
+
+
+    controller:
+
+    controller,
+
+
+
+    maxLines:
+
+    maxLines,
+
+
+
+
+
+
+
+    decoration:
+
+    InputDecoration(
+
+
+
+      prefixIcon:
+
+      Icon(
+
+
+
+        icon,
+
+
+
+        size:
+
+        20,
+
+
+
+        color:
+
+        AppColors.textSecondary,
+
+
+
+      ),
+
+
+
+
+
+
+
+      filled:
+
+      true,
+
+
+
+      fillColor:
+
+      AppColors.white,
+
+
+
+
+
+
+
+
+
+      border:
+
+      OutlineInputBorder(
+
+
+
+        borderRadius:
+
+        BorderRadius.circular(12),
+
+
+
+        borderSide:
+
+        const BorderSide(
+
+
+
+          color:
+
+          AppColors.border,
+
+
+
+        ),
+
+
+
+      ),
+
+
+
+
+
+
+
+      enabledBorder:
+
+      OutlineInputBorder(
+
+
+
+        borderRadius:
+
+        BorderRadius.circular(12),
+
+
+
+        borderSide:
+
+        const BorderSide(
+
+
+
+          color:
+
+          AppColors.border,
+
+
+
+        ),
+
+
+
+      ),
+
+
+
+
+
+
+
+      focusedBorder:
+
+      OutlineInputBorder(
+
+
+
+        borderRadius:
+
+        BorderRadius.circular(12),
+
+
+
+        borderSide:
+
+        const BorderSide(
+
+
+
+          color:
+
+          AppColors.primary,
+
+
+
+        ),
+
+
+
+      ),
+
+
+
+
+
+
+
+      contentPadding:
+
+      const EdgeInsets.symmetric(
+
+
+
+        horizontal:
+
+        14,
+
+
+
+        vertical:
+
+        12,
+
+
+
+      ),
+
+
+
+
+
+    ),
+
+
+
+  );
+
+
+}
+
+
+
+
+
+
+
+
+
+
+
+// ============================================================
+// HARGA FIELD
+// ============================================================
+
+
+Widget _buildHargaField(){
+
+
+
+  return TextField(
+
+
+
+    controller:
+
+    hargaController,
+
+
+
+    keyboardType:
+
+    TextInputType.number,
+
+
+
+
+
+
+
+    decoration:
+
+    InputDecoration(
+
+
+
+      prefixText:
+
+      "Rp ",
+
+
+
+
+
+
+
+      prefixIcon:
+
+      const Icon(
+
+
+
+        Icons.payments_outlined,
+
+
+
+        size:
+
+        20,
+
+
+
+        color:
+
+        AppColors.textSecondary,
+
+
+
+      ),
+
+
+
+
+
+
+
+      filled:
+
+      true,
+
+
+
+      fillColor:
+
+      AppColors.white,
+
+
+
+
+
+
+
+
+
+      border:
+
+      OutlineInputBorder(
+
+
+
+        borderRadius:
+
+        BorderRadius.circular(12),
+
+
+
+        borderSide:
+
+        const BorderSide(
+
+
+
+          color:
+
+          AppColors.border,
+
+
+
+        ),
+
+
+
+      ),
+
+
+
+
+
+
+
+      enabledBorder:
+
+      OutlineInputBorder(
+
+
+
+        borderRadius:
+
+        BorderRadius.circular(12),
+
+
+
+        borderSide:
+
+        const BorderSide(
+
+
+
+          color:
+
+          AppColors.border,
+
+
+
+        ),
+
+
+
+      ),
+
+
+
+
+
+
+
+      focusedBorder:
+
+      OutlineInputBorder(
+
+
+
+        borderRadius:
+
+        BorderRadius.circular(12),
+
+
+
+        borderSide:
+
+        const BorderSide(
+
+
+
+          color:
+
+          AppColors.primary,
+
+
+
+        ),
+
+
+
+      ),
+
+
+
+
+
+
+
+      contentPadding:
+
+      const EdgeInsets.symmetric(
+
+
+
+        horizontal:
+
+        14,
+
+
+
+        vertical:
+
+        12,
+
+
+
+      ),
+
+
+
+
+
+    ),
+
+
+
+  );
+
+
+}
+
+// ============================================================
+// BUTTON SIMPAN DATA KOST
+// ============================================================
+
+
+Widget _buildSimpanButton(){
+
+
+
+  return Container(
+
+
+
+    padding:
+
+    const EdgeInsets.fromLTRB(
+
+
+
+      16,
+
+      10,
+
+      16,
+
+      16,
+
+
+
+    ),
+
+
+
+
+
+    color:
+
+    AppColors.white,
+
+
+
+
+
+    child:
+
+    SizedBox(
+
+
+
+      width:
+
+      double.infinity,
+
+
+
+      height:
+
+      48,
+
+
+
+
+
+
+
+      child:
+
+      ElevatedButton(
+
+
+
+        onPressed:
+
+        _saveKost,
+
+
+
+
+
+
+
+        style:
+
+        ElevatedButton.styleFrom(
+
+
+
+          backgroundColor:
+
+          AppColors.primary,
+
+
+
+          foregroundColor:
+
+          AppColors.white,
+
+
+
+          elevation:
+
+          0,
+
+
+
+
+
+
+
+          shape:
+
+          RoundedRectangleBorder(
+
+
+
+            borderRadius:
+
+            BorderRadius.circular(12),
+
+
+
+          ),
+
+
+
+        ),
+
+
+
+
+
+
+
+        child:
+
+        Text(
+
+
+
+          widget.kostData == null
+
+
+
+              ?
+
+
+
+          "Simpan Data Kost"
+
+
+
+              :
+
+
+
+          "Perbarui Data Kost",
+
+
+
+
+
+
+
+          style:
+
+          const TextStyle(
+
+
+
+            fontSize:
+
+            14,
+
+
+
+            fontWeight:
+
+            FontWeight.bold,
+
+
+
+          ),
+
+
+
+        ),
+
+
+
+
+
+      ),
+
+
+
+    ),
+
+
+
+  );
+
+
+}
+
+
+
+
+
+
+
+
+
+
+
+// ============================================================
+// SIMPAN KOST
+// ============================================================
+
+
+void _saveKost(){
+
+
+
+  if(
+
+
+
+  namaController.text.trim().isEmpty ||
+
+
+
+      hargaController.text.trim().isEmpty ||
+
+
+
+      alamatController.text.trim().isEmpty
+
+
+
+  ){
+
+
+
+
+
+    ScaffoldMessenger.of(context)
+
+        .showSnackBar(
+
+
+
+      const SnackBar(
+
+
+
+        content:
+
+        Text(
+
+
+
+          "Harap lengkapi semua data kost",
+
+
+
+        ),
+
+
+
+      ),
+
+
+
     );
+
+
+
+
+
+
+
+    return;
+
+
+
   }
 
-  Widget _buildTextField({
-    required TextEditingController controller,
-    required IconData prefixIcon,
-    int maxLines = 1,
-  }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.white, // <-- DIUBAH
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: AppColors.border,
-        ), // <-- DIUBAH (pengganti cardBorder)
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      child: Row(
-        crossAxisAlignment: maxLines > 1
-            ? CrossAxisAlignment.start
-            : CrossAxisAlignment.center,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(top: 12),
-            child: Icon(
-              prefixIcon,
-              size: 18,
-              color: AppColors.textSecondary,
-            ), // <-- DIUBAH (pengganti textGrey)
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: TextField(
-              controller: controller,
-              maxLines: maxLines,
-              style: const TextStyle(
-                fontSize: 13,
-                color: AppColors.textPrimary, // <-- DIUBAH
-              ),
-              decoration: const InputDecoration(
-                border: InputBorder.none,
-                isDense: true,
-                contentPadding: EdgeInsets.symmetric(vertical: 12),
-              ),
+
+
+
+
+
+
+
+
+  final bool isEdit =
+
+      widget.kostData != null;
+
+
+
+
+
+
+
+
+
+  showDialog(
+
+
+
+    context:
+
+    context,
+
+
+
+    builder:(context){
+
+
+
+      return AlertDialog(
+
+
+
+        title:
+
+        Text(
+
+
+
+          isEdit
+
+
+
+              ?
+
+
+
+          "Perbarui Kost"
+
+
+
+              :
+
+
+
+          "Tambah Kost",
+
+
+
+        ),
+
+
+
+
+
+
+
+        content:
+
+        Text(
+
+
+
+          isEdit
+
+
+
+              ?
+
+
+
+          "Data kost berhasil diperbarui"
+
+
+
+              :
+
+
+
+          "Data kost berhasil ditambahkan",
+
+
+
+        ),
+
+
+
+
+
+
+
+        actions:[
+
+
+
+
+
+          TextButton(
+
+
+
+            onPressed:(){
+
+
+
+              Navigator.pop(context);
+
+
+
+              Navigator.pop(context);
+
+
+
+            },
+
+
+
+
+
+            child:
+
+            const Text(
+              "OK",
             ),
           ),
         ],
-      ),
-    );
-  }
 
-  Widget _buildHargaField() {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.white, // <-- DIUBAH
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: AppColors.border,
-        ), // <-- DIUBAH (pengganti cardBorder)
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: Row(
-        children: [
-          const Text(
-            'Rp',
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: AppColors.primary,
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: TextField(
-              controller: _hargaController,
-              keyboardType: TextInputType.number,
-              style: const TextStyle(
-                fontSize: 13,
-                color: AppColors.textPrimary, // <-- DIUBAH
-              ),
-              decoration: const InputDecoration(
-                border: InputBorder.none,
-                isDense: true,
-                contentPadding: EdgeInsets.symmetric(vertical: 12),
-              ),
-            ),
-          ),
-          const Text(
-            '/ bulan',
-            style: TextStyle(
-              fontSize: 12,
-              color: AppColors.textSecondary, // <-- DIUBAH (pengganti textGrey)
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+      );
+    },
+  );
+}
 
-  // ---------------- TOMBOL SIMPAN ----------------
-  Widget _buildSimpanButton() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      color: AppColors.white, // <-- DIUBAH
-      child: ElevatedButton.icon(
-        onPressed: () {},
-        style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.primary,
-          foregroundColor: AppColors.white, // <-- DIUBAH
-          elevation: 0,
-          padding: const EdgeInsets.symmetric(vertical: 14),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-        icon: const Icon(Icons.save_outlined, size: 18),
-        label: const Text(
-          'Simpan Data Kost',
-          style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-        ),
-      ),
-    );
-  }
 }
