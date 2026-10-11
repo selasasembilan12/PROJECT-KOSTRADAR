@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 // --- IMPORT STANDAR TIM ---
 import '../../core/theme/app_theme.dart';
 import '../../models/kost_model.dart';
+import '../kost/detail_kost_page.dart'; // Import halaman detail kost
 
 // ==========================================
 // MODEL DATA KOST
@@ -28,11 +29,24 @@ class KostResult {
     required this.availableRooms,
     this.isVerified = false,
   });
+
+  // Method konversi ke KostModel untuk DetailKostPage
+  KostModel toKostModel() {
+    return KostModel(
+      idKost: name.replaceAll(' ', '').toLowerCase(),
+      nama: name,
+      alamat: address,
+      harga: price,
+      deskripsi: 'Deskripsi lengkap untuk $name akan segera tersedia.',
+      ketersediaanKamar: availableRooms,
+      foto: [image],
+      fasilitas: facilities,
+    );
+  }
 }
 
 // ==========================================
 // DATA KOST BERSAMA
-// DIGUNAKAN HOME DAN HASIL PENCARIAN
 // ==========================================
 
 const List<KostResult> kostRadarData = [
@@ -239,15 +253,27 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
     );
   }
 
+  // ==========================================
+  // FUNGSI NAVIGASI KE DETAIL KOST (PUNYA ILHAM)
+  // ==========================================
+  void _openDetail(KostResult kost) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => DetailKostPage(kost: kost.toKostModel()),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final results = _filteredResults;
     final activeFilters = _activeFilters;
 
     return Scaffold(
-      backgroundColor: AppColors.background, // <-- DIUBAH
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.background, // <-- DIUBAH
+        backgroundColor: AppColors.background,
         elevation: 0,
         surfaceTintColor: Colors.transparent,
         centerTitle: true,
@@ -255,7 +281,7 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
           icon: const Icon(
             Icons.arrow_back_ios_new,
             color: AppColors.textPrimary,
-          ), // <-- DIUBAH
+          ),
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
@@ -264,7 +290,7 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
             fontSize: 18,
             fontWeight: FontWeight.bold,
             color: AppColors.textPrimary,
-          ), // <-- DIUBAH
+          ),
         ),
         actions: [
           IconButton(
@@ -272,10 +298,7 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
                 ? 'Harga termurah dahulu'
                 : 'Harga termahal dahulu',
             onPressed: _sortResults,
-            icon: const Icon(
-              Icons.sort,
-              color: AppColors.textPrimary,
-            ), // <-- DIUBAH
+            icon: const Icon(Icons.sort, color: AppColors.textPrimary),
           ),
           const SizedBox(width: 8),
         ],
@@ -292,7 +315,7 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
                     color: AppColors.textSecondary,
-                  ), // <-- DIUBAH
+                  ),
                 ),
                 const SizedBox(height: 8),
                 Text(
@@ -302,7 +325,7 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
                   style: const TextStyle(
                     fontSize: 12,
                     color: AppColors.textSecondary,
-                  ), // <-- DIUBAH
+                  ),
                 ),
                 const SizedBox(height: 16),
 
@@ -320,11 +343,8 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
                             ),
                             deleteIcon: const Icon(Icons.close, size: 16),
                             onDeleted: () => _removeFilter(filter),
-                            backgroundColor:
-                                AppColors.primaryLight, // <-- DIUBAH
-                            side: const BorderSide(
-                              color: AppColors.primary,
-                            ), // <-- DIUBAH
+                            backgroundColor: AppColors.primaryLight,
+                            side: const BorderSide(color: AppColors.primary),
                           ),
                         );
                       }).toList(),
@@ -342,7 +362,7 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
                           Icons.search_off,
                           size: 70,
                           color: AppColors.textSecondary,
-                        ), // <-- DIUBAH
+                        ),
                         SizedBox(height: 16),
                         Text(
                           'Kost Tidak Ditemukan',
@@ -350,15 +370,13 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
                             color: AppColors.textPrimary,
-                          ), // <-- DIUBAH
+                          ),
                         ),
                         SizedBox(height: 8),
                         Text(
                           'Coba ubah atau hapus beberapa filter pencarian.',
                           textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: AppColors.textSecondary,
-                          ), // <-- DIUBAH
+                          style: TextStyle(color: AppColors.textSecondary),
                         ),
                       ],
                     ),
@@ -376,7 +394,7 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: const BoxDecoration(
-              color: AppColors.white, // <-- DIUBAH
+              color: AppColors.white,
               boxShadow: [
                 BoxShadow(
                   color: Color(0x14000000),
@@ -399,8 +417,8 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
                     );
                   },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary, // <-- DIUBAH
-                    foregroundColor: AppColors.white, // <-- DIUBAH
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: AppColors.white,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
@@ -419,173 +437,176 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
     );
   }
 
+  // ==========================================
+  // CARD KOST YANG BISA DIKLIK
+  // ==========================================
   Widget _buildKostCard(KostResult kost) {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.white, // <-- DIUBAH
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x14000000),
-            blurRadius: 10,
-            offset: Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          ClipRRect(
-            borderRadius: const BorderRadius.only(
-              topLeft: Radius.circular(16),
-              bottomLeft: Radius.circular(16),
+    return GestureDetector(
+      onTap: () => _openDetail(kost), // INI YANG BIKIN CARD BISA DIKLIK
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x14000000),
+              blurRadius: 10,
+              offset: Offset(0, 2),
             ),
-            child: Stack(
-              children: [
-                Image.network(
-                  kost.image,
-                  width: 120,
-                  height: 190,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) {
-                    return Container(
-                      width: 120,
-                      height: 190,
-                      color: AppColors.chipBackground, // <-- DIUBAH
-                      child: const Icon(
-                        Icons.home_outlined,
-                        size: 45,
-                        color: AppColors.textSecondary,
-                      ), // <-- DIUBAH
-                    );
-                  },
-                ),
-                if (kost.isVerified)
-                  Positioned(
-                    top: 8,
-                    left: 8,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.primary,
-                        borderRadius: BorderRadius.circular(12),
-                      ), // <-- DIUBAH
-                      child: const Text(
-                        '✓ Verified',
-                        style: TextStyle(
-                          color: AppColors.white,
-                          fontSize: 9,
-                        ), // <-- DIUBAH
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+          ],
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ClipRRect(
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(16),
+                bottomLeft: Radius.circular(16),
+              ),
+              child: Stack(
                 children: [
-                  Text(
-                    kost.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary,
-                    ), // <-- DIUBAH
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Rp ${_formatRupiah(kost.price)}/bulan',
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.primary,
-                    ), // <-- DIUBAH
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      const Icon(
-                        Icons.location_on_outlined,
-                        size: 14,
-                        color: AppColors.textSecondary,
-                      ), // <-- DIUBAH
-                      const SizedBox(width: 4),
-                      Expanded(
-                        child: Text(
-                          kost.address,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 11,
-                            color: AppColors.textSecondary,
-                          ), // <-- DIUBAH
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 6,
-                    children: kost.facilities.map((facility) {
+                  Image.network(
+                    kost.image,
+                    width: 120,
+                    height: 190,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
                       return Container(
+                        width: 120,
+                        height: 190,
+                        color: AppColors.chipBackground,
+                        child: const Icon(
+                          Icons.home_outlined,
+                          size: 45,
+                          color: AppColors.textSecondary,
+                        ),
+                      );
+                    },
+                  ),
+                  if (kost.isVerified)
+                    Positioned(
+                      top: 8,
+                      left: 8,
+                      child: Container(
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
+                          horizontal: 6,
                           vertical: 4,
                         ),
                         decoration: BoxDecoration(
-                          color: AppColors.chipBackground,
-                          borderRadius: BorderRadius.circular(6),
-                        ), // <-- DIUBAH
-                        child: Text(
-                          facility,
-                          style: const TextStyle(
-                            fontSize: 10,
-                            color: AppColors.textSecondary,
-                          ), // <-- DIUBAH
+                          color: AppColors.primary,
+                          borderRadius: BorderRadius.circular(12),
                         ),
-                      );
-                    }).toList(),
-                  ),
-                  const SizedBox(height: 10),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: kost.availableRooms > 0
-                          ? AppColors.successLight
-                          : AppColors.errorLight, // <-- DIUBAH (errorLight kita pakai di sini!)
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      kost.availableRooms > 0
-                          ? 'Tersedia ${kost.availableRooms} kmr'
-                          : 'Kamar Penuh',
-                      style: TextStyle(
-                        color: kost.availableRooms > 0
-                            ? AppColors.success
-                            : AppColors.error, // <-- DIUBAH
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
+                        child: const Text(
+                          '✓ Verified',
+                          style: TextStyle(color: AppColors.white, fontSize: 9),
+                        ),
                       ),
                     ),
-                  ),
                 ],
               ),
             ),
-          ),
-        ],
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      kost.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Rp ${_formatRupiah(kost.price)}/bulan',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.location_on_outlined,
+                          size: 14,
+                          color: AppColors.textSecondary,
+                        ),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            kost.address,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: kost.facilities.map((facility) {
+                        return Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppColors.chipBackground,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            facility,
+                            style: const TextStyle(
+                              fontSize: 10,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 10),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: kost.availableRooms > 0
+                            ? AppColors.successLight
+                            : AppColors.errorLight,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        kost.availableRooms > 0
+                            ? 'Tersedia ${kost.availableRooms} kmr'
+                            : 'Kamar Penuh',
+                        style: TextStyle(
+                          color: kost.availableRooms > 0
+                              ? AppColors.success
+                              : AppColors.error,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

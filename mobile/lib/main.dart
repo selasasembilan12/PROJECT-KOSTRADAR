@@ -77,7 +77,7 @@ class KostRadarApp extends StatelessWidget {
         '/data-kost': (c) => const DataKostPage(), // 14 Dina - FIX
         '/tambah-edit-kost': (c) => const TambahEditKostPage(), // 15 Dina - FIX
         '/daftar-chat-admin': (c) =>
-            const DaftarChatAdminPage(chatData: {},), // 16 Riana - FIX
+            const DaftarChatAdminPage(chatData: {}), // 16 Riana - FIX
         '/profil-admin': (c) => const ProfilAdminPage(), // 17 Riana - FIX
       },
     );

@@ -3,9 +3,16 @@ import 'package:flutter/material.dart';
 // --- IMPORT STANDAR TIM ---
 import '../../core/theme/app_theme.dart';
 
+// Import file home
 import 'pencarian_page.dart';
 import 'hasil_pencarian.dart';
+
+// Import file kost
 import '../kost/detail_kost_page.dart';
+
+// Import file chatUser (PUNYA SALSA)
+import '../chatUser/daftar_chat_page.dart';
+import '../chatUser/profil_page.dart';
 
 // ========================================
 // HALAMAN HOME
@@ -20,10 +27,8 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   int _selectedIndex = 0;
-
   final Set<String> _favorites = {'Kost Adiwarna'};
 
-  // Membuka halaman pencarian
   void _openSearch() {
     Navigator.push(
       context,
@@ -31,11 +36,10 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  // Membuka semua hasil pencarian
   void _openAllResults() {
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => const SearchResultsScreen()),
+      MaterialPageRoute(builder: (_) => const HasilPencarianPage()),
     );
   }
 
@@ -58,56 +62,79 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     final allKost = kostRadarData;
-
     final displayedKost = _selectedIndex == 1
-        ? allKost.where((kost) {
-            return _favorites.contains(kost.name);
-          }).toList()
+        ? allKost.where((kost) => _favorites.contains(kost.name)).toList()
         : allKost;
 
     return Scaffold(
       backgroundColor: AppColors.background,
+      // Menggunakan IndexedStack agar state (seperti scroll) tidak hilang saat pindah tab
       body: SafeArea(
-        child: _selectedIndex >= 2
-            ? _buildOtherPage()
-            : ListView(
-                padding: const EdgeInsets.only(bottom: 24),
-                children: [
-                  const SizedBox(height: 20),
-                  _buildHeader(),
-                  const SizedBox(height: 20),
-                  _buildSearchBar(),
-                  const SizedBox(height: 20),
-                  _buildBanner(),
-                  const SizedBox(height: 24),
-                  _buildSectionHeader(),
-                  const SizedBox(height: 16),
-
-                  if (displayedKost.isEmpty)
-                    const Padding(
-                      padding: EdgeInsets.all(32),
-                      child: Center(
-                        child: Text(
-                          'Belum ada kost favorit',
-                          style: TextStyle(color: AppColors.textSecondary),
-                        ),
+        child: IndexedStack(
+          index: _selectedIndex,
+          children: [
+            // TAB 0: BERANDA
+            ListView(
+              padding: const EdgeInsets.only(bottom: 24),
+              children: [
+                const SizedBox(height: 20),
+                _buildHeader(),
+                const SizedBox(height: 20),
+                _buildSearchBar(),
+                const SizedBox(height: 20),
+                _buildBanner(),
+                const SizedBox(height: 24),
+                _buildSectionHeader(),
+                const SizedBox(height: 16),
+                if (displayedKost.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.all(32),
+                    child: Center(
+                      child: Text(
+                        'Belum ada kost',
+                        style: TextStyle(color: AppColors.textSecondary),
                       ),
                     ),
+                  ),
+                ...displayedKost.map(_buildKostCard),
+              ],
+            ),
 
-                  ...displayedKost.map(_buildKostCard),
-                ],
-              ),
+            // TAB 1: FAVORIT
+            ListView(
+              padding: const EdgeInsets.only(bottom: 24),
+              children: [
+                const SizedBox(height: 20),
+                _buildSectionHeader(),
+                const SizedBox(height: 16),
+                if (displayedKost.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.all(32),
+                    child: Center(
+                      child: Text(
+                        'Belum ada kost favorit',
+                        style: TextStyle(color: AppColors.textSecondary),
+                      ),
+                    ),
+                  ),
+                ...displayedKost.map(_buildKostCard),
+              ],
+            ),
+
+            // TAB 2: CHAT (PUNYA SALSA)
+            const DaftarChatPage(),
+
+            // TAB 3: PROFIL (PUNYA SALSA)
+            const ProfilPage(),
+          ],
+        ),
       ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,
         type: BottomNavigationBarType.fixed,
         selectedItemColor: AppColors.primary,
         unselectedItemColor: AppColors.textSecondary,
-        onTap: (index) {
-          setState(() {
-            _selectedIndex = index;
-          });
-        },
+        onTap: (index) => setState(() => _selectedIndex = index),
         items: const [
           BottomNavigationBarItem(
             icon: Icon(Icons.home_outlined),
@@ -133,7 +160,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   // ========================================
-  // HEADER
+  // WIDGET-WIDGET PEMBANTU (TIDAK BERUBAH)
   // ========================================
 
   Widget _buildHeader() {
@@ -171,21 +198,15 @@ class _HomePageState extends State<HomePage> {
             ),
           ),
           IconButton(
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Belum ada notifikasi')),
-              );
-            },
+            onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Belum ada notifikasi')),
+            ),
             icon: const Icon(Icons.notifications_outlined),
           ),
         ],
       ),
     );
   }
-
-  // ========================================
-  // SEARCH BAR
-  // ========================================
 
   Widget _buildSearchBar() {
     return Padding(
@@ -202,7 +223,7 @@ class _HomePageState extends State<HomePage> {
                   vertical: 15,
                 ),
                 decoration: BoxDecoration(
-                  color: AppColors.white, // <-- DIUBAH
+                  color: AppColors.white,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: AppColors.border),
                 ),
@@ -228,20 +249,13 @@ class _HomePageState extends State<HomePage> {
                 color: AppColors.primary,
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: const Icon(
-                Icons.filter_list,
-                color: AppColors.white,
-              ), // <-- DIUBAH
+              child: const Icon(Icons.filter_list, color: AppColors.white),
             ),
           ),
         ],
       ),
     );
   }
-
-  // ========================================
-  // BANNER
-  // ========================================
 
   Widget _buildBanner() {
     return Container(
@@ -269,7 +283,7 @@ class _HomePageState extends State<HomePage> {
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.bold,
-                  color: AppColors.white, // <-- DIUBAH
+                  color: AppColors.white,
                 ),
               ),
               SizedBox(height: 12),
@@ -279,17 +293,14 @@ class _HomePageState extends State<HomePage> {
                 style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
-                  color: AppColors.white, // <-- DIUBAH
+                  color: AppColors.white,
                 ),
               ),
               SizedBox(height: 8),
               Text(
                 'Cari kost nyaman dengan harga terbaik.',
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: AppColors.white,
-                ), // <-- DIUBAH
+                style: TextStyle(fontSize: 12, color: AppColors.white),
               ),
             ],
           ),
@@ -297,10 +308,6 @@ class _HomePageState extends State<HomePage> {
       ),
     );
   }
-
-  // ========================================
-  // JUDUL REKOMENDASI
-  // ========================================
 
   Widget _buildSectionHeader() {
     return Padding(
@@ -320,29 +327,26 @@ class _HomePageState extends State<HomePage> {
           if (_selectedIndex == 0)
             TextButton(
               onPressed: _openAllResults,
-              child: const Text('Lihat Semua'),
+              child: const Text(
+                'Lihat Semua',
+                style: TextStyle(color: AppColors.primary),
+              ),
             ),
         ],
       ),
     );
   }
 
-  // ========================================
-  // CARD KOST
-  // ========================================
-
   Widget _buildKostCard(KostResult kost) {
     final isFavorite = _favorites.contains(kost.name);
-
     return Container(
       margin: const EdgeInsets.fromLTRB(20, 0, 20, 16),
       decoration: BoxDecoration(
-        color: AppColors.white, // <-- DIUBAH
+        color: AppColors.white,
         borderRadius: BorderRadius.circular(16),
         boxShadow: const [
           BoxShadow(
-            color: AppColors
-                .cardShadow, // <-- DIUBAH (biar konsisten sama file lain)
+            color: AppColors.cardShadow,
             blurRadius: 10,
             offset: Offset(0, 2),
           ),
@@ -362,19 +366,17 @@ class _HomePageState extends State<HomePage> {
                   height: 180,
                   width: double.infinity,
                   fit: BoxFit.cover,
-                  errorBuilder: (_, _, _) {
-                    return Container(
-                      height: 180,
-                      color: AppColors.primaryLight,
-                      child: const Center(
-                        child: Icon(
-                          Icons.home_work,
-                          size: 60,
-                          color: AppColors.primary,
-                        ),
+                  errorBuilder: (_, _, _) => Container(
+                    height: 180,
+                    color: AppColors.primaryLight,
+                    child: const Center(
+                      child: Icon(
+                        Icons.home_work,
+                        size: 60,
+                        color: AppColors.primary,
                       ),
-                    );
-                  },
+                    ),
+                  ),
                 ),
               ),
               if (kost.isVerified)
@@ -392,10 +394,7 @@ class _HomePageState extends State<HomePage> {
                     ),
                     child: const Text(
                       '✓ Terverifikasi',
-                      style: TextStyle(
-                        color: AppColors.white,
-                        fontSize: 11,
-                      ), // <-- DIUBAH
+                      style: TextStyle(color: AppColors.white, fontSize: 11),
                     ),
                   ),
                 ),
@@ -403,7 +402,7 @@ class _HomePageState extends State<HomePage> {
                 top: 8,
                 right: 8,
                 child: CircleAvatar(
-                  backgroundColor: AppColors.white, // <-- DIUBAH
+                  backgroundColor: AppColors.white,
                   child: IconButton(
                     onPressed: () {
                       setState(() {
@@ -435,8 +434,7 @@ class _HomePageState extends State<HomePage> {
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
-                    color:
-                        AppColors.textPrimary, // <-- DIUBAH (biar teks jelas)
+                    color: AppColors.textPrimary,
                   ),
                 ),
                 const SizedBox(height: 6),
@@ -472,19 +470,21 @@ class _HomePageState extends State<HomePage> {
                 Wrap(
                   spacing: 8,
                   runSpacing: 8,
-                  children: kost.facilities.map((facility) {
-                    return Chip(
-                      label: Text(
-                        facility,
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: AppColors.textSecondary,
-                        ), // <-- DIUBAH
-                      ),
-                      backgroundColor: AppColors.primaryLight,
-                      side: BorderSide.none,
-                    );
-                  }).toList(),
+                  children: kost.facilities
+                      .map(
+                        (facility) => Chip(
+                          label: Text(
+                            facility,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                          backgroundColor: AppColors.primaryLight,
+                          side: BorderSide.none,
+                        ),
+                      )
+                      .toList(),
                 ),
                 const SizedBox(height: 12),
                 Row(
@@ -501,55 +501,17 @@ class _HomePageState extends State<HomePage> {
                       ),
                     ),
                     TextButton.icon(
-                      onPressed: () {
-                        _openDetail(kost);
-                      },
-
+                      onPressed: () => _openDetail(kost),
                       icon: const Icon(Icons.arrow_forward, size: 14),
                       label: const Text(
                         'Detail',
                         style: TextStyle(color: AppColors.primary),
-                      ), // <-- DIUBAH
+                      ),
                     ),
                   ],
                 ),
               ],
             ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ========================================
-  // CHAT DAN PROFIL SEMENTARA
-  // ========================================
-
-  Widget _buildOtherPage() {
-    final isChat = _selectedIndex == 2;
-
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            isChat ? Icons.chat_bubble_outline : Icons.person_outline,
-            size: 65,
-            color: AppColors.primary,
-          ),
-          const SizedBox(height: 16),
-          Text(
-            isChat ? 'Halaman Chat' : 'Halaman Profil',
-            style: const TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: AppColors.textPrimary,
-            ), // <-- DIUBAH
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Halaman belum dihubungkan',
-            style: TextStyle(color: AppColors.textSecondary),
           ),
         ],
       ),
