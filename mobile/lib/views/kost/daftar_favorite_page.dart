@@ -234,6 +234,7 @@ class _DaftarFavoritePageState extends State<DaftarFavoritePage> {
                                   ),
                                 ],
                               ),
+                              //disini di ganti
                               trailing: GestureDetector(
                                 onTap: () {
                                   showHapusFavoriteDialog(context, () {
