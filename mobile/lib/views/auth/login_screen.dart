@@ -313,6 +313,10 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
               const SizedBox(height: 24),
+
+              // ==========================================
+              // PERBAIKAN OVERFLOW: MENGGUNAKAN Wrap
+              // ==========================================
               Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 16,
@@ -323,15 +327,17 @@ class _LoginScreenState extends State<LoginScreen> {
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: AppColors.border),
                 ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
+                child: Wrap(
+                  alignment: WrapAlignment.center,
+                  runAlignment: WrapAlignment.center,
+                  spacing: 8,
+                  runSpacing: 8,
                   children: [
                     const Icon(
                       Icons.shield_outlined,
                       color: AppColors.primary,
                       size: 20,
                     ),
-                    const SizedBox(width: 8),
                     const Text(
                       "Sistem Terverifikasi & Aman",
                       style: TextStyle(
@@ -339,7 +345,6 @@ class _LoginScreenState extends State<LoginScreen> {
                         color: AppColors.textSecondary,
                       ),
                     ),
-                    const SizedBox(width: 16),
                     GestureDetector(
                       onTap: () {},
                       child: const Text(
@@ -354,6 +359,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ],
                 ),
               ),
+
               const SizedBox(height: 40),
               GestureDetector(
                 onTap: () => Navigator.push(

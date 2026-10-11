@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/formatter.dart';
@@ -11,14 +12,12 @@ class RegisterScreen extends StatefulWidget {
 }
 
 class _RegisterScreenState extends State<RegisterScreen> {
-  // Controller umum (untuk kedua role)
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _confirmPasswordController =
       TextEditingController();
 
-  // Controller khusus Pengelola
   final TextEditingController _namaKostController = TextEditingController();
   final TextEditingController _alamatKostController = TextEditingController();
 
@@ -38,13 +37,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
     super.dispose();
   }
 
-  void _handleRegister() {
+  Future<void> _handleRegister() async {
     final name = _nameController.text.trim();
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
     final confirmPassword = _confirmPasswordController.text.trim();
 
-    // Validasi umum
+    print('--- [DEBUG] MULAI PROSES REGISTER ---');
+    print('[DEBUG] Email: $email');
+    print('[DEBUG] Role: $_selectedRole');
+
     if (name.isEmpty ||
         email.isEmpty ||
         password.isEmpty ||
@@ -58,22 +60,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
       return;
     }
 
-    // Validasi khusus Pengelola
-    if (_selectedRole == 'Pengelola') {
-      final namaKost = _namaKostController.text.trim();
-      final alamatKost = _alamatKostController.text.trim();
-
-      if (namaKost.isEmpty || alamatKost.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Nama Kost dan Alamat Kost wajib diisi!'),
-            backgroundColor: AppColors.error,
-          ),
-        );
-        return;
-      }
-    }
-
     if (password != confirmPassword) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -84,10 +70,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
       return;
     }
 
-    if (password.length < 8) {
+    if (password.length < 6) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Password minimal 8 karakter!'),
+          content: Text('Password minimal 6 karakter!'),
           backgroundColor: AppColors.error,
         ),
       );
@@ -96,25 +82,89 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     setState(() => _isLoading = true);
 
-    Future.delayed(const Duration(seconds: 2), () {
+    try {
+      // 1. PANGGIL SUPABASE AUTH
+      print('[DEBUG] Memanggil Supabase signUp...');
+      final response = await Supabase.instance.client.auth.signUp(
+        email: email,
+        password: password,
+        data: {'nama': name, 'role': _selectedRole.toLowerCase()},
+      );
+
+      print('[DEBUG] Response Supabase: $response');
+      print('[DEBUG] User ID: ${response.user?.id}');
+
+      if (response.user != null) {
+        print('[DEBUG] Auth berhasil! Mencoba insert ke tabel users...');
+
+        // 2. INSERT KE TABEL USERS (SUDAH DIPERBAIKI: 'id' jadi 'id_user')
+        try {
+          await Supabase.instance.client.from('users').insert({
+            'id_user': response.user!.id, // ✅ INI YANG DIPERBAIKI
+            'email': email,
+            'nama': name,
+            'role': _selectedRole.toLowerCase(),
+          });
+          print('[DEBUG] Insert ke tabel users BERHASIL.');
+        } catch (dbError) {
+          print('[DEBUG] ERROR saat insert ke tabel users: $dbError');
+          print('[DEBUG] Lanjut, karena Auth sudah berhasil.');
+        }
+
+        if (mounted) {
+          setState(() => _isLoading = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Registrasi berhasil! Silakan login.'),
+              backgroundColor: AppColors.success,
+              duration: Duration(seconds: 3),
+            ),
+          );
+
+          Future.delayed(const Duration(seconds: 2), () {
+            if (mounted) Navigator.pop(context);
+          });
+        }
+      } else {
+        if (mounted) {
+          setState(() => _isLoading = false);
+          print('[DEBUG] GAGAL: response.user adalah null');
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Registrasi gagal. User null.'),
+              backgroundColor: AppColors.error,
+            ),
+          );
+        }
+      }
+    } on AuthException catch (e) {
+      print('[DEBUG] AUTH EXCEPTION: ${e.message}');
       if (mounted) {
         setState(() => _isLoading = false);
+        String errorMsg = e.message.contains('already registered')
+            ? 'Email sudah terdaftar!'
+            : 'Error Auth: ${e.message}';
 
-        // Pesan sukses berbeda sesuai role
-        final roleLabel = _selectedRole == 'Pengelola'
-            ? 'Pengelola Kost'
-            : 'Mahasiswa';
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Registrasi $roleLabel berhasil! (Simulasi)'),
-            backgroundColor: AppColors.success,
+            content: Text(errorMsg),
+            backgroundColor: AppColors.error,
+            duration: const Duration(seconds: 4),
           ),
         );
-
-        // Kembali ke halaman login
-        Navigator.pop(context);
       }
-    });
+    } catch (e) {
+      print('[DEBUG] GENERAL ERROR: $e');
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Terjadi kesalahan: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
   }
 
   @override
@@ -221,43 +271,25 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 ],
               ),
               const SizedBox(height: 24),
-
-              // ============================================
-              // FORM DINAMIS BERDASARKAN ROLE
-              // ============================================
-
-              // Field Nama (untuk kedua role)
               _buildTextField(
                 controller: _nameController,
                 label: _selectedRole == 'Pengelola'
                     ? "Nama Pengelola"
                     : "Nama Lengkap",
-                hint: _selectedRole == 'Pengelola'
-                    ? "Masukkan nama pengelola"
-                    : "Masukkan nama lengkap",
+                hint: "Masukkan nama",
                 icon: Icons.person_outline,
                 suffixText: "Wajib",
               ),
               const SizedBox(height: 16),
-
-              // Field Email (untuk kedua role)
               _buildTextField(
                 controller: _emailController,
-                label: _selectedRole == 'Pengelola'
-                    ? "Email Pengelola"
-                    : "Email Mahasiswa / Pribadi",
-                hint: _selectedRole == 'Pengelola'
-                    ? "contoh: admin@kost.com"
-                    : "contoh: mhs@kampus.ac.id",
+                label: "Email",
+                hint: "contoh: user@email.com",
                 icon: Icons.email_outlined,
                 keyboardType: TextInputType.emailAddress,
                 suffixText: "Wajib",
               ),
               const SizedBox(height: 16),
-
-              // ============================================
-              // FIELD KHUSUS PENGELOLA (Muncul hanya jika role = Pengelola)
-              // ============================================
               if (_selectedRole == 'Pengelola') ...[
                 _buildTextField(
                   controller: _namaKostController,
@@ -270,22 +302,20 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 _buildTextField(
                   controller: _alamatKostController,
                   label: "Alamat Kost",
-                  hint: "Masukkan alamat lengkap kost",
+                  hint: "Masukkan alamat lengkap",
                   icon: Icons.location_on_outlined,
                   suffixText: "Wajib",
                   maxLines: 2,
                 ),
                 const SizedBox(height: 16),
               ],
-
-              // Field Password (untuk kedua role)
               _buildTextField(
                 controller: _passwordController,
                 label: "Password",
                 hint: "Masukkan password",
                 icon: Icons.lock_outline,
                 obscureText: _obscurePassword,
-                suffixText: "Min. 8 Karakter",
+                suffixText: "Min. 6 Karakter",
                 isPassword: true,
                 obscureState: _obscurePassword,
                 onToggleVisibility: () =>
@@ -304,45 +334,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   () => _obscureConfirmPassword = !_obscureConfirmPassword,
                 ),
               ),
-              const SizedBox(height: 24),
-
-              // ============================================
-              // INFO BOX (Berbeda sesuai role)
-              // ============================================
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: AppColors.primaryLight,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.primary.withOpacity(0.2)),
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Icon(
-                      Icons.check_circle_outline,
-                      color: AppColors.primary,
-                      size: 20,
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        _selectedRole == 'Pengelola'
-                            ? "Verifikasi data kost Anda akan dilakukan oleh tim KostRadar sebelum akun diaktifkan."
-                            : "Verifikasi identitas mahasiswa saat sewa untuk jaminan bebas deposit & promo eksklusif.",
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: AppColors.textSecondary,
-                          height: 1.4,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
               const SizedBox(height: 32),
-
-              // Tombol Daftar
               SizedBox(
                 width: double.infinity,
                 height: 50,
