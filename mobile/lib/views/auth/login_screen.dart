@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/formatter.dart';
@@ -30,7 +31,10 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  void _handleLogin() {
+  // ==========================================
+  // FUNGSI LOGIN DENGAN SUPABASE AUTH
+  // ==========================================
+  Future<void> _handleLogin() async {
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
 
@@ -45,32 +49,107 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
+    // Validasi format email sederhana
+    if (!email.contains('@') || !email.contains('.')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Format email tidak valid!'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
     // Mulai loading
     setState(() => _isLoading = true);
 
-    // Simulasi proses login 2 detik
-    Future.delayed(const Duration(seconds: 2), () {
-      if (mounted) {
-        setState(() => _isLoading = false);
+    try {
+      // Panggil Supabase Auth
+      final response = await Supabase.instance.client.auth.signInWithPassword(
+        email: email,
+        password: password,
+      );
 
-        // ==========================================
-        // LOGIKA ROUTING BERDASARKAN ROLE
-        // ==========================================
-        if (_selectedRole == 'Admin') {
-          // Jika yang login Admin, arahkan ke HomeAdminPage
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => const HomeAdminPage()),
+      // Cek apakah login berhasil
+      if (response.user != null) {
+        if (mounted) {
+          setState(() => _isLoading = false);
+
+          // Tampilkan pesan sukses
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Login berhasil! Selamat datang.'),
+              backgroundColor: AppColors.success,
+            ),
           );
-        } else {
-          // Jika yang login Mahasiswa, arahkan ke HomePage
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => const HomePage()),
+
+          // ==========================================
+          // LOGIKA ROUTING BERDASARKAN ROLE
+          // ==========================================
+          if (_selectedRole == 'Admin') {
+            // Jika yang login Admin, arahkan ke HomeAdminPage
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => const HomeAdminPage()),
+            );
+          } else {
+            // Jika yang login Mahasiswa, arahkan ke HomePage
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => const HomePage()),
+            );
+          }
+        }
+      } else {
+        // Jika user null (seharusnya tidak terjadi)
+        if (mounted) {
+          setState(() => _isLoading = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Login gagal. Silakan coba lagi.'),
+              backgroundColor: AppColors.error,
+            ),
           );
         }
       }
-    });
+    } on AuthException catch (e) {
+      // Handle error dari Supabase Auth
+      if (mounted) {
+        setState(() => _isLoading = false);
+
+        String errorMessage = 'Login gagal!';
+
+        if (e.message.contains('Invalid login credentials')) {
+          errorMessage = 'Email atau password salah!';
+        } else if (e.message.contains('Email not confirmed')) {
+          errorMessage =
+              'Email belum diverifikasi. Silakan cek inbox email Anda.';
+        } else if (e.message.contains('User not found')) {
+          errorMessage =
+              'Akun tidak ditemukan. Silakan daftar terlebih dahulu.';
+        } else {
+          errorMessage = e.message;
+        }
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(errorMessage),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    } catch (e) {
+      // Handle error umum (network error, dll)
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Terjadi kesalahan: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
   }
 
   @override
