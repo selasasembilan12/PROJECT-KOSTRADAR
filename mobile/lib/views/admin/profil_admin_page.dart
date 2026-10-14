@@ -1,5 +1,6 @@
-
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/theme/app_theme.dart';
@@ -16,9 +17,11 @@ class ProfilAdminPage extends StatefulWidget {
 
 class _ProfilAdminPageState extends State<ProfilAdminPage> {
   final SupabaseClient supabase = Supabase.instance.client;
+  final ImagePicker _picker = ImagePicker();
 
   bool _isLoading = true;
   bool _isSaving = false;
+  bool _isUploadingPhoto = false;
 
   Map<String, dynamic> adminData = {
     'username': 'Admin KostRadar',
@@ -60,6 +63,55 @@ class _ProfilAdminPageState extends State<ProfilAdminPage> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message)),
     );
+  }
+
+  // Fungsi untuk memilih dan mengunggah foto profil ke Supabase Storage
+  Future<void> _pickAndUploadPhoto() async {
+    try {
+      final XFile? image = await _picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 80,
+      );
+
+      if (image == null) return;
+
+      setState(() => _isUploadingPhoto = true);
+
+      final user = supabase.auth.currentUser;
+      if (user == null) throw Exception("User belum login");
+
+      final bytes = await image.readAsBytes();
+      final fileExt = image.name.split('.').last;
+      final fileName = 'admin_${user.id}_${DateTime.now().millisecondsSinceEpoch}.$fileExt';
+      final filePath = 'profile_admin/$fileName';
+
+      // Upload file ke Supabase Storage bucket 'kost-images'
+      await supabase.storage.from('kost-images').uploadBinary(
+            filePath,
+            bytes,
+            fileOptions: FileOptions(contentType: 'image/$fileExt', upsert: true),
+          );
+
+      // Ambil Public URL gambar
+      final imageUrl = supabase.storage.from('kost-images').getPublicUrl(filePath);
+
+      // Simpan URL ke metadata user Supabase Auth
+      await supabase.auth.updateUser(
+        UserAttributes(
+          data: {'foto_profile': imageUrl},
+        ),
+      );
+
+      setState(() {
+        adminData['foto_profile'] = imageUrl;
+        _isUploadingPhoto = false;
+      });
+
+      _showMessage('Foto profil berhasil diperbarui');
+    } catch (e) {
+      setState(() => _isUploadingPhoto = false);
+      _showMessage('Gagal mengunggah foto: $e');
+    }
   }
 
   @override
@@ -196,29 +248,38 @@ class _ProfilAdminPageState extends State<ProfilAdminPage> {
                   shape: BoxShape.circle,
                   color: AppColors.primaryLight,
                 ),
-                child: fotoProfile.isNotEmpty
-                    ? ClipOval(
-                        child: Image.network(
-                          fotoProfile,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => const Icon(
+                child: _isUploadingPhoto
+                    ? const Center(
+                        child: CircularProgressIndicator(
+                          color: AppColors.primary,
+                          strokeWidth: 2,
+                        ),
+                      )
+                    : fotoProfile.isNotEmpty
+                        ? ClipOval(
+                            child: Image.network(
+                              fotoProfile,
+                              fit: BoxFit.cover,
+                              width: 90,
+                              height: 90,
+                              errorBuilder: (_, __, ___) => const Icon(
+                                Icons.person,
+                                size: 45,
+                                color: AppColors.primary,
+                              ),
+                            ),
+                          )
+                        : const Icon(
                             Icons.person,
                             size: 45,
                             color: AppColors.primary,
                           ),
-                        ),
-                      )
-                    : const Icon(
-                        Icons.person,
-                        size: 45,
-                        color: AppColors.primary,
-                      ),
               ),
               Positioned(
                 right: 0,
                 bottom: 0,
                 child: GestureDetector(
-                  onTap: _editProfile,
+                  onTap: _pickAndUploadPhoto, // Membuka galeri untuk ganti foto
                   child: Container(
                     width: 30,
                     height: 30,
@@ -227,7 +288,7 @@ class _ProfilAdminPageState extends State<ProfilAdminPage> {
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(
-                      Icons.edit,
+                      Icons.camera_alt,
                       size: 15,
                       color: AppColors.white,
                     ),
@@ -237,13 +298,27 @@ class _ProfilAdminPageState extends State<ProfilAdminPage> {
             ],
           ),
           const SizedBox(height: 16),
-          Text(
-            username,
-            style: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: AppColors.textPrimary,
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                username,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const SizedBox(width: 8),
+              GestureDetector(
+                onTap: _editProfile, // Tombol edit untuk mengubah nama/username
+                child: const Icon(
+                  Icons.edit,
+                  size: 16,
+                  color: AppColors.primary,
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 6),
           Text(
@@ -494,9 +569,8 @@ class _ProfilAdminPageState extends State<ProfilAdminPage> {
 
       if (!mounted) return;
 
-      // Ganti '/login' jika nama route login di main.dart berbeda.
-      Navigator.of(context).pushNamedAndRemoveUntil(
-        '/login',
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const HomeAdminPage()),
         (route) => false,
       );
     } catch (e) {
