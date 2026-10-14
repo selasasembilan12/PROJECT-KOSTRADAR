@@ -18,9 +18,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final TextEditingController _confirmPasswordController =
       TextEditingController();
 
-  final TextEditingController _namaKostController = TextEditingController();
-  final TextEditingController _alamatKostController = TextEditingController();
-
   String _selectedRole = 'Mahasiswa'; // Default role
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
@@ -32,8 +29,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
-    _namaKostController.dispose();
-    _alamatKostController.dispose();
     super.dispose();
   }
 
@@ -42,8 +37,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
     final confirmPassword = _confirmPasswordController.text.trim();
-    final namaKost = _namaKostController.text.trim();
-    final alamatKost = _alamatKostController.text.trim();
 
     print('--- [DEBUG] MULAI PROSES REGISTER ---');
     print('[DEBUG] Email: $email | Role: $_selectedRole');
@@ -56,17 +49,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Semua field wajib diisi!'),
-          backgroundColor: AppColors.error,
-        ),
-      );
-      return;
-    }
-
-    // 2. VALIDASI KHUSUS PENGELOLA/ADMIN
-    if (_selectedRole == 'Admin' && (namaKost.isEmpty || alamatKost.isEmpty)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Nama dan Alamat Kost wajib diisi untuk Admin!'),
           backgroundColor: AppColors.error,
         ),
       );
@@ -96,7 +78,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // 3. PANGGIL SUPABASE AUTH
+      // 2. PANGGIL SUPABASE AUTH
       print('[DEBUG] Memanggil Supabase signUp...');
       final response = await Supabase.instance.client.auth.signUp(
         email: email,
@@ -107,7 +89,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       if (response.user != null) {
         print('[DEBUG] Auth berhasil! User ID: ${response.user!.id}');
 
-        // 4. INSERT KE TABEL USERS
+        // 3. INSERT KE TABEL USERS (LOGIKA INI TETAP AMAN & TIDAK BERUBAH)
         await Supabase.instance.client.from('users').insert({
           'id_user': response.user!.id,
           'username': name,
@@ -119,18 +101,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         });
         print('[DEBUG] Insert ke tabel users BERHASIL.');
 
-        // 5. JIKA ADMIN, BUAT DATA KOST DASAR
-        if (_selectedRole == 'Admin') {
-          await Supabase.instance.client.from('kost').insert({
-            'id_user': response.user!.id,
-            'nama': namaKost,
-            'alamat': alamatKost,
-            'harga': 0,
-            'deskripsi': '',
-            'ketersediaan_kamar': 0,
-          });
-          print('[DEBUG] Data kost dasar untuk Admin BERHASIL dibuat.');
-        }
+        // ✅ LOGIKA INSERT OTOMATIS KE TABEL KOST SUDAH DIHAPUS SESUAI PERMINTAAN
 
         if (mounted) {
           setState(() => _isLoading = false);
@@ -285,9 +256,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: _buildRoleCard(
-                      icon: Icons.admin_panel_settings_outlined, // ✅ ICON ADMIN
-                      label: "Admin", // ✅ UBAH DARI PENGELOLA
-                      role: "Admin", // ✅ UBAH DARI PENGELOLA
+                      icon: Icons.admin_panel_settings_outlined,
+                      label: "Admin",
+                      role: "Admin",
                     ),
                   ),
                 ],
@@ -310,25 +281,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 suffixText: "Wajib",
               ),
               const SizedBox(height: 16),
-              if (_selectedRole == 'Admin') ...[
-                _buildTextField(
-                  controller: _namaKostController,
-                  label: "Nama Kost",
-                  hint: "Contoh: Kost Adiwarna",
-                  icon: Icons.home_outlined,
-                  suffixText: "Wajib",
-                ),
-                const SizedBox(height: 16),
-                _buildTextField(
-                  controller: _alamatKostController,
-                  label: "Alamat Kost",
-                  hint: "Masukkan alamat lengkap",
-                  icon: Icons.location_on_outlined,
-                  suffixText: "Wajib",
-                  maxLines: 2,
-                ),
-                const SizedBox(height: 16),
-              ],
+              // ✅ FIELD NAMA KOST & ALAMAT SUDAH DIHAPUS DARI SINI
               _buildTextField(
                 controller: _passwordController,
                 label: "Password",

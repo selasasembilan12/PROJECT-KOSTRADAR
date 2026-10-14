@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart'; // ✅ TAMBAHKAN INI
 
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/formatter.dart';
@@ -20,9 +21,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     super.dispose();
   }
 
-  void _handleResetPassword() {
+  Future<void> _handleResetPassword() async {
     final email = _emailController.text.trim();
 
+    // 1. VALIDASI DASAR
     if (email.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -45,17 +47,53 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
     setState(() => _isLoading = true);
 
-    Future.delayed(const Duration(seconds: 2), () {
+    try {
+      // 2. PANGGIL SUPABASE UNTUK KIRIM EMAIL RESET
+      await Supabase.instance.client.auth.resetPasswordForEmail(
+        email,
+        // Opsional: Jika di Web, pastikan redirect_to mengarah ke port aplikasi lu
+        // redirectTo: 'http://localhost:61664',
+      );
+
       if (mounted) {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Link reset berhasil dikirim! Cek email lu ya.'),
+            content: Text('Link reset berhasil dikirim! Cek email Anda.'),
             backgroundColor: AppColors.success,
+            duration: Duration(seconds: 4),
+          ),
+        );
+
+        // Kembali ke halaman login setelah berhasil
+        Future.delayed(const Duration(seconds: 2), () {
+          if (mounted) Navigator.pop(context);
+        });
+      }
+    } on AuthException catch (e) {
+      // Handle error dari Supabase (misal: email tidak ditemukan)
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal: ${e.message}'),
+            backgroundColor: AppColors.error,
+            duration: const Duration(seconds: 4),
           ),
         );
       }
-    });
+    } catch (e) {
+      // Handle error umum
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Terjadi kesalahan: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
   }
 
   @override
