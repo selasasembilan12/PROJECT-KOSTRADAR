@@ -1,432 +1,315 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/theme/app_theme.dart';
 
 import 'data_kost_page.dart';
 import 'daftar_chat_admin_page.dart';
 import 'profil_admin_page.dart';
-import 'tambah_edit_kost_page.dart';
 
 // ============================================================
-// HALAMAN HOME ADMIN
+// HOME ADMIN PAGE (Terintegrasi Supabase & Statistik Real-time)
 // ============================================================
 
-class HomeAdminPage extends StatelessWidget {
+class HomeAdminPage extends StatefulWidget {
   const HomeAdminPage({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return const AdminHomeView();
-  }
+  State<HomeAdminPage> createState() => _HomeAdminPageState();
 }
 
-class AdminHomeView extends StatelessWidget {
-  const AdminHomeView({super.key});
+class _HomeAdminPageState extends State<HomeAdminPage> {
+  final SupabaseClient supabase = Supabase.instance.client;
+
+  // Fungsi untuk menghitung total kost dan total kamar tersedia secara otomatis
+  Future<Map<String, int>> _fetchRingkasanProperti() async {
+    try {
+      final response = await supabase.from('kost').select('ketersediaan_kamar');
+      final List<dynamic> data = response as List<dynamic>;
+
+      int totalKost = data.length;
+      int totalKamarTersedia = 0;
+
+      for (var item in data) {
+        int kamar = (item['ketersediaan_kamar'] != null)
+            ? int.parse(item['ketersediaan_kamar'].toString())
+            : 0;
+        totalKamarTersedia += kamar;
+      }
+
+      return {
+        'totalKost': totalKost,
+        'totalKamarTersedia': totalKamarTersedia,
+      };
+    } catch (e) {
+      return {
+        'totalKost': 0,
+        'totalKamarTersedia': 0,
+      };
+    }
+  }
+
+  // Fungsi untuk mengambil data kost terbaru dari Supabase beserta fotonya
+  Future<List<Map<String, dynamic>>> _fetchKostTerbaru() async {
+    final response = await supabase
+        .from('kost')
+        .select('*, foto_kost(foto)')
+        .order('created_at', ascending: false)
+        .limit(3);
+
+    return List<Map<String, dynamic>>.from(response);
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-
       body: SafeArea(
-        child: Column(
-          children: [
-            _buildTopBar(),
-
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-
-                  children: [
-                    _buildRingkasanPropertiCard(),
-
-                    const SizedBox(height: 16),
-
-                    _buildKelolaUnitButton(context),
-
-                    const SizedBox(height: 20),
-
-                    _buildKostTerbaruHeader(context),
-
-                    const SizedBox(height: 10),
-
-                    _buildKostItem(
-                      nama: 'Kost Adiwarna',
-
-                      harga: 'Rp 1.200.000',
-
-                      waktu: '11:30',
-
-                      status: 'Tersedia 3 kamar',
-                    ),
-
-                    const SizedBox(height: 10),
-
-                    _buildKostItem(
-                      nama: 'Kost Melati',
-
-                      harga: 'Rp 1.000.000',
-
-                      waktu: '11:30',
-
-                      status: null,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildHeader(),
+              const SizedBox(height: 16),
+              _buildRingkasanProperti(),
+              const SizedBox(height: 16),
+              _buildBannerKelolaUnit(context),
+              const SizedBox(height: 20),
+              _buildSectionHeader(context, "Kost Terbaru"),
+              const SizedBox(height: 12),
+              _buildDaftarKostTerbaru(),
+            ],
+          ),
         ),
       ),
-
       bottomNavigationBar: _buildBottomNav(context),
     );
   }
 
   // ============================================================
-  // TOP BAR
+  // HEADER
   // ============================================================
 
-  Widget _buildTopBar() {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-
-      color: AppColors.white,
-
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 22,
-
-                height: 22,
-
-                decoration: BoxDecoration(
-                  color: AppColors.primary,
-
-                  borderRadius: BorderRadius.circular(6),
-                ),
-
-                child: const Icon(
-                  Icons.radar,
-
-                  size: 14,
-
-                  color: AppColors.white,
-                ),
+  Widget _buildHeader() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        const Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              "KOSTRADAR ADMIN",
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                color: AppColors.textSecondary,
+                letterSpacing: 0.5,
               ),
-
-              const SizedBox(width: 6),
-
-              const Text(
-                'KOSTRADAR ADMIN',
-
-                style: TextStyle(
-                  fontSize: 11,
-
-                  fontWeight: FontWeight.w600,
-
-                  color: AppColors.textSecondary,
-
-                  letterSpacing: 0.5,
-                ),
+            ),
+            SizedBox(height: 2),
+            Text(
+              "Home",
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: AppColors.textPrimary,
               ),
-            ],
+            ),
+          ],
+        ),
+        Container(
+          width: 40,
+          height: 40,
+          decoration: const BoxDecoration(
+            color: AppColors.primary,
+            shape: BoxShape.circle,
           ),
-
-          const SizedBox(height: 4),
-
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-
-            children: [
-              const Text(
-                'Home',
-
-                style: TextStyle(
-                  fontSize: 24,
-
-                  fontWeight: FontWeight.bold,
-
-                  color: AppColors.textPrimary,
-                ),
-              ),
-
-              const CircleAvatar(
-                radius: 18,
-
-                backgroundColor: AppColors.primary,
-
-                child: Icon(Icons.person, color: AppColors.white, size: 20),
-              ),
-            ],
+          child: const Icon(
+            Icons.person,
+            color: AppColors.white,
+            size: 22,
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
   // ============================================================
-  // RINGKASAN PROPERTI
+  // RINGKASAN PROPERTI (Otomatis dari Supabase)
   // ============================================================
 
-  Widget _buildRingkasanPropertiCard() {
-    return Container(
-      width: double.infinity,
+  Widget _buildRingkasanProperti() {
+    return FutureBuilder<Map<String, int>>(
+      future: _fetchRingkasanProperti(),
+      builder: (context, snapshot) {
+        final totalKost = snapshot.data?['totalKost'] ?? 0;
+        final totalKamar = snapshot.data?['totalKamarTersedia'] ?? 0;
 
-      padding: const EdgeInsets.all(16),
-
-      decoration: BoxDecoration(
-        color: AppColors.white,
-
-        borderRadius: BorderRadius.circular(16),
-
-        border: Border.all(color: AppColors.border),
-      ),
-
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-
+        return Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppColors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.border),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    'Ringkasan Properti',
-
-                    style: TextStyle(
-                      fontSize: 15,
-
-                      fontWeight: FontWeight.bold,
-
-                      color: AppColors.textPrimary,
-                    ),
+                  const Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "Ringkasan Properti",
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      SizedBox(height: 2),
+                      Text(
+                        "Pantau aktivitas kost dan calon penghuni hari ini",
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
                   ),
-
-                  SizedBox(height: 2),
-
-                  Text(
-                    'Pantau aktivitas kost dan calon penghuni hari ini',
-
-                    style: TextStyle(
-                      fontSize: 11,
-
-                      color: AppColors.textSecondary,
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: AppColors.successLight,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Text(
+                      "• Aktif",
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.success,
+                      ),
                     ),
                   ),
                 ],
               ),
-
-              _buildStatusBadge('Aktif'),
-            ],
-          ),
-
-          const SizedBox(height: 16),
-
-          Row(
-            children: [
-              Expanded(
-                child: _buildStatCard(
-                  icon: Icons.apartment,
-
-                  iconColor: AppColors.primary,
-
-                  value: '12',
-
-                  label: 'Total Kost',
-
-                  trailing: _buildTrendBadge('+2'),
-                ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildStatCard(
+                      icon: Icons.apartment,
+                      iconBg: AppColors.primaryLight,
+                      iconColor: AppColors.primary,
+                      value: totalKost.toString(),
+                      label: "Total Kost",
+                      badgeText: "+$totalKost",
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _buildStatCard(
+                      icon: Icons.door_front_door_outlined,
+                      iconBg: AppColors.successLight,
+                      iconColor: AppColors.success,
+                      value: totalKamar.toString(),
+                      label: "Kamar Tersedia",
+                      badgeText: "Siap huni",
+                      badgeColor: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
               ),
-
-              const SizedBox(width: 10),
-
-              Expanded(
-                child: _buildStatCard(
-                  icon: Icons.meeting_room,
-
-                  iconColor: AppColors.success,
-
-                  value: '8',
-
-                  label: 'Kamar Tersedia',
-
-                  trailingText: 'Siap huni',
-                ),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 10),
-
-          Row(
-            children: [
-              Expanded(
-                child: _buildStatCard(
-                  icon: Icons.mail_outline,
-
-                  iconColor: AppColors.primary,
-
-                  value: '4',
-
-                  label: 'Pesan Masuk',
-
-                  trailing: _buildDot(),
-                ),
-              ),
-
-              const SizedBox(width: 10),
-
-              Expanded(
-                child: _buildStatCard(
-                  icon: Icons.chat_bubble_outline,
-
-                  iconColor: AppColors.primary,
-
-                  value: '25',
-
-                  label: 'Total Chat',
-
-                  trailingText: 'Bulan ini',
-                ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildStatCard(
+                      icon: Icons.mail_outline,
+                      iconBg: AppColors.primaryLight,
+                      iconColor: AppColors.primary,
+                      value: "4",
+                      label: "Pesan Masuk",
+                      badgeText: "•",
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _buildStatCard(
+                      icon: Icons.chat_bubble_outline,
+                      iconBg: AppColors.primaryLight,
+                      iconColor: AppColors.primary,
+                      value: "25",
+                      label: "Total Chat",
+                      badgeText: "Bulan ini",
+                      badgeColor: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
-
-  // ============================================================
-  // STATUS BADGE
-  // ============================================================
-
-  Widget _buildStatusBadge(String text) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-
-      decoration: BoxDecoration(
-        color: AppColors.success.withOpacity(0.12),
-
-        borderRadius: BorderRadius.circular(20),
-      ),
-
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-
-        children: [
-          Container(
-            width: 6,
-
-            height: 6,
-
-            decoration: const BoxDecoration(
-              color: AppColors.success,
-
-              shape: BoxShape.circle,
-            ),
-          ),
-
-          const SizedBox(width: 5),
-
-          Text(
-            text,
-
-            style: const TextStyle(
-              fontSize: 11,
-
-              fontWeight: FontWeight.w600,
-
-              color: AppColors.success,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ============================================================
-  // STAT CARD
-  // ============================================================
 
   Widget _buildStatCard({
     required IconData icon,
-
+    required Color iconBg,
     required Color iconColor,
-
     required String value,
-
     required String label,
-
-    Widget? trailing,
-
-    String? trailingText,
+    required String badgeText,
+    Color badgeColor = AppColors.success,
   }) {
     return Container(
       padding: const EdgeInsets.all(12),
-
       decoration: BoxDecoration(
         color: AppColors.backgroundLight,
-
         borderRadius: BorderRadius.circular(12),
       ),
-
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
-
             children: [
-              Icon(icon, color: iconColor, size: 20),
-
-              if (trailing != null) trailing,
-
-              if (trailingText != null)
-                Text(
-                  trailingText,
-
-                  style: const TextStyle(
-                    fontSize: 10,
-
-                    color: AppColors.textSecondary,
-                  ),
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: iconBg,
+                  borderRadius: BorderRadius.circular(8),
                 ),
+                child: Icon(icon, size: 18, color: iconColor),
+              ),
+              Text(
+                badgeText,
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                  color: badgeColor,
+                ),
+              ),
             ],
           ),
-
-          const SizedBox(height: 8),
-
+          const SizedBox(height: 10),
           Text(
             value,
-
             style: const TextStyle(
               fontSize: 20,
-
               fontWeight: FontWeight.bold,
-
               color: AppColors.textPrimary,
             ),
           ),
-
           Text(
             label,
-
             style: const TextStyle(
               fontSize: 11,
-
               color: AppColors.textSecondary,
             ),
           ),
@@ -435,114 +318,66 @@ class AdminHomeView extends StatelessWidget {
     );
   }
 
-  Widget _buildTrendBadge(String text) {
-    return Text(
-      text,
-
-      style: const TextStyle(
-        fontSize: 11,
-
-        fontWeight: FontWeight.w600,
-
-        color: AppColors.success,
-      ),
-    );
-  }
-
-  Widget _buildDot() {
-    return Container(
-      width: 6,
-
-      height: 6,
-
-      decoration: const BoxDecoration(
-        color: AppColors.primary,
-
-        shape: BoxShape.circle,
-      ),
-    );
-  }
-
   // ============================================================
-  // BUTTON KELOLA UNIT BARU
+  // BANNER KELOLA UNIT BARU
   // ============================================================
 
-  Widget _buildKelolaUnitButton(BuildContext context) {
-    return InkWell(
+  Widget _buildBannerKelolaUnit(BuildContext context) {
+    return GestureDetector(
       onTap: () {
-        Navigator.push(
+        Navigator.pushReplacement(
           context,
-
-          MaterialPageRoute(builder: (context) => const TambahEditKostPage()),
+          MaterialPageRoute(builder: (context) => const DataKostPage()),
         );
       },
-
-      borderRadius: BorderRadius.circular(14),
-
       child: Container(
-        width: double.infinity,
-
-        padding: const EdgeInsets.all(14),
-
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: AppColors.primary,
-
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(16),
         ),
-
         child: Row(
           children: [
             Container(
-              width: 36,
-
-              height: 36,
-
+              padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: AppColors.white.withOpacity(0.15),
-
-                borderRadius: BorderRadius.circular(10),
+                color: AppColors.white.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(12),
               ),
-
               child: const Icon(
-                Icons.home_work_outlined,
-
+                Icons.add_business,
                 color: AppColors.white,
-
-                size: 20,
+                size: 24,
               ),
             ),
-
             const SizedBox(width: 12),
-
             const Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-
                 children: [
                   Text(
-                    'Kelola Unit Baru',
-
+                    "Kelola Unit Baru",
                     style: TextStyle(
-                      color: AppColors.white,
-
-                      fontWeight: FontWeight.bold,
-
                       fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.white,
                     ),
                   ),
-
-                  SizedBox(height: 3),
-
+                  SizedBox(height: 2),
                   Text(
-                    'Tambahkan kamar & perbarui ketersediaan',
-
-                    style: TextStyle(color: AppColors.white, fontSize: 11),
+                    "Tambahkan kamar & perbarui ketersediaan",
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: AppColors.white,
+                    ),
                   ),
                 ],
               ),
             ),
-
-            const Icon(Icons.chevron_right, color: AppColors.white),
+            const Icon(
+              Icons.chevron_right,
+              color: AppColors.white,
+            ),
           ],
         ),
       ),
@@ -550,50 +385,43 @@ class AdminHomeView extends StatelessWidget {
   }
 
   // ============================================================
-  // HEADER KOST TERBARU
+  // SECTION HEADER
   // ============================================================
 
-  Widget _buildKostTerbaruHeader(BuildContext context) {
+  Widget _buildSectionHeader(BuildContext context, String title) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
-
       children: [
-        const Text(
-          'Kost Terbaru',
-
-          style: TextStyle(
-            fontSize: 15,
-
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 16,
             fontWeight: FontWeight.bold,
-
             color: AppColors.textPrimary,
           ),
         ),
-
         GestureDetector(
           onTap: () {
-            Navigator.push(
+            Navigator.pushReplacement(
               context,
-
               MaterialPageRoute(builder: (context) => const DataKostPage()),
             );
           },
-
-          child: Row(
-            children: const [
+          child: const Row(
+            children: [
               Text(
-                'Lihat Semua',
-
+                "Lihat Semua",
                 style: TextStyle(
                   fontSize: 12,
-
-                  color: AppColors.primary,
-
                   fontWeight: FontWeight.w600,
+                  color: AppColors.primary,
                 ),
               ),
-
-              Icon(Icons.chevron_right, size: 16, color: AppColors.primary),
+              Icon(
+                Icons.chevron_right,
+                size: 16,
+                color: AppColors.primary,
+              ),
             ],
           ),
         ),
@@ -602,123 +430,138 @@ class AdminHomeView extends StatelessWidget {
   }
 
   // ============================================================
-  // KOST ITEM
+  // DAFTAR KOST TERBARU (Membaca Supabase)
   // ============================================================
 
-  Widget _buildKostItem({
-    required String nama,
+  Widget _buildDaftarKostTerbaru() {
+    return FutureBuilder<List<Map<String, dynamic>>>(
+      future: _fetchKostTerbaru(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(
+            child: Padding(
+              padding: EdgeInsets.all(20.0),
+              child: CircularProgressIndicator(color: AppColors.primary),
+            ),
+          );
+        }
 
-    required String harga,
-
-    required String waktu,
-
-    required String? status,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(10),
-
-      decoration: BoxDecoration(
-        color: AppColors.white,
-
-        borderRadius: BorderRadius.circular(14),
-
-        border: Border.all(color: AppColors.border),
-      ),
-
-      child: Row(
-        children: [
-          Container(
-            width: 56,
-
-            height: 56,
-
+        if (snapshot.hasError || !snapshot.hasData || snapshot.data!.isEmpty) {
+          return Container(
+            padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: AppColors.backgroundLight,
-
-              borderRadius: BorderRadius.circular(10),
+              color: AppColors.white,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: AppColors.border),
             ),
+            child: const Center(
+              child: Text(
+                "Belum ada unit kost terbaru.",
+                style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+              ),
+            ),
+          );
+        }
 
-            child: const Icon(Icons.apartment, color: AppColors.textSecondary),
-          ),
+        final listKost = snapshot.data!;
 
-          const SizedBox(width: 12),
+        return Column(
+          children: listKost.map((item) {
+            final double harga = (item['harga'] != null)
+                ? double.parse(item['harga'].toString())
+                : 0.0;
+            final formattedHarga =
+                "Rp ${harga.toInt().toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')}";
 
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            final listFoto = item['foto_kost'] as List<dynamic>? ?? [];
 
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-
-                  children: [
-                    Text(
-                      nama,
-
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-
-                        fontSize: 13,
-
-                        color: AppColors.textPrimary,
-                      ),
+            return Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.white,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 54,
+                    height: 54,
+                    decoration: BoxDecoration(
+                      color: AppColors.backgroundLight,
+                      borderRadius: BorderRadius.circular(10),
                     ),
-
-                    Text(
-                      waktu,
-
-                      style: const TextStyle(
-                        fontSize: 11,
-
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 3),
-
-                Text(
-                  '$harga/bulan',
-
-                  style: const TextStyle(
-                    fontSize: 13,
-
-                    fontWeight: FontWeight.w600,
-
-                    color: AppColors.primary,
+                    child: listFoto.isNotEmpty
+                        ? ClipRRect(
+                            borderRadius: BorderRadius.circular(10),
+                            child: Image.network(
+                              listFoto.first['foto'] ?? '',
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) {
+                                return const Icon(
+                                  Icons.image,
+                                  color: AppColors.primary,
+                                  size: 26,
+                                );
+                              },
+                            ),
+                          )
+                        : const Icon(
+                            Icons.apartment,
+                            size: 26,
+                            color: AppColors.textSecondary,
+                          ),
                   ),
-                ),
-
-                if (status != null)
-                  Row(
-                    children: [
-                      const Icon(
-                        Icons.check_circle,
-
-                        size: 12,
-
-                        color: AppColors.success,
-                      ),
-
-                      const SizedBox(width: 5),
-
-                      Text(
-                        status,
-
-                        style: const TextStyle(
-                          fontSize: 11,
-
-                          color: AppColors.success,
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          item['nama'] ?? '',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textPrimary,
+                          ),
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 2),
+                        Text(
+                          "$formattedHarga/bulan",
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            const Icon(
+                              Icons.check_circle,
+                              size: 12,
+                              color: AppColors.success,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              "Tersedia ${item['ketersediaan_kamar'] ?? 0} kamar",
+                              style: const TextStyle(
+                                fontSize: 10,
+                                color: AppColors.success,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
-              ],
-            ),
-          ),
-        ],
-      ),
+                ],
+              ),
+            );
+          }).toList(),
+        );
+      },
     );
   }
 
@@ -730,95 +573,69 @@ class AdminHomeView extends StatelessWidget {
     return Container(
       decoration: const BoxDecoration(
         color: AppColors.white,
-
         border: Border(top: BorderSide(color: AppColors.border)),
       ),
-
       child: SafeArea(
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceAround,
-
           children: [
-            _buildNavItem(context, Icons.home, 'Home', true),
-
-            _buildNavItem(
-              context,
-
-              Icons.apartment_outlined,
-
-              'Data Kost',
-
-              false,
-            ),
-
-            _buildNavItem(context, Icons.chat_bubble_outline, 'Chat', false),
-
-            _buildNavItem(context, Icons.person_outline, 'Profil', false),
+            _buildNavItem(context, Icons.home, "Home", true),
+            _buildNavItem(context, Icons.apartment, "Data Kost", false),
+            _buildNavItem(context, Icons.chat_bubble_outline, "Chat", false),
+            _buildNavItem(context, Icons.person_outline, "Profil", false),
           ],
         ),
       ),
     );
   }
 
-  // ============================================================
-  // NAVIGATION ITEM
-  // ============================================================
-
   Widget _buildNavItem(
     BuildContext context,
-
     IconData icon,
-
     String label,
-
     bool isActive,
   ) {
     final color = isActive ? AppColors.primary : AppColors.textSecondary;
 
     return GestureDetector(
       onTap: () {
-        if (label == "Data Kost") {
-          Navigator.pushReplacement(
-            context,
-
-            MaterialPageRoute(builder: (context) => const DataKostPage()),
-          );
-        } else if (label == "Chat") {
-          Navigator.pushReplacement(
-            context,
-
-            MaterialPageRoute(
-              builder: (context) => const DaftarChatAdminPage(chatData: {}),
-            ),
-          );
-        } else if (label == "Profil") {
-          Navigator.pushReplacement(
-            context,
-
-            MaterialPageRoute(builder: (context) => const ProfilAdminPage()),
-          );
+        switch (label) {
+          case "Home":
+            break;
+          case "Data Kost":
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => const DataKostPage()),
+            );
+            break;
+          case "Chat":
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const DaftarChatAdminPage(chatData: {}),
+              ),
+            );
+            break;
+          case "Profil":
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => const ProfilAdminPage()),
+            );
+            break;
         }
       },
-
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 8),
-
         child: Column(
           mainAxisSize: MainAxisSize.min,
-
           children: [
-            Icon(icon, color: color, size: 22),
-
-            const SizedBox(height: 2),
-
+            Icon(icon, size: 22, color: color),
+            const SizedBox(height: 3),
             Text(
               label,
-
               style: TextStyle(
                 fontSize: 10,
-
                 color: color,
-
                 fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
               ),
             ),
