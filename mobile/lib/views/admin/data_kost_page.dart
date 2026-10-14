@@ -1,159 +1,229 @@
+
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/theme/app_theme.dart';
-
 import 'home_admin_page.dart';
 import 'daftar_chat_admin_page.dart';
 import 'profil_admin_page.dart';
 import 'tambah_edit_kost_page.dart';
 
-// ============================================================
-// MODEL DATA KOST
-// ============================================================
-
 class KostItem {
-  final String nama;
+  final Map<String, dynamic> data;
 
-  final String harga;
+  const KostItem(this.data);
 
-  final String ketersediaan;
+  String get id => (data['id_kost'] ?? data['id'] ?? '').toString();
 
-  const KostItem({
-    required this.nama,
+  String get nama => (data['nama'] ?? 'Tanpa nama').toString();
 
-    required this.harga,
-
-    required this.ketersediaan,
-  });
-
-  Map<String, dynamic> toMap() {
-    return {"nama": nama, "harga": harga, "ketersediaan": ketersediaan};
+  String get harga {
+    final value = num.tryParse(data['harga']?.toString() ?? '') ?? 0;
+    return 'Rp ${value.toStringAsFixed(0)}';
   }
+
+  String get ketersediaan =>
+      'Tersedia ${data['ketersediaan_kamar'] ?? 0} kamar';
+
+  Map<String, dynamic> toMap() => Map<String, dynamic>.from(data);
 }
 
-// ============================================================
-// DATA KOST PAGE
-// ============================================================
-
-class DataKostPage extends StatelessWidget {
+class DataKostPage extends StatefulWidget {
   const DataKostPage({super.key});
 
-  static const List<KostItem> daftarKost = [
-    KostItem(
-      nama: "Kost Adiwarna",
+  @override
+  State<DataKostPage> createState() => _DataKostPageState();
+}
 
-      harga: "Rp 1.200.000",
+class _DataKostPageState extends State<DataKostPage> {
+  final SupabaseClient supabase = Supabase.instance.client;
 
-      ketersediaan: "Tersedia 3 kamar",
-    ),
+  List<KostItem> daftarKost = [];
+  bool isLoading = true;
+  String? errorMessage;
+  final Map<String, String?> fotoKost = {};
 
-    KostItem(
-      nama: "Kost Melati",
+  @override
+  void initState() {
+    super.initState();
+    _loadKost();
+  }
 
-      harga: "Rp 1.000.000",
+  Future<void> _loadKost() async {
+    if (mounted) {
+      setState(() {
+        isLoading = true;
+        errorMessage = null;
+      });
+    }
 
-      ketersediaan: "Tersedia 2 kamar",
-    ),
+    try {
+      final response = await supabase.from('kost').select();
 
-    KostItem(
-      nama: "Kost Cemara",
+      final items = <KostItem>[];
+      for (final row in response) {
+        items.add(KostItem(Map<String, dynamic>.from(row)));
+      }
 
-      harga: "Rp 950.000",
+      // Ambil foto untuk setiap kost.
+      final fotoMap = <String, String?>{};
+      for (final kost in items) {
+        if (kost.id.isEmpty) continue;
 
-      ketersediaan: "Tersedia 5 kamar",
-    ),
-  ];
+        final fotoRows = await supabase
+            .from('foto_kost')
+            .select('foto')
+            .eq('id_kost', kost.id);
+
+        fotoMap[kost.id] = fotoRows.isNotEmpty
+            ? fotoRows.first['foto']?.toString()
+            : null;
+      }
+
+      if (!mounted) return;
+
+      setState(() {
+        daftarKost = items;
+        fotoKost
+          ..clear()
+          ..addAll(fotoMap);
+        isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        isLoading = false;
+        errorMessage = e.toString();
+      });
+    }
+  }
+
+  Future<void> _openForm({KostItem? kost}) async {
+    final result = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => TambahEditKostPage(
+          kostData: kost?.toMap(),
+        ),
+      ),
+    );
+
+    if (result == true && mounted) {
+      await _loadKost();
+    }
+  }
+
+  Future<void> _showDeleteDialog(KostItem kost) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Hapus Kost'),
+        content: Text(
+          'Apakah Anda yakin ingin menghapus ${kost.nama}?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Batal'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text(
+              'Hapus',
+              style: TextStyle(color: AppColors.error),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    if (kost.id.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('ID kost tidak ditemukan.')),
+      );
+      return;
+    }
+
+    try {
+      // Hapus data foto terlebih dahulu.
+      await supabase
+          .from('foto_kost')
+          .delete()
+          .eq('id_kost', kost.id);
+
+      // Hapus data kost dari database.
+      await supabase
+          .from('kost')
+          .delete()
+          .eq('id_kost', kost.id);
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${kost.nama} berhasil dihapus.')),
+      );
+
+      await _loadKost();
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal menghapus kost: $e')),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-
       body: SafeArea(
         child: Column(
           children: [
-            _buildTopBar(context),
-
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.all(16),
-
-                children: [
-                  for (final kost in daftarKost)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-
-                      child: _buildKostCard(context, kost),
-                    ),
-
-                  _buildManajemenKamarInfo(),
-                ],
-              ),
-            ),
+            _buildTopBar(),
+            Expanded(child: _buildContent()),
           ],
         ),
       ),
-
-      bottomNavigationBar: _buildBottomNav(context),
+      bottomNavigationBar: _buildBottomNav(),
     );
   }
 
-  // ============================================================
-  // TOP BAR
-  // ============================================================
-
-  Widget _buildTopBar(BuildContext context) {
+  Widget _buildTopBar() {
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-
       color: AppColors.white,
-
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
-
         children: [
           const Text(
-            "Data Kost",
-
+            'Data Kost',
             style: TextStyle(
               fontSize: 22,
-
               fontWeight: FontWeight.bold,
-
               color: AppColors.textPrimary,
             ),
           ),
-
           ElevatedButton.icon(
-            onPressed: () {
-              Navigator.push(
-                context,
-
-                MaterialPageRoute(
-                  builder: (context) => const TambahEditKostPage(),
-                ),
-              );
-            },
-
+            onPressed: () => _openForm(),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primary,
-
               foregroundColor: AppColors.white,
-
               elevation: 0,
-
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-
+              padding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 10,
+              ),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(10),
               ),
             ),
-
             icon: const Icon(Icons.add, size: 16),
-
             label: const Text(
-              "Tambah Kost",
-
+              'Tambah Kost',
               style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
             ),
           ),
@@ -162,155 +232,183 @@ class DataKostPage extends StatelessWidget {
     );
   }
 
-  // ============================================================
-  // CARD DATA KOST
-  // ============================================================
+  Widget _buildContent() {
+    if (isLoading) {
+      return const Center(
+        child: CircularProgressIndicator(color: AppColors.primary),
+      );
+    }
 
-  Widget _buildKostCard(BuildContext context, KostItem kost) {
-    return Container(
-      padding: const EdgeInsets.all(12),
+    if (errorMessage != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.error_outline, size: 42, color: AppColors.error),
+              const SizedBox(height: 12),
+              const Text(
+                'Data kost gagal dimuat.',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                errorMessage!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 12),
+              ),
+              const SizedBox(height: 12),
+              ElevatedButton(
+                onPressed: _loadKost,
+                child: const Text('Coba Lagi'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
 
-      decoration: BoxDecoration(
-        color: AppColors.white,
-
-        borderRadius: BorderRadius.circular(14),
-
-        border: Border.all(color: AppColors.border),
-      ),
-
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-
-        children: [
-          Container(
-            width: 64,
-
-            height: 64,
-
-            decoration: BoxDecoration(
-              color: AppColors.backgroundLight,
-
-              borderRadius: BorderRadius.circular(10),
-            ),
-
-            child: const Icon(
-              Icons.apartment,
-
-              size: 30,
-
+    if (daftarKost.isEmpty) {
+      return RefreshIndicator(
+        onRefresh: _loadKost,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(28),
+          children: const [
+            SizedBox(height: 100),
+            Icon(
+              Icons.apartment_outlined,
+              size: 64,
               color: AppColors.textSecondary,
             ),
+            SizedBox(height: 16),
+            Center(
+              child: Text(
+                'Belum ada data kost',
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            SizedBox(height: 8),
+            Center(
+              child: Text(
+                'Tekan Tambah Kost untuk menambahkan data.',
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: _loadKost,
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          for (final kost in daftarKost)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: _buildKostCard(kost),
+            ),
+          _buildManajemenKamarInfo(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildKostCard(KostItem kost) {
+    final foto = fotoKost[kost.id];
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: SizedBox(
+              width: 76,
+              height: 86,
+              child: foto != null && foto.isNotEmpty
+                  ? Image.network(
+                      foto,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => _photoPlaceholder(),
+                    )
+                  : _photoPlaceholder(),
+            ),
           ),
-
           const SizedBox(width: 12),
-
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-
               children: [
                 Text(
                   kost.nama,
-
                   style: const TextStyle(
                     fontSize: 14,
-
                     fontWeight: FontWeight.bold,
-
                     color: AppColors.textPrimary,
                   ),
                 ),
-
-                const SizedBox(height: 4),
-
+                const SizedBox(height: 5),
                 Text(
-                  "${kost.harga}/bulan",
-
+                  '${kost.harga}/bulan',
                   style: const TextStyle(
                     fontSize: 13,
-
                     fontWeight: FontWeight.w600,
-
                     color: AppColors.primary,
                   ),
                 ),
-
                 const SizedBox(height: 6),
-
-                Row(
-                  children: [
-                    Container(
-                      width: 7,
-
-                      height: 7,
-
-                      decoration: const BoxDecoration(
-                        color: AppColors.success,
-
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-
-                    const SizedBox(width: 6),
-
-                    Text(
-                      kost.ketersediaan,
-
-                      style: const TextStyle(
-                        fontSize: 11,
-
-                        color: AppColors.success,
-                      ),
-                    ),
-                  ],
+                Text(
+                  kost.ketersediaan,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: AppColors.success,
+                  ),
                 ),
+                if ((kost.data['alamat'] ?? '').toString().isNotEmpty) ...[
+                  const SizedBox(height: 5),
+                  Text(
+                    kost.data['alamat'].toString(),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
-
           Column(
             children: [
               IconButton(
-                constraints: const BoxConstraints(),
-
-                padding: EdgeInsets.zero,
-
-                onPressed: () {
-                  Navigator.push(
-                    context,
-
-                    MaterialPageRoute(
-                      builder: (context) =>
-                          TambahEditKostPage(kostData: kost.toMap()),
-                    ),
-                  );
-                },
-
+                tooltip: 'Edit kost',
+                onPressed: () => _openForm(kost: kost),
                 icon: const Icon(
-                  Icons.edit,
-
-                  size: 18,
-
+                  Icons.edit_outlined,
+                  size: 20,
                   color: AppColors.primary,
                 ),
               ),
-
-              const SizedBox(height: 12),
-
               IconButton(
-                constraints: const BoxConstraints(),
-
-                padding: EdgeInsets.zero,
-
-                onPressed: () {
-                  _showDeleteDialog(context, kost);
-                },
-
+                tooltip: 'Hapus kost',
+                onPressed: () => _showDeleteDialog(kost),
                 icon: const Icon(
                   Icons.delete_outline,
-
-                  size: 18,
-
+                  size: 20,
                   color: AppColors.error,
                 ),
               ),
@@ -321,109 +419,47 @@ class DataKostPage extends StatelessWidget {
     );
   }
 
-  // ============================================================
-  // DELETE CONFIRMATION
-  // ============================================================
-
-  void _showDeleteDialog(BuildContext context, KostItem kost) {
-    showDialog(
-      context: context,
-
-      builder: (context) {
-        return AlertDialog(
-          title: const Text("Hapus Kost"),
-
-          content: Text("Apakah Anda yakin ingin menghapus ${kost.nama}?"),
-
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
-
-              child: const Text("Batal"),
-            ),
-
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-
-                // sementara lokal
-
-                // nanti diganti:
-
-                // DELETE DATA SUPABASE
-
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text("${kost.nama} berhasil dihapus"),
-
-                    backgroundColor: AppColors.success,
-                  ),
-                );
-              },
-
-              child: const Text(
-                "Hapus",
-
-                style: TextStyle(color: AppColors.error),
-              ),
-            ),
-          ],
-        );
-      },
+  Widget _photoPlaceholder() {
+    return Container(
+      color: AppColors.backgroundLight,
+      child: const Icon(
+        Icons.apartment,
+        size: 32,
+        color: AppColors.textSecondary,
+      ),
     );
   }
-
-  // ============================================================
-  // INFO MANAJEMEN KAMAR
-  // ============================================================
 
   Widget _buildManajemenKamarInfo() {
     return Container(
       width: double.infinity,
-
       padding: const EdgeInsets.all(14),
-
       decoration: BoxDecoration(
         color: AppColors.primaryLight,
-
         borderRadius: BorderRadius.circular(14),
       ),
-
-      child: Row(
+      child: const Row(
         crossAxisAlignment: CrossAxisAlignment.start,
-
         children: [
-          const Icon(Icons.info_outline, size: 20, color: AppColors.primary),
-
-          const SizedBox(width: 10),
-
-          const Expanded(
+          Icon(Icons.info_outline, size: 20, color: AppColors.primary),
+          SizedBox(width: 10),
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-
               children: [
                 Text(
-                  "Manajemen Kamar",
-
+                  'Manajemen Kamar',
                   style: TextStyle(
                     fontSize: 13,
-
                     fontWeight: FontWeight.bold,
-
                     color: AppColors.textPrimary,
                   ),
                 ),
-
                 SizedBox(height: 4),
-
                 Text(
-                  "Perbarui data ketersediaan kamar secara berkala untuk memudahkan calon penghuni menemukan unit Anda.",
-
+                  'Perbarui data ketersediaan kamar secara berkala agar calon penghuni memperoleh informasi terbaru.',
                   style: TextStyle(
                     fontSize: 11,
-
                     color: AppColors.textSecondary,
                   ),
                 ),
@@ -435,108 +471,69 @@ class DataKostPage extends StatelessWidget {
     );
   }
 
-  // ============================================================
-  // BOTTOM NAVIGATION
-  // ============================================================
-
-  Widget _buildBottomNav(BuildContext context) {
+  Widget _buildBottomNav() {
     return Container(
       decoration: const BoxDecoration(
         color: AppColors.white,
-
         border: Border(top: BorderSide(color: AppColors.border)),
       ),
-
       child: SafeArea(
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceAround,
-
           children: [
-            _buildNavItem(context, Icons.home_outlined, "Home", false),
-
-            _buildNavItem(context, Icons.apartment, "Data Kost", true),
-
-            _buildNavItem(context, Icons.chat_bubble_outline, "Chat", false),
-
-            _buildNavItem(context, Icons.person_outline, "Profil", false),
+            _buildNavItem(Icons.home_outlined, 'Home', false),
+            _buildNavItem(Icons.apartment, 'Data Kost', true),
+            _buildNavItem(Icons.chat_bubble_outline, 'Chat', false),
+            _buildNavItem(Icons.person_outline, 'Profil', false),
           ],
         ),
       ),
     );
   }
 
-  // ============================================================
-  // NAVIGATION ITEM
-  // ============================================================
-
-  Widget _buildNavItem(
-    BuildContext context,
-
-    IconData icon,
-
-    String label,
-
-    bool isActive,
-  ) {
-    final color = isActive ? AppColors.primary : AppColors.textSecondary;
+  Widget _buildNavItem(IconData icon, String label, bool active) {
+    final color = active ? AppColors.primary : AppColors.textSecondary;
 
     return GestureDetector(
       onTap: () {
         switch (label) {
-          case "Home":
+          case 'Home':
             Navigator.pushReplacement(
               context,
-
-              MaterialPageRoute(builder: (context) => const HomeAdminPage()),
+              MaterialPageRoute(builder: (_) => const HomeAdminPage()),
             );
-
             break;
-
-          case "Chat":
+          case 'Chat':
             Navigator.pushReplacement(
               context,
-
               MaterialPageRoute(
-                builder: (context) => const DaftarChatAdminPage(chatData: {}),
+                builder: (_) => const DaftarChatAdminPage(chatData: {}),
               ),
             );
-
             break;
-
-          case "Profil":
+          case 'Profil':
             Navigator.pushReplacement(
               context,
-
-              MaterialPageRoute(builder: (context) => const ProfilAdminPage()),
+              MaterialPageRoute(builder: (_) => const ProfilAdminPage()),
             );
-
             break;
-
-          case "Data Kost":
+          case 'Data Kost':
             break;
         }
       },
-
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 8),
-
         child: Column(
           mainAxisSize: MainAxisSize.min,
-
           children: [
             Icon(icon, size: 22, color: color),
-
             const SizedBox(height: 3),
-
             Text(
               label,
-
               style: TextStyle(
                 fontSize: 10,
-
                 color: color,
-
-                fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
+                fontWeight: active ? FontWeight.w600 : FontWeight.normal,
               ),
             ),
           ],
