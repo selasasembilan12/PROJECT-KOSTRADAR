@@ -1,16 +1,14 @@
-
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../../core/theme/app_theme.dart';
-import 'home_admin_page.dart';
-import 'data_kost_page.dart';
-import 'profil_admin_page.dart';
+import '../../services/supabase_config.dart';
 
 class DaftarChatAdminPage extends StatefulWidget {
+  final Map<String, dynamic> chatData;
+
   const DaftarChatAdminPage({
     super.key,
-    Map<String, dynamic> chatData = const {},
+    this.chatData = const {},
   });
 
   @override
@@ -19,13 +17,18 @@ class DaftarChatAdminPage extends StatefulWidget {
 }
 
 class _DaftarChatAdminPageState extends State<DaftarChatAdminPage> {
-  final supabase = Supabase.instance.client;
-  final searchController = TextEditingController();
+  final TextEditingController searchController = TextEditingController();
 
   List<Map<String, dynamic>> chats = [];
   bool loading = true;
   String? error;
-  RealtimeChannel? channel;
+  int selectedFilter = 0;
+
+  final List<String> filterOptions = [
+    'Semua',
+    'Pesan Masuk',
+    'Pesan Keluar',
+  ];
 
   String? get userId => supabase.auth.currentUser?.id;
 
@@ -33,25 +36,6 @@ class _DaftarChatAdminPageState extends State<DaftarChatAdminPage> {
   void initState() {
     super.initState();
     loadChats();
-
-    channel = supabase
-        .channel('admin-chat-list')
-        .onPostgresChanges(
-          event: PostgresChangeEvent.all,
-          schema: 'public',
-          table: 'messages',
-          callback: (_) => loadChats(),
-        )
-        .subscribe();
-  }
-
-  @override
-  void dispose() {
-    searchController.dispose();
-    if (channel != null) {
-      supabase.removeChannel(channel!);
-    }
-    super.dispose();
   }
 
   Future<void> loadChats() async {
@@ -74,35 +58,48 @@ class _DaftarChatAdminPageState extends State<DaftarChatAdminPage> {
           )
           .or('penerima_id.eq.$me,pengirim_id.eq.$me');
 
-      final latest = <String, Map<String, dynamic>>{};
+      final Map<String, Map<String, dynamic>> grouped = {};
 
       for (final row in rows) {
         final message = Map<String, dynamic>.from(row);
         final sender = message['pengirim_id']?.toString() ?? '';
         final receiver = message['penerima_id']?.toString() ?? '';
+
         final other = sender == me ? receiver : sender;
 
-        if (other.isNotEmpty && other != me) {
-          latest.putIfAbsent(other, () {
-            return {
-              'user_id': other,
-              'message': message['isi_pesan'] ?? '',
-              'id_kost': message['id_kost'],
-            };
-          });
+        if (other.isEmpty || other == me) continue;
+
+        if (!grouped.containsKey(other)) {
+          grouped[other] = {
+            'user_id': other,
+            'message': message['isi_pesan']?.toString() ?? '',
+            'id_kost': message['id_kost'],
+            'has_incoming': false,
+            'has_outgoing': false,
+          };
         }
+
+        if (receiver == me) {
+          grouped[other]!['has_incoming'] = true;
+        }
+
+        if (sender == me) {
+          grouped[other]!['has_outgoing'] = true;
+        }
+
+        grouped[other]!['message'] =
+            message['isi_pesan']?.toString() ?? '';
+        grouped[other]!['id_kost'] = message['id_kost'];
       }
 
       if (!mounted) return;
+
       setState(() {
-        chats = latest.values.toList();
+        chats = grouped.values.toList();
         loading = false;
         error = null;
       });
-    } catch (e, stackTrace) {
-      debugPrint('Gagal memuat chat: $e');
-      debugPrintStack(stackTrace: stackTrace);
-
+    } catch (e) {
       if (!mounted) return;
       setState(() {
         loading = false;
@@ -115,15 +112,36 @@ class _DaftarChatAdminPageState extends State<DaftarChatAdminPage> {
     final keyword = searchController.text.trim().toLowerCase();
 
     return chats.where((chat) {
-      return chat['user_id']
-              .toString()
-              .toLowerCase()
-              .contains(keyword) ||
-          chat['message']
-              .toString()
-              .toLowerCase()
-              .contains(keyword);
+      final id = chat['user_id']?.toString().toLowerCase() ?? '';
+      final message = chat['message']?.toString().toLowerCase() ?? '';
+
+      final matchesSearch =
+          id.contains(keyword) || message.contains(keyword);
+
+      final hasIncoming = chat['has_incoming'] == true;
+      final hasOutgoing = chat['has_outgoing'] == true;
+
+      bool matchesFilter;
+
+      switch (selectedFilter) {
+        case 1:
+          matchesFilter = hasIncoming;
+          break;
+        case 2:
+          matchesFilter = hasOutgoing;
+          break;
+        default:
+          matchesFilter = true;
+      }
+
+      return matchesSearch && matchesFilter;
     }).toList();
+  }
+
+  @override
+  void dispose() {
+    searchController.dispose();
+    super.dispose();
   }
 
   @override
@@ -131,63 +149,73 @@ class _DaftarChatAdminPageState extends State<DaftarChatAdminPage> {
     final data = filteredChats;
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: const Color(0xFFF7F8FC),
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        title: const Text(
+          'KOSTRADAR ADMIN',
+          style: TextStyle(
+            color: Color(0xFF2563EB),
+            fontWeight: FontWeight.bold,
+            fontSize: 18,
+          ),
+        ),
+        actions: [
+          IconButton(
+            tooltip: 'Muat ulang',
+            onPressed: loadChats,
+            icon: const Icon(
+              Icons.refresh,
+              color: Color(0xFF2563EB),
+            ),
+          ),
+        ],
+      ),
       body: SafeArea(
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              width: double.infinity,
-              color: AppColors.white,
-              padding: const EdgeInsets.all(18),
-              child: const Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'KOSTRADAR ADMIN',
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                  SizedBox(height: 4),
-                  Text(
-                    'Pesan Masuk',
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                  SizedBox(height: 4),
-                  Text(
-                    'Kelola percakapan dengan pengguna',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                ],
+            const Padding(
+              padding: EdgeInsets.fromLTRB(20, 16, 20, 4),
+              child: Text(
+                'Pesan Masuk',
+                style: TextStyle(
+                  fontSize: 25,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF172554),
+                ),
+              ),
+            ),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 20),
+              child: Text(
+                'Kelola percakapan dengan calon penyewa kost Anda.',
+                style: TextStyle(
+                  color: Colors.black54,
+                  fontSize: 13,
+                ),
               ),
             ),
             Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.fromLTRB(20, 18, 20, 12),
               child: TextField(
                 controller: searchController,
                 onChanged: (_) => setState(() {}),
                 decoration: InputDecoration(
-                  hintText: 'Cari ID pengguna atau pesan...',
+                  hintText: 'Cari pengguna atau isi pesan...',
                   prefixIcon: const Icon(Icons.search),
-                  suffixIcon: searchController.text.isEmpty
-                      ? null
-                      : IconButton(
+                  suffixIcon: searchController.text.isNotEmpty
+                      ? IconButton(
                           onPressed: () {
                             searchController.clear();
                             setState(() {});
                           },
                           icon: const Icon(Icons.close),
-                        ),
+                        )
+                      : null,
                   filled: true,
-                  fillColor: AppColors.white,
+                  fillColor: Colors.white,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(14),
                     borderSide: BorderSide.none,
@@ -195,192 +223,221 @@ class _DaftarChatAdminPageState extends State<DaftarChatAdminPage> {
                 ),
               ),
             ),
-            Expanded(
-              child: loading
-                  ? const Center(child: CircularProgressIndicator())
-                  : error != null
-                      ? Center(
-                          child: Padding(
-                            padding: const EdgeInsets.all(20),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  error!,
-                                  textAlign: TextAlign.center,
-                                ),
-                                const SizedBox(height: 12),
-                                ElevatedButton(
-                                  onPressed: () {
-                                    setState(() {
-                                      loading = true;
-                                      error = null;
-                                    });
-                                    loadChats();
-                                  },
-                                  child: const Text('Coba lagi'),
-                                ),
-                              ],
-                            ),
-                          ),
-                        )
-                      : data.isEmpty
-                          ? RefreshIndicator(
-                              onRefresh: loadChats,
-                              child: ListView(
-                                children: const [
-                                  SizedBox(height: 140),
-                                  Icon(
-                                    Icons.chat_bubble_outline,
-                                    size: 54,
-                                    color: AppColors.textSecondary,
-                                  ),
-                                  SizedBox(height: 12),
-                                  Center(
-                                    child: Text('Belum ada percakapan'),
-                                  ),
-                                  SizedBox(height: 8),
-                                  Center(
-                                    child: Text(
-                                      'Pesan pengguna akan muncul di sini.',
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            )
-                          : RefreshIndicator(
-                              onRefresh: loadChats,
-                              child: ListView.builder(
-                                padding: const EdgeInsets.all(16),
-                                itemCount: data.length,
-                                itemBuilder: (context, index) {
-                                  final chat = data[index];
-                                  final id = chat['user_id'].toString();
-                                  final shortId = id.length > 8
-                                      ? id.substring(0, 8)
-                                      : id;
+            SizedBox(
+              height: 44,
+              child: ListView.separated(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                scrollDirection: Axis.horizontal,
+                itemCount: filterOptions.length,
+                separatorBuilder: (_, __) =>
+                    const SizedBox(width: 8),
+                itemBuilder: (context, index) {
+                  final selected = selectedFilter == index;
 
-                                  return Card(
-                                    color: AppColors.white,
-                                    child: ListTile(
-                                      leading: const CircleAvatar(
-                                        backgroundColor:
-                                            AppColors.primaryLight,
-                                        child: Icon(
-                                          Icons.person_outline,
-                                          color: AppColors.primary,
-                                        ),
-                                      ),
-                                      title: Text(
-                                        'Pengguna $shortId',
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                      subtitle: Text(
-                                        chat['message'].toString(),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                      trailing: const Icon(
-                                        Icons.chevron_right,
-                                        color: AppColors.textSecondary,
-                                      ),
-                                      onTap: () async {
-                                        await Navigator.push(
-                                          context,
-                                          MaterialPageRoute(
-                                            builder: (_) =>
-                                                AdminChatDetailPage(
-                                              receiverId: id,
-                                              idKost: chat['id_kost']
-                                                  ?.toString(),
-                                            ),
-                                          ),
-                                        );
-                                        loadChats();
-                                      },
-                                    ),
-                                  );
-                                },
-                              ),
-                            ),
+                  return ChoiceChip(
+                    label: Text(filterOptions[index]),
+                    selected: selected,
+                    onSelected: (_) {
+                      setState(() => selectedFilter = index);
+                    },
+                    selectedColor: const Color(0xFF2563EB),
+                    backgroundColor: Colors.white,
+                    labelStyle: TextStyle(
+                      color: selected ? Colors.white : Colors.black87,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    side: BorderSide(
+                      color: selected
+                          ? const Color(0xFF2563EB)
+                          : Colors.black12,
+                    ),
+                    showCheckmark: false,
+                  );
+                },
+              ),
             ),
+            const SizedBox(height: 12),
+            Expanded(child: _buildChatList(data)),
           ],
-        ),
-      ),
-      bottomNavigationBar: SafeArea(
-        child: Container(
-          color: AppColors.white,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              navItem(
-                context,
-                Icons.home_outlined,
-                'Home',
-                const HomeAdminPage(),
-              ),
-              navItem(
-                context,
-                Icons.apartment_outlined,
-                'Data Kost',
-                const DataKostPage(),
-              ),
-              navItem(
-                context,
-                Icons.chat_bubble,
-                'Chat',
-                null,
-                active: true,
-              ),
-              navItem(
-                context,
-                Icons.person_outline,
-                'Profil',
-                const ProfilAdminPage(),
-              ),
-            ],
-          ),
         ),
       ),
     );
   }
 
-  Widget navItem(
-    BuildContext context,
-    IconData icon,
-    String label,
-    Widget? page, {
-    bool active = false,
-  }) {
-    final color =
-        active ? AppColors.primary : AppColors.textSecondary;
+  Widget _buildChatList(List<Map<String, dynamic>> data) {
+    if (loading) {
+      return const Center(child: CircularProgressIndicator());
+    }
 
-    return InkWell(
-      onTap: () {
-        if (page != null) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (_) => page),
-          );
-        }
-      },
-      child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: 12,
-          vertical: 9,
+    if (error != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.error_outline,
+                color: Colors.red,
+                size: 42,
+              ),
+              const SizedBox(height: 12),
+              Text(error!, textAlign: TextAlign.center),
+              const SizedBox(height: 12),
+              ElevatedButton(
+                onPressed: loadChats,
+                child: const Text('Coba Lagi'),
+              ),
+            ],
+          ),
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, color: color),
-            const SizedBox(height: 3),
-            Text(
-              label,
-              style: TextStyle(fontSize: 10, color: color),
+      );
+    }
+
+    if (data.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.chat_bubble_outline,
+                size: 58,
+                color: Colors.black26,
+              ),
+              const SizedBox(height: 12),
+              Text(
+                chats.isEmpty
+                    ? 'Belum ada percakapan.'
+                    : 'Tidak ada chat yang sesuai filter.',
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.black54),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: loadChats,
+      child: ListView.separated(
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
+        itemCount: data.length,
+        separatorBuilder: (_, __) => const SizedBox(height: 10),
+        itemBuilder: (context, index) {
+          final chat = data[index];
+          final id = chat['user_id'].toString();
+          final shortId =
+              id.length > 12 ? '${id.substring(0, 12)}...' : id;
+
+          return Material(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(16),
+              onTap: () async {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => AdminChatDetailPage(
+                      receiverId: id,
+                      idKost: chat['id_kost']?.toString(),
+                    ),
+                  ),
+                );
+
+                if (mounted) loadChats();
+              },
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 25,
+                      backgroundColor: const Color(0xFFDBEAFE),
+                      child: Text(
+                        id.isNotEmpty ? id[0].toUpperCase() : '?',
+                        style: const TextStyle(
+                          color: Color(0xFF2563EB),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 18,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Pengguna $shortId',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            chat['message']?.toString().isNotEmpty == true
+                                ? chat['message'].toString()
+                                : 'Belum ada isi pesan',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Colors.black54,
+                              fontSize: 13,
+                            ),
+                          ),
+                          const SizedBox(height: 7),
+                          Wrap(
+                            spacing: 6,
+                            children: [
+                              if (chat['has_incoming'] == true)
+                                _directionTag('Masuk'),
+                              if (chat['has_outgoing'] == true)
+                                _directionTag('Keluar'),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Icon(
+                      Icons.chevron_right,
+                      color: Colors.black38,
+                    ),
+                  ],
+                ),
+              ),
             ),
-          ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _directionTag(String label) {
+    final incoming = label == 'Masuk';
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: incoming
+            ? const Color(0xFFDCFCE7)
+            : const Color(0xFFDBEAFE),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w600,
+          color: incoming
+              ? const Color(0xFF166534)
+              : const Color(0xFF1D4ED8),
         ),
       ),
     );
@@ -403,52 +460,38 @@ class AdminChatDetailPage extends StatefulWidget {
 }
 
 class _AdminChatDetailPageState extends State<AdminChatDetailPage> {
-  final supabase = Supabase.instance.client;
-  final messageController = TextEditingController();
-  final scrollController = ScrollController();
+  final TextEditingController messageController = TextEditingController();
+  final ScrollController scrollController = ScrollController();
 
   List<Map<String, dynamic>> messages = [];
   bool loading = true;
   bool sending = false;
   String? error;
-  RealtimeChannel? channel;
 
-  String? get myId => supabase.auth.currentUser?.id;
+  final List<String> quickResponses = [
+    'Halo, terima kasih sudah menghubungi kami. Ada yang bisa kami bantu?',
+    'Baik, kami akan memeriksa informasi tersebut terlebih dahulu.',
+    'Kost masih tersedia. Apakah Anda ingin mengetahui detail kamar?',
+    'Untuk jadwal survei, silakan informasikan hari dan jam yang Anda inginkan.',
+    'Terima kasih. Jika ada pertanyaan lain, silakan hubungi kami kembali.',
+  ];
+
+  String? get userId => supabase.auth.currentUser?.id;
 
   @override
   void initState() {
     super.initState();
     loadMessages();
-
-    channel = supabase
-        .channel('admin-conversation-${widget.receiverId}')
-        .onPostgresChanges(
-          event: PostgresChangeEvent.all,
-          schema: 'public',
-          table: 'messages',
-          callback: (_) => loadMessages(),
-        )
-        .subscribe();
-  }
-
-  @override
-  void dispose() {
-    messageController.dispose();
-    scrollController.dispose();
-    if (channel != null) {
-      supabase.removeChannel(channel!);
-    }
-    super.dispose();
   }
 
   Future<void> loadMessages() async {
-    final me = myId;
+    final me = userId;
 
     if (me == null) {
       if (!mounted) return;
       setState(() {
         loading = false;
-        error = 'Silakan login kembali.';
+        error = 'Silakan login terlebih dahulu.';
       });
       return;
     }
@@ -465,6 +508,7 @@ class _AdminChatDetailPageState extends State<AdminChatDetailPage> {
           );
 
       if (!mounted) return;
+
       setState(() {
         messages = rows
             .map((row) => Map<String, dynamic>.from(row))
@@ -481,8 +525,6 @@ class _AdminChatDetailPageState extends State<AdminChatDetailPage> {
         }
       });
     } catch (e) {
-      debugPrint('Gagal memuat pesan: $e');
-
       if (!mounted) return;
       setState(() {
         loading = false;
@@ -491,20 +533,30 @@ class _AdminChatDetailPageState extends State<AdminChatDetailPage> {
     }
   }
 
+  void chooseQuickResponse(String response) {
+    messageController.text = response;
+    messageController.selection = TextSelection.collapsed(
+      offset: messageController.text.length,
+    );
+  }
+
   Future<void> sendMessage() async {
+    final me = userId;
     final text = messageController.text.trim();
-    final me = myId;
-    final kostId = widget.idKost;
 
-    if (text.isEmpty || me == null || sending) return;
+    if (me == null) {
+      _showMessage('Silakan login terlebih dahulu.');
+      return;
+    }
 
-    if (kostId == null || kostId.isEmpty || kostId == 'null') {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Pesan belum dapat dikirim karena ID kost belum tersedia.',
-          ),
-        ),
+    if (text.isEmpty) {
+      _showMessage('Tulis pesan terlebih dahulu.');
+      return;
+    }
+
+    if (widget.idKost == null || widget.idKost!.isEmpty) {
+      _showMessage(
+        'ID kost belum tersedia. Pesan belum dapat dikirim.',
       );
       return;
     }
@@ -515,141 +567,275 @@ class _AdminChatDetailPageState extends State<AdminChatDetailPage> {
       await supabase.from('messages').insert({
         'pengirim_id': me,
         'penerima_id': widget.receiverId,
-        'id_kost': kostId,
+        'id_kost': widget.idKost,
         'isi_pesan': text,
       });
 
       messageController.clear();
       await loadMessages();
-    } catch (e) {
-      debugPrint('Gagal mengirim pesan: $e');
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Pesan gagal dikirim: $e')),
-        );
-      }
-    } finally {
       if (mounted) {
         setState(() => sending = false);
       }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => sending = false);
+      _showMessage('Pesan gagal dikirim: $e');
     }
+  }
+
+  void _showMessage(String text) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(text)),
+    );
+  }
+
+  @override
+  void dispose() {
+    messageController.dispose();
+    scrollController.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final me = myId;
-
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: const Color(0xFFF7F8FC),
       appBar: AppBar(
-        backgroundColor: AppColors.white,
-        foregroundColor: AppColors.textPrimary,
+        backgroundColor: Colors.white,
         elevation: 0,
-        title: Text(
-          'Pengguna ${widget.receiverId.substring(0, widget.receiverId.length > 8 ? 8 : widget.receiverId.length)}',
+        iconTheme: const IconThemeData(
+          color: Color(0xFF172554),
         ),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Percakapan',
+              style: TextStyle(
+                color: Color(0xFF172554),
+                fontWeight: FontWeight.bold,
+                fontSize: 17,
+              ),
+            ),
+            Text(
+              widget.receiverId.length > 16
+                  ? '${widget.receiverId.substring(0, 16)}...'
+                  : widget.receiverId,
+              style: const TextStyle(
+                color: Colors.black54,
+                fontSize: 11,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          IconButton(
+            tooltip: 'Muat ulang',
+            onPressed: loadMessages,
+            icon: const Icon(Icons.refresh),
+          ),
+        ],
       ),
       body: Column(
         children: [
-          Expanded(
-            child: loading
-                ? const Center(child: CircularProgressIndicator())
-                : error != null
-                    ? Center(
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Text(
-                            error!,
-                            textAlign: TextAlign.center,
-                          ),
-                        ),
-                      )
-                    : messages.isEmpty
-                        ? const Center(child: Text('Belum ada pesan'))
-                        : ListView.builder(
-                            controller: scrollController,
-                            padding: const EdgeInsets.all(16),
-                            itemCount: messages.length,
-                            itemBuilder: (context, index) {
-                              final message = messages[index];
-                              final mine =
-                                  message['pengirim_id'].toString() == me;
+          Expanded(child: _buildMessages()),
+          _buildComposer(),
+        ],
+      ),
+    );
+  }
 
-                              return Align(
-                                alignment: mine
-                                    ? Alignment.centerRight
-                                    : Alignment.centerLeft,
-                                child: Container(
-                                  constraints: const BoxConstraints(
-                                    maxWidth: 290,
-                                  ),
-                                  margin: const EdgeInsets.only(bottom: 8),
-                                  padding: const EdgeInsets.all(12),
-                                  decoration: BoxDecoration(
-                                    color: mine
-                                        ? AppColors.primary
-                                        : AppColors.white,
-                                    borderRadius: BorderRadius.circular(16),
-                                  ),
-                                  child: Text(
-                                    message['isi_pesan'].toString(),
-                                    style: TextStyle(
-                                      color: mine
-                                          ? AppColors.white
-                                          : AppColors.textPrimary,
-                                    ),
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
+  Widget _buildMessages() {
+    if (loading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (error != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(error!, textAlign: TextAlign.center),
+              const SizedBox(height: 10),
+              ElevatedButton(
+                onPressed: loadMessages,
+                child: const Text('Coba Lagi'),
+              ),
+            ],
           ),
-          Container(
-            color: AppColors.white,
-            padding: const EdgeInsets.all(12),
-            child: Row(
+        ),
+      );
+    }
+
+    if (messages.isEmpty) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Text(
+            'Belum ada pesan. Mulai percakapan dengan mengirim pesan.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.black54),
+          ),
+        ),
+      );
+    }
+
+    return ListView.builder(
+      controller: scrollController,
+      padding: const EdgeInsets.all(16),
+      itemCount: messages.length,
+      itemBuilder: (context, index) {
+        final message = messages[index];
+        final isAdmin = message['pengirim_id']?.toString() == userId;
+
+        return Align(
+          alignment:
+              isAdmin ? Alignment.centerRight : Alignment.centerLeft,
+          child: Container(
+            constraints: BoxConstraints(
+              maxWidth: MediaQuery.of(context).size.width * 0.78,
+            ),
+            margin: const EdgeInsets.only(bottom: 10),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 14,
+              vertical: 11,
+            ),
+            decoration: BoxDecoration(
+              color: isAdmin
+                  ? const Color(0xFF2563EB)
+                  : Colors.white,
+              borderRadius: BorderRadius.only(
+                topLeft: const Radius.circular(16),
+                topRight: const Radius.circular(16),
+                bottomLeft: Radius.circular(isAdmin ? 16 : 4),
+                bottomRight: Radius.circular(isAdmin ? 4 : 16),
+              ),
+            ),
+            child: Text(
+              message['isi_pesan']?.toString() ?? '',
+              style: TextStyle(
+                color: isAdmin ? Colors.white : Colors.black87,
+                fontSize: 14,
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildComposer() {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(
+          top: BorderSide(color: Color(0xFFE5E7EB)),
+        ),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Row(
+              children: [
+                Icon(
+                  Icons.flash_on,
+                  size: 18,
+                  color: Color(0xFF2563EB),
+                ),
+                SizedBox(width: 6),
+                Text(
+                  'Respons Cepat',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              height: 38,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: quickResponses.length,
+                separatorBuilder: (_, __) =>
+                    const SizedBox(width: 8),
+                itemBuilder: (context, index) {
+                  return ActionChip(
+                    label: Text(
+                      'Respons ${index + 1}',
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                    avatar: const Icon(Icons.bolt, size: 16),
+                    onPressed: () =>
+                        chooseQuickResponse(quickResponses[index]),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Expanded(
                   child: TextField(
                     controller: messageController,
-                    textInputAction: TextInputAction.send,
-                    onSubmitted: (_) => sendMessage(),
+                    minLines: 1,
+                    maxLines: 4,
+                    textCapitalization: TextCapitalization.sentences,
                     decoration: InputDecoration(
                       hintText: 'Tulis pesan...',
                       filled: true,
-                      fillColor: AppColors.backgroundLight,
+                      fillColor: const Color(0xFFF3F4F6),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
                       border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(24),
+                        borderRadius: BorderRadius.circular(18),
                         borderSide: BorderSide.none,
                       ),
                     ),
                   ),
                 ),
                 const SizedBox(width: 8),
-                CircleAvatar(
-                  backgroundColor: AppColors.primary,
-                  child: IconButton(
+                SizedBox(
+                  height: 48,
+                  width: 48,
+                  child: ElevatedButton(
                     onPressed: sending ? null : sendMessage,
-                    icon: sending
+                    style: ElevatedButton.styleFrom(
+                      padding: EdgeInsets.zero,
+                      backgroundColor: const Color(0xFF2563EB),
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(15),
+                      ),
+                    ),
+                    child: sending
                         ? const SizedBox(
-                            width: 18,
-                            height: 18,
+                            width: 19,
+                            height: 19,
                             child: CircularProgressIndicator(
                               strokeWidth: 2,
-                              color: AppColors.white,
+                              color: Colors.white,
                             ),
                           )
-                        : const Icon(
-                            Icons.send,
-                            color: AppColors.white,
-                          ),
+                        : const Icon(Icons.send),
                   ),
                 ),
               ],
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

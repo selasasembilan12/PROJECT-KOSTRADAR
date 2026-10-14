@@ -840,7 +840,7 @@ class _ProfilAdminPageState extends State<ProfilAdminPage> {
                 fontSize: 10,
                 fontWeight:
                     active ? FontWeight.w600 : FontWeight.normal,
-                color: color,
+                 color: color,
               ),
             ),
           ],
