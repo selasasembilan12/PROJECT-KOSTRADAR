@@ -1,609 +1,655 @@
-// ignore_for_file: unused_import
 
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/theme/app_theme.dart';
-
 import 'home_admin_page.dart';
 import 'data_kost_page.dart';
 import 'profil_admin_page.dart';
-import 'daftar_chat_admin_page.dart';
-
-// ============================================================
-// DAFTAR CHAT ADMIN
-// ============================================================
 
 class DaftarChatAdminPage extends StatefulWidget {
   const DaftarChatAdminPage({
     super.key,
-    required Map<String, dynamic> chatData,
+    Map<String, dynamic> chatData = const {},
   });
 
   @override
-  State<DaftarChatAdminPage> createState() => _DaftarChatAdminPageState();
+  State<DaftarChatAdminPage> createState() =>
+      _DaftarChatAdminPageState();
 }
 
 class _DaftarChatAdminPageState extends State<DaftarChatAdminPage> {
-  final TextEditingController searchController = TextEditingController();
+  final supabase = Supabase.instance.client;
+  final searchController = TextEditingController();
 
-  int selectedTab = 0;
+  List<Map<String, dynamic>> chats = [];
+  bool loading = true;
+  String? error;
+  RealtimeChannel? channel;
 
-  final List<Map<String, dynamic>> chats = [
-    {
-      "id": "1",
+  String? get userId => supabase.auth.currentUser?.id;
 
-      "nama": "Alya Putri",
+  @override
+  void initState() {
+    super.initState();
+    loadChats();
 
-      "email": "alya@gmail.com",
-
-      "kost": "Kost Adiwarna",
-
-      "pesan": "Apakah kamar masih tersedia?",
-
-      "waktu": "10:30",
-
-      "unread": true,
-    },
-
-    {
-      "id": "2",
-
-      "nama": "Budi Santoso",
-
-      "email": "budi@gmail.com",
-
-      "kost": "Kost Melati",
-
-      "pesan": "Saya ingin melakukan survey kamar.",
-
-      "waktu": "09:20",
-
-      "unread": false,
-    },
-
-    {
-      "id": "3",
-
-      "nama": "Siti Rahma",
-
-      "email": "siti@gmail.com",
-
-      "kost": "Kost Cemara",
-
-      "pesan": "Apakah bisa booking minggu ini?",
-
-      "waktu": "Kemarin",
-
-      "unread": true,
-    },
-  ];
-
-  List<Map<String, dynamic>> get filteredChats {
-    List<Map<String, dynamic>> result = List.from(chats);
-
-    if (selectedTab == 1) {
-      result = result.where((item) {
-        return item["unread"] == true;
-      }).toList();
-    }
-
-    final keyword = searchController.text.toLowerCase();
-
-    if (keyword.isNotEmpty) {
-      result = result.where((item) {
-        return item["nama"].toString().toLowerCase().contains(keyword) ||
-            item["pesan"].toString().toLowerCase().contains(keyword);
-      }).toList();
-    }
-
-    return result;
+    channel = supabase
+        .channel('admin-chat-list')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'messages',
+          callback: (_) => loadChats(),
+        )
+        .subscribe();
   }
 
   @override
   void dispose() {
     searchController.dispose();
-
+    if (channel != null) {
+      supabase.removeChannel(channel!);
+    }
     super.dispose();
   }
 
-  // ============================================================
-  // BUILD PAGE
-  // ============================================================
+  Future<void> loadChats() async {
+    final me = userId;
+
+    if (me == null) {
+      if (!mounted) return;
+      setState(() {
+        loading = false;
+        error = 'Silakan login terlebih dahulu.';
+      });
+      return;
+    }
+
+    try {
+      final rows = await supabase
+          .from('messages')
+          .select(
+            'id_message, pengirim_id, penerima_id, id_kost, isi_pesan',
+          )
+          .or('penerima_id.eq.$me,pengirim_id.eq.$me');
+
+      final latest = <String, Map<String, dynamic>>{};
+
+      for (final row in rows) {
+        final message = Map<String, dynamic>.from(row);
+        final sender = message['pengirim_id']?.toString() ?? '';
+        final receiver = message['penerima_id']?.toString() ?? '';
+        final other = sender == me ? receiver : sender;
+
+        if (other.isNotEmpty && other != me) {
+          latest.putIfAbsent(other, () {
+            return {
+              'user_id': other,
+              'message': message['isi_pesan'] ?? '',
+              'id_kost': message['id_kost'],
+            };
+          });
+        }
+      }
+
+      if (!mounted) return;
+      setState(() {
+        chats = latest.values.toList();
+        loading = false;
+        error = null;
+      });
+    } catch (e, stackTrace) {
+      debugPrint('Gagal memuat chat: $e');
+      debugPrintStack(stackTrace: stackTrace);
+
+      if (!mounted) return;
+      setState(() {
+        loading = false;
+        error = 'Gagal memuat chat: $e';
+      });
+    }
+  }
+
+  List<Map<String, dynamic>> get filteredChats {
+    final keyword = searchController.text.trim().toLowerCase();
+
+    return chats.where((chat) {
+      return chat['user_id']
+              .toString()
+              .toLowerCase()
+              .contains(keyword) ||
+          chat['message']
+              .toString()
+              .toLowerCase()
+              .contains(keyword);
+    }).toList();
+  }
 
   @override
   Widget build(BuildContext context) {
+    final data = filteredChats;
+
     return Scaffold(
       backgroundColor: AppColors.background,
-
       body: SafeArea(
         child: Column(
           children: [
-            _buildHeader(),
-
-            _buildSearch(),
-
-            _buildTabs(),
-
-            Expanded(child: _buildChatList()),
-          ],
-        ),
-      ),
-
-      bottomNavigationBar: _buildBottomNav(context),
-    );
-  }
-
-  // ============================================================
-  // HEADER
-  // ============================================================
-
-  Widget _buildHeader() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-
-      color: AppColors.white,
-
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-
-        children: [
-          const Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-
-            children: [
-              Text(
-                "Daftar Chat",
-
-                style: TextStyle(
-                  fontSize: 22,
-
-                  fontWeight: FontWeight.bold,
-
-                  color: AppColors.textPrimary,
-                ),
-              ),
-
-              SizedBox(height: 4),
-
-              Text(
-                "Komunikasi dengan calon penghuni",
-
-                style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
-              ),
-            ],
-          ),
-
-          Container(
-            width: 40,
-
-            height: 40,
-
-            decoration: BoxDecoration(
-              color: AppColors.primaryLight,
-
-              borderRadius: BorderRadius.circular(12),
-            ),
-
-            child: const Icon(Icons.chat_outlined, color: AppColors.primary),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ============================================================
-  // SEARCH
-  // ============================================================
-
-  Widget _buildSearch() {
-    return Padding(
-      padding: const EdgeInsets.all(16),
-
-      child: TextField(
-        controller: searchController,
-
-        onChanged: (value) {
-          setState(() {});
-        },
-
-        decoration: InputDecoration(
-          hintText: "Cari nama atau pesan...",
-
-          prefixIcon: const Icon(Icons.search, color: AppColors.textSecondary),
-
-          suffixIcon: searchController.text.isNotEmpty
-              ? IconButton(
-                  icon: const Icon(Icons.close),
-
-                  onPressed: () {
-                    searchController.clear();
-
-                    setState(() {});
-                  },
-                )
-              : null,
-
-          filled: true,
-
-          fillColor: AppColors.white,
-
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
-
-            borderSide: BorderSide.none,
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ============================================================
-  // TAB
-  // ============================================================
-
-  Widget _buildTabs() {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-
-      padding: const EdgeInsets.all(4),
-
-      decoration: BoxDecoration(
-        color: AppColors.white,
-
-        borderRadius: BorderRadius.circular(12),
-      ),
-
-      child: Row(
-        children: [
-          _buildTabButton("Semua", 0),
-
-          _buildTabButton("Belum Dibaca", 1),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTabButton(String text, int index) {
-    final active = selectedTab == index;
-
-    return Expanded(
-      child: GestureDetector(
-        onTap: () {
-          setState(() {
-            selectedTab = index;
-          });
-        },
-
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 10),
-
-          decoration: BoxDecoration(
-            color: active ? AppColors.primary : Colors.transparent,
-
-            borderRadius: BorderRadius.circular(10),
-          ),
-
-          child: Text(
-            text,
-
-            textAlign: TextAlign.center,
-
-            style: TextStyle(
-              fontSize: 12,
-
-              fontWeight: FontWeight.w600,
-
-              color: active ? AppColors.white : AppColors.textSecondary,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ============================================================
-  // CHAT LIST
-  // ============================================================
-
-  Widget _buildChatList() {
-    final data = filteredChats;
-
-    if (data.isEmpty) {
-      return const Center(
-        child: Text(
-          "Belum ada chat",
-
-          style: TextStyle(color: AppColors.textSecondary),
-        ),
-      );
-    }
-
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-
-      itemCount: data.length,
-
-      itemBuilder: (context, index) {
-        return _buildChatCard(context, data[index]);
-      },
-    );
-  }
-
-  // ============================================================
-  // CHAT CARD
-  // ============================================================
-
-  Widget _buildChatCard(BuildContext context, Map<String, dynamic> chat) {
-    return GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-
-          MaterialPageRoute(
-            builder: (context) => DaftarChatAdminPage(chatData: chat),
-          ),
-        );
-      },
-
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-
-        padding: const EdgeInsets.all(12),
-
-        decoration: BoxDecoration(
-          color: AppColors.white,
-
-          borderRadius: BorderRadius.circular(14),
-
-          border: Border.all(color: AppColors.border),
-        ),
-
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-
-          children: [
-            _buildAvatar(chat["nama"].toString()),
-
-            const SizedBox(width: 12),
-
-            Expanded(
-              child: Column(
+            Container(
+              width: double.infinity,
+              color: AppColors.white,
+              padding: const EdgeInsets.all(18),
+              child: const Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-
-                    children: [
-                      Expanded(
-                        child: Text(
-                          chat["nama"].toString(),
-
-                          maxLines: 1,
-
-                          overflow: TextOverflow.ellipsis,
-
-                          style: TextStyle(
-                            fontSize: 14,
-
-                            fontWeight: chat["unread"] == true
-                                ? FontWeight.bold
-                                : FontWeight.w600,
-
-                            color: AppColors.textPrimary,
-                          ),
-                        ),
-                      ),
-
-                      Text(
-                        chat["waktu"].toString(),
-
-                        style: const TextStyle(
-                          fontSize: 11,
-
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 6),
-
                   Text(
-                    chat["kost"].toString(),
-
-                    style: const TextStyle(
-                      fontSize: 11,
-
-                      color: AppColors.primary,
-
-                      fontWeight: FontWeight.w500,
+                    'KOSTRADAR ADMIN',
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: AppColors.textSecondary,
                     ),
                   ),
-
-                  const SizedBox(height: 5),
-
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          chat["pesan"].toString(),
-
-                          maxLines: 1,
-
-                          overflow: TextOverflow.ellipsis,
-
-                          style: TextStyle(
-                            fontSize: 12,
-
-                            color: chat["unread"] == true
-                                ? AppColors.textPrimary
-                                : AppColors.textSecondary,
-
-                            fontWeight: chat["unread"] == true
-                                ? FontWeight.w600
-                                : FontWeight.normal,
-                          ),
-                        ),
-                      ),
-
-                      if (chat["unread"] == true)
-                        Container(
-                          width: 8,
-
-                          height: 8,
-
-                          decoration: const BoxDecoration(
-                            color: AppColors.primary,
-
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                    ],
+                  SizedBox(height: 4),
+                  Text(
+                    'Pesan Masuk',
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    'Kelola percakapan dengan pengguna',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textSecondary,
+                    ),
                   ),
                 ],
               ),
             ),
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: TextField(
+                controller: searchController,
+                onChanged: (_) => setState(() {}),
+                decoration: InputDecoration(
+                  hintText: 'Cari ID pengguna atau pesan...',
+                  prefixIcon: const Icon(Icons.search),
+                  suffixIcon: searchController.text.isEmpty
+                      ? null
+                      : IconButton(
+                          onPressed: () {
+                            searchController.clear();
+                            setState(() {});
+                          },
+                          icon: const Icon(Icons.close),
+                        ),
+                  filled: true,
+                  fillColor: AppColors.white,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
+            ),
+            Expanded(
+              child: loading
+                  ? const Center(child: CircularProgressIndicator())
+                  : error != null
+                      ? Center(
+                          child: Padding(
+                            padding: const EdgeInsets.all(20),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  error!,
+                                  textAlign: TextAlign.center,
+                                ),
+                                const SizedBox(height: 12),
+                                ElevatedButton(
+                                  onPressed: () {
+                                    setState(() {
+                                      loading = true;
+                                      error = null;
+                                    });
+                                    loadChats();
+                                  },
+                                  child: const Text('Coba lagi'),
+                                ),
+                              ],
+                            ),
+                          ),
+                        )
+                      : data.isEmpty
+                          ? RefreshIndicator(
+                              onRefresh: loadChats,
+                              child: ListView(
+                                children: const [
+                                  SizedBox(height: 140),
+                                  Icon(
+                                    Icons.chat_bubble_outline,
+                                    size: 54,
+                                    color: AppColors.textSecondary,
+                                  ),
+                                  SizedBox(height: 12),
+                                  Center(
+                                    child: Text('Belum ada percakapan'),
+                                  ),
+                                  SizedBox(height: 8),
+                                  Center(
+                                    child: Text(
+                                      'Pesan pengguna akan muncul di sini.',
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )
+                          : RefreshIndicator(
+                              onRefresh: loadChats,
+                              child: ListView.builder(
+                                padding: const EdgeInsets.all(16),
+                                itemCount: data.length,
+                                itemBuilder: (context, index) {
+                                  final chat = data[index];
+                                  final id = chat['user_id'].toString();
+                                  final shortId = id.length > 8
+                                      ? id.substring(0, 8)
+                                      : id;
+
+                                  return Card(
+                                    color: AppColors.white,
+                                    child: ListTile(
+                                      leading: const CircleAvatar(
+                                        backgroundColor:
+                                            AppColors.primaryLight,
+                                        child: Icon(
+                                          Icons.person_outline,
+                                          color: AppColors.primary,
+                                        ),
+                                      ),
+                                      title: Text(
+                                        'Pengguna $shortId',
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      subtitle: Text(
+                                        chat['message'].toString(),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      trailing: const Icon(
+                                        Icons.chevron_right,
+                                        color: AppColors.textSecondary,
+                                      ),
+                                      onTap: () async {
+                                        await Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (_) =>
+                                                AdminChatDetailPage(
+                                              receiverId: id,
+                                              idKost: chat['id_kost']
+                                                  ?.toString(),
+                                            ),
+                                          ),
+                                        );
+                                        loadChats();
+                                      },
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+            ),
           ],
         ),
       ),
-    );
-  }
-
-  // ============================================================
-  // AVATAR
-  // ============================================================
-
-  Widget _buildAvatar(String name) {
-    String initial = name.isNotEmpty ? name.substring(0, 1).toUpperCase() : "?";
-
-    return Container(
-      width: 48,
-
-      height: 48,
-
-      decoration: BoxDecoration(
-        color: AppColors.primaryLight,
-
-        shape: BoxShape.circle,
-      ),
-
-      child: Center(
-        child: Text(
-          initial,
-
-          style: const TextStyle(
-            fontSize: 18,
-
-            fontWeight: FontWeight.bold,
-
-            color: AppColors.primary,
+      bottomNavigationBar: SafeArea(
+        child: Container(
+          color: AppColors.white,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              navItem(
+                context,
+                Icons.home_outlined,
+                'Home',
+                const HomeAdminPage(),
+              ),
+              navItem(
+                context,
+                Icons.apartment_outlined,
+                'Data Kost',
+                const DataKostPage(),
+              ),
+              navItem(
+                context,
+                Icons.chat_bubble,
+                'Chat',
+                null,
+                active: true,
+              ),
+              navItem(
+                context,
+                Icons.person_outline,
+                'Profil',
+                const ProfilAdminPage(),
+              ),
+            ],
           ),
         ),
       ),
     );
   }
 
-  // ============================================================
-  // BOTTOM NAVIGATION
-  // ============================================================
+  Widget navItem(
+    BuildContext context,
+    IconData icon,
+    String label,
+    Widget? page, {
+    bool active = false,
+  }) {
+    final color =
+        active ? AppColors.primary : AppColors.textSecondary;
 
-  Widget _buildBottomNav(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        color: AppColors.white,
-
-        border: Border(top: BorderSide(color: AppColors.border)),
-      ),
-
-      child: SafeArea(
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-
+    return InkWell(
+      onTap: () {
+        if (page != null) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => page),
+          );
+        }
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: 12,
+          vertical: 9,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            _buildNavItem(context, Icons.home_outlined, "Home", false),
-
-            _buildNavItem(
-              context,
-
-              Icons.apartment_outlined,
-
-              "Data Kost",
-
-              false,
+            Icon(icon, color: color),
+            const SizedBox(height: 3),
+            Text(
+              label,
+              style: TextStyle(fontSize: 10, color: color),
             ),
-
-            _buildNavItem(context, Icons.chat_bubble, "Chat", true),
-
-            _buildNavItem(context, Icons.person_outline, "Profil", false),
           ],
         ),
       ),
     );
   }
+}
 
-  // ============================================================
-  // NAVIGATION ITEM
-  // ============================================================
+class AdminChatDetailPage extends StatefulWidget {
+  final String receiverId;
+  final String? idKost;
 
-  Widget _buildNavItem(
-    BuildContext context,
+  const AdminChatDetailPage({
+    super.key,
+    required this.receiverId,
+    this.idKost,
+  });
 
-    IconData icon,
+  @override
+  State<AdminChatDetailPage> createState() =>
+      _AdminChatDetailPageState();
+}
 
-    String label,
+class _AdminChatDetailPageState extends State<AdminChatDetailPage> {
+  final supabase = Supabase.instance.client;
+  final messageController = TextEditingController();
+  final scrollController = ScrollController();
 
-    bool isActive,
-  ) {
-    final Color color = isActive ? AppColors.primary : AppColors.textSecondary;
+  List<Map<String, dynamic>> messages = [];
+  bool loading = true;
+  bool sending = false;
+  String? error;
+  RealtimeChannel? channel;
 
-    return GestureDetector(
-      onTap: () {
-        if (label == "Home") {
-          Navigator.pushReplacement(
-            context,
+  String? get myId => supabase.auth.currentUser?.id;
 
-            MaterialPageRoute(builder: (context) => const HomeAdminPage()),
+  @override
+  void initState() {
+    super.initState();
+    loadMessages();
+
+    channel = supabase
+        .channel('admin-conversation-${widget.receiverId}')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'messages',
+          callback: (_) => loadMessages(),
+        )
+        .subscribe();
+  }
+
+  @override
+  void dispose() {
+    messageController.dispose();
+    scrollController.dispose();
+    if (channel != null) {
+      supabase.removeChannel(channel!);
+    }
+    super.dispose();
+  }
+
+  Future<void> loadMessages() async {
+    final me = myId;
+
+    if (me == null) {
+      if (!mounted) return;
+      setState(() {
+        loading = false;
+        error = 'Silakan login kembali.';
+      });
+      return;
+    }
+
+    try {
+      final rows = await supabase
+          .from('messages')
+          .select(
+            'id_message, pengirim_id, penerima_id, id_kost, isi_pesan',
+          )
+          .or(
+            'and(pengirim_id.eq.$me,penerima_id.eq.${widget.receiverId}),'
+            'and(pengirim_id.eq.${widget.receiverId},penerima_id.eq.$me)',
           );
-        } else if (label == "Data Kost") {
-          Navigator.pushReplacement(
-            context,
 
-            MaterialPageRoute(builder: (context) => const DataKostPage()),
-          );
-        } else if (label == "Profil") {
-          Navigator.pushReplacement(
-            context,
+      if (!mounted) return;
+      setState(() {
+        messages = rows
+            .map((row) => Map<String, dynamic>.from(row))
+            .toList();
+        loading = false;
+        error = null;
+      });
 
-            MaterialPageRoute(builder: (context) => const ProfilAdminPage()),
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (scrollController.hasClients) {
+          scrollController.jumpTo(
+            scrollController.position.maxScrollExtent,
           );
         }
-      },
+      });
+    } catch (e) {
+      debugPrint('Gagal memuat pesan: $e');
 
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8),
+      if (!mounted) return;
+      setState(() {
+        loading = false;
+        error = 'Gagal memuat pesan: $e';
+      });
+    }
+  }
 
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+  Future<void> sendMessage() async {
+    final text = messageController.text.trim();
+    final me = myId;
+    final kostId = widget.idKost;
 
-          children: [
-            Icon(icon, size: 22, color: color),
+    if (text.isEmpty || me == null || sending) return;
 
-            const SizedBox(height: 3),
-
-            Text(
-              label,
-
-              style: TextStyle(
-                fontSize: 10,
-
-                color: color,
-
-                fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
-              ),
-            ),
-          ],
+    if (kostId == null || kostId.isEmpty || kostId == 'null') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Pesan belum dapat dikirim karena ID kost belum tersedia.',
+          ),
         ),
+      );
+      return;
+    }
+
+    setState(() => sending = true);
+
+    try {
+      await supabase.from('messages').insert({
+        'pengirim_id': me,
+        'penerima_id': widget.receiverId,
+        'id_kost': kostId,
+        'isi_pesan': text,
+      });
+
+      messageController.clear();
+      await loadMessages();
+    } catch (e) {
+      debugPrint('Gagal mengirim pesan: $e');
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Pesan gagal dikirim: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => sending = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final me = myId;
+
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        backgroundColor: AppColors.white,
+        foregroundColor: AppColors.textPrimary,
+        elevation: 0,
+        title: Text(
+          'Pengguna ${widget.receiverId.substring(0, widget.receiverId.length > 8 ? 8 : widget.receiverId.length)}',
+        ),
+      ),
+      body: Column(
+        children: [
+          Expanded(
+            child: loading
+                ? const Center(child: CircularProgressIndicator())
+                : error != null
+                    ? Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Text(
+                            error!,
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      )
+                    : messages.isEmpty
+                        ? const Center(child: Text('Belum ada pesan'))
+                        : ListView.builder(
+                            controller: scrollController,
+                            padding: const EdgeInsets.all(16),
+                            itemCount: messages.length,
+                            itemBuilder: (context, index) {
+                              final message = messages[index];
+                              final mine =
+                                  message['pengirim_id'].toString() == me;
+
+                              return Align(
+                                alignment: mine
+                                    ? Alignment.centerRight
+                                    : Alignment.centerLeft,
+                                child: Container(
+                                  constraints: const BoxConstraints(
+                                    maxWidth: 290,
+                                  ),
+                                  margin: const EdgeInsets.only(bottom: 8),
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: mine
+                                        ? AppColors.primary
+                                        : AppColors.white,
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                  child: Text(
+                                    message['isi_pesan'].toString(),
+                                    style: TextStyle(
+                                      color: mine
+                                          ? AppColors.white
+                                          : AppColors.textPrimary,
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+          ),
+          Container(
+            color: AppColors.white,
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: messageController,
+                    textInputAction: TextInputAction.send,
+                    onSubmitted: (_) => sendMessage(),
+                    decoration: InputDecoration(
+                      hintText: 'Tulis pesan...',
+                      filled: true,
+                      fillColor: AppColors.backgroundLight,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(24),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                CircleAvatar(
+                  backgroundColor: AppColors.primary,
+                  child: IconButton(
+                    onPressed: sending ? null : sendMessage,
+                    icon: sending
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: AppColors.white,
+                            ),
+                          )
+                        : const Icon(
+                            Icons.send,
+                            color: AppColors.white,
+                          ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
