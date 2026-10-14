@@ -32,7 +32,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   // ==========================================
-  // FUNGSI LOGIN DENGAN SUPABASE AUTH
+  // FUNGSI LOGIN DENGAN SUPABASE AUTH (SUDAH DIPERBAIKI)
   // ==========================================
   Future<void> _handleLogin() async {
     final email = _emailController.text.trim();
@@ -64,18 +64,52 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // Panggil Supabase Auth
+      // 1. PANGGIL SUPABASE AUTH
+      print('[DEBUG] Login attempt for: $email');
       final response = await Supabase.instance.client.auth.signInWithPassword(
         email: email,
         password: password,
       );
 
-      // Cek apakah login berhasil
+      // 2. CEK APAKAH LOGIN BERHASIL
       if (response.user != null) {
+        print('[DEBUG] Auth berhasil! User ID: ${response.user!.id}');
+
+        // 3. AMBIL ROLE DARI DATABASE TABEL USERS
+        final userData = await Supabase.instance.client
+            .from('users')
+            .select('role')
+            .eq('id_user', response.user!.id)
+            .single();
+
+        final userRoleFromDb = userData['role']?.toString().toLowerCase() ?? '';
+        print('[DEBUG] Role dari database: $userRoleFromDb');
+        print(
+          '[DEBUG] Role yang dipilih di UI: ${_selectedRole.toLowerCase()}',
+        );
+
         if (mounted) {
           setState(() => _isLoading = false);
 
-          // Tampilkan pesan sukses
+          // 4. BANDINGKAN ROLE DARI DB DENGAN ROLE YANG DIPILIH DI UI
+          if (userRoleFromDb != _selectedRole.toLowerCase()) {
+            // Role tidak cocok!
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'Akun ini terdaftar sebagai ${userRoleFromDb.toUpperCase()}, bukan ${_selectedRole}. Silakan pilih role yang benar!',
+                ),
+                backgroundColor: AppColors.error,
+                duration: const Duration(seconds: 4),
+              ),
+            );
+
+            // Logout user karena role tidak cocok
+            await Supabase.instance.client.auth.signOut();
+            return;
+          }
+
+          // 5. ROLE COCOK - TAMPILKAN PESAN SUKSES
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Login berhasil! Selamat datang.'),
@@ -83,25 +117,30 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           );
 
-          // ==========================================
-          // LOGIKA ROUTING BERDASARKAN ROLE
-          // ==========================================
-          if (_selectedRole == 'Admin') {
-            // Jika yang login Admin, arahkan ke HomeAdminPage
+          // 6. ROUTING BERDASARKAN ROLE DARI DATABASE
+          if (userRoleFromDb == 'admin') {
+            print('[DEBUG] Redirecting to HomeAdminPage');
             Navigator.pushReplacement(
               context,
               MaterialPageRoute(builder: (context) => const HomeAdminPage()),
             );
-          } else {
-            // Jika yang login Mahasiswa, arahkan ke HomePage
+          } else if (userRoleFromDb == 'mahasiswa') {
+            print('[DEBUG] Redirecting to HomePage');
             Navigator.pushReplacement(
               context,
               MaterialPageRoute(builder: (context) => const HomePage()),
             );
+          } else {
+            // Role tidak dikenali
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Role tidak dikenali: $userRoleFromDb'),
+                backgroundColor: AppColors.error,
+              ),
+            );
           }
         }
       } else {
-        // Jika user null (seharusnya tidak terjadi)
         if (mounted) {
           setState(() => _isLoading = false);
           ScaffoldMessenger.of(context).showSnackBar(
@@ -113,7 +152,7 @@ class _LoginScreenState extends State<LoginScreen> {
         }
       }
     } on AuthException catch (e) {
-      // Handle error dari Supabase Auth
+      print('[DEBUG] AUTH EXCEPTION: ${e.message}');
       if (mounted) {
         setState(() => _isLoading = false);
 
@@ -139,7 +178,7 @@ class _LoginScreenState extends State<LoginScreen> {
         );
       }
     } catch (e) {
-      // Handle error umum (network error, dll)
+      print('[DEBUG] GENERAL ERROR: $e');
       if (mounted) {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -314,9 +353,6 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const SizedBox(height: 24),
 
-              // ==========================================
-              // PERBAIKAN OVERFLOW: MENGGUNAKAN Wrap
-              // ==========================================
               Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 16,

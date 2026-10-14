@@ -21,7 +21,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final TextEditingController _namaKostController = TextEditingController();
   final TextEditingController _alamatKostController = TextEditingController();
 
-  String _selectedRole = 'Mahasiswa';
+  String _selectedRole = 'Mahasiswa'; // Default role
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   bool _isLoading = false;
@@ -42,11 +42,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
     final confirmPassword = _confirmPasswordController.text.trim();
+    final namaKost = _namaKostController.text.trim();
+    final alamatKost = _alamatKostController.text.trim();
 
     print('--- [DEBUG] MULAI PROSES REGISTER ---');
-    print('[DEBUG] Email: $email');
-    print('[DEBUG] Role: $_selectedRole');
+    print('[DEBUG] Email: $email | Role: $_selectedRole');
 
+    // 1. VALIDASI DASAR
     if (name.isEmpty ||
         email.isEmpty ||
         password.isEmpty ||
@@ -54,6 +56,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Semua field wajib diisi!'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
+    // 2. VALIDASI KHUSUS PENGELOLA/ADMIN
+    if (_selectedRole == 'Admin' && (namaKost.isEmpty || alamatKost.isEmpty)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Nama dan Alamat Kost wajib diisi untuk Admin!'),
           backgroundColor: AppColors.error,
         ),
       );
@@ -83,41 +96,51 @@ class _RegisterScreenState extends State<RegisterScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // 1. PANGGIL SUPABASE AUTH
+      // 3. PANGGIL SUPABASE AUTH
       print('[DEBUG] Memanggil Supabase signUp...');
       final response = await Supabase.instance.client.auth.signUp(
         email: email,
         password: password,
-        data: {'nama': name, 'role': _selectedRole.toLowerCase()},
+        data: {'username': name, 'role': _selectedRole},
       );
 
-      print('[DEBUG] Response Supabase: $response');
-      print('[DEBUG] User ID: ${response.user?.id}');
-
       if (response.user != null) {
-        print('[DEBUG] Auth berhasil! Mencoba insert ke tabel users...');
+        print('[DEBUG] Auth berhasil! User ID: ${response.user!.id}');
 
-        // 2. INSERT KE TABEL USERS (SUDAH DIPERBAIKI: 'id' jadi 'id_user')
-        try {
-          await Supabase.instance.client.from('users').insert({
-            'id_user': response.user!.id, // ✅ INI YANG DIPERBAIKI
-            'email': email,
-            'nama': name,
-            'role': _selectedRole.toLowerCase(),
+        // 4. INSERT KE TABEL USERS
+        await Supabase.instance.client.from('users').insert({
+          'id_user': response.user!.id,
+          'username': name,
+          'email': email,
+          'password': password,
+          'role': _selectedRole
+              .toLowerCase(), // ✅ PAKAI toLowerCase() BIAR KONSISTEN
+          'foto_profile': null,
+        });
+        print('[DEBUG] Insert ke tabel users BERHASIL.');
+
+        // 5. JIKA ADMIN, BUAT DATA KOST DASAR
+        if (_selectedRole == 'Admin') {
+          await Supabase.instance.client.from('kost').insert({
+            'id_user': response.user!.id,
+            'nama': namaKost,
+            'alamat': alamatKost,
+            'harga': 0,
+            'deskripsi': '',
+            'ketersediaan_kamar': 0,
           });
-          print('[DEBUG] Insert ke tabel users BERHASIL.');
-        } catch (dbError) {
-          print('[DEBUG] ERROR saat insert ke tabel users: $dbError');
-          print('[DEBUG] Lanjut, karena Auth sudah berhasil.');
+          print('[DEBUG] Data kost dasar untuk Admin BERHASIL dibuat.');
         }
 
         if (mounted) {
           setState(() => _isLoading = false);
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Registrasi berhasil! Silakan login.'),
+            SnackBar(
+              content: Text(
+                'Registrasi $_selectedRole berhasil! Silakan login.',
+              ),
               backgroundColor: AppColors.success,
-              duration: Duration(seconds: 3),
+              duration: const Duration(seconds: 3),
             ),
           );
 
@@ -128,10 +151,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
       } else {
         if (mounted) {
           setState(() => _isLoading = false);
-          print('[DEBUG] GAGAL: response.user adalah null');
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Registrasi gagal. User null.'),
+              content: Text('Registrasi gagal. Coba lagi.'),
               backgroundColor: AppColors.error,
             ),
           );
@@ -229,7 +251,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      _selectedRole == 'Pengelola'
+                      _selectedRole == 'Admin'
                           ? "Daftar untuk mengelola kost Anda"
                           : "Daftar sekarang untuk mulai mencari kost impianmu",
                       textAlign: TextAlign.center,
@@ -263,9 +285,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: _buildRoleCard(
-                      icon: Icons.apartment_outlined,
-                      label: "Pengelola",
-                      role: "Pengelola",
+                      icon: Icons.admin_panel_settings_outlined, // ✅ ICON ADMIN
+                      label: "Admin", // ✅ UBAH DARI PENGELOLA
+                      role: "Admin", // ✅ UBAH DARI PENGELOLA
                     ),
                   ),
                 ],
@@ -273,9 +295,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               const SizedBox(height: 24),
               _buildTextField(
                 controller: _nameController,
-                label: _selectedRole == 'Pengelola'
-                    ? "Nama Pengelola"
-                    : "Nama Lengkap",
+                label: _selectedRole == 'Admin' ? "Nama Admin" : "Nama Lengkap",
                 hint: "Masukkan nama",
                 icon: Icons.person_outline,
                 suffixText: "Wajib",
@@ -290,7 +310,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 suffixText: "Wajib",
               ),
               const SizedBox(height: 16),
-              if (_selectedRole == 'Pengelola') ...[
+              if (_selectedRole == 'Admin') ...[
                 _buildTextField(
                   controller: _namaKostController,
                   label: "Nama Kost",
