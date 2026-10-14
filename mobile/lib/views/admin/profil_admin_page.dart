@@ -1,15 +1,11 @@
+
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/theme/app_theme.dart';
-
 import 'home_admin_page.dart';
 import 'data_kost_page.dart';
 import 'daftar_chat_admin_page.dart';
-
-// ============================================================
-// PROFIL ADMIN PAGE (Terintegrasi Supabase)
-// ============================================================
 
 class ProfilAdminPage extends StatefulWidget {
   const ProfilAdminPage({super.key});
@@ -22,10 +18,12 @@ class _ProfilAdminPageState extends State<ProfilAdminPage> {
   final SupabaseClient supabase = Supabase.instance.client;
 
   bool _isLoading = true;
+  bool _isSaving = false;
+
   Map<String, dynamic> adminData = {
-    "username": "Admin KostRadar",
-    "email": "admin@kostradar.com",
-    "foto_profile": "",
+    'username': 'Admin KostRadar',
+    'email': 'admin@kostradar.com',
+    'foto_profile': '',
   };
 
   @override
@@ -34,42 +32,51 @@ class _ProfilAdminPageState extends State<ProfilAdminPage> {
     _fetchAdminProfile();
   }
 
-  // Mengambil data profil dari auth/tabel user Supabase
   Future<void> _fetchAdminProfile() async {
     try {
       final user = supabase.auth.currentUser;
+
       if (user != null) {
-        setState(() {
-          adminData = {
-            "username": user.userMetadata?['username'] ?? user.email?.split('@').first ?? "Admin",
-            "email": user.email ?? "admin@kostradar.com",
-            "foto_profile": user.userMetadata?['foto_profile'] ?? "",
-          };
-          _isLoading = false;
-        });
-      } else {
-        setState(() {
-          _isLoading = false;
-        });
+        adminData = {
+          'username': user.userMetadata?['username'] ??
+              user.email?.split('@').first ??
+              'Admin',
+          'email': user.email ?? '-',
+          'foto_profile': user.userMetadata?['foto_profile'] ?? '',
+        };
       }
     } catch (e) {
-      setState(() {
-        _isLoading = false;
-      });
+      debugPrint('Gagal mengambil profil: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
+  }
+
+  void _showMessage(String message) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final username = adminData['username'] ?? "Admin";
-    final email = adminData['email'] ?? "-";
-    final fotoProfile = adminData['foto_profile'] ?? "";
+    final username = adminData['username'] as String? ?? 'Admin';
+    final email = adminData['email'] as String? ?? '-';
+    final fotoProfile = adminData['foto_profile'] as String? ?? '';
 
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
         child: _isLoading
-            ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
+            ? const Center(
+                child: CircularProgressIndicator(
+                  color: AppColors.primary,
+                ),
+              )
             : Column(
                 children: [
                   _buildHeader(),
@@ -80,7 +87,7 @@ class _ProfilAdminPageState extends State<ProfilAdminPage> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const Text(
-                            "Profil",
+                            'Profil',
                             style: TextStyle(
                               fontSize: 28,
                               fontWeight: FontWeight.bold,
@@ -89,7 +96,7 @@ class _ProfilAdminPageState extends State<ProfilAdminPage> {
                           ),
                           const SizedBox(height: 6),
                           const Text(
-                            "Kelola informasi akun admin Anda",
+                            'Kelola informasi akun admin Anda',
                             style: TextStyle(
                               fontSize: 14,
                               color: AppColors.textSecondary,
@@ -99,7 +106,7 @@ class _ProfilAdminPageState extends State<ProfilAdminPage> {
                           _buildProfileCard(username, email, fotoProfile),
                           const SizedBox(height: 24),
                           const Text(
-                            "Pengaturan Akun",
+                            'Pengaturan Akun',
                             style: TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
@@ -109,15 +116,15 @@ class _ProfilAdminPageState extends State<ProfilAdminPage> {
                           const SizedBox(height: 12),
                           _buildSettingItem(
                             icon: Icons.lock_outline,
-                            title: "Ubah Password",
-                            subtitle: "Perbarui password akun admin",
+                            title: 'Ubah Password',
+                            subtitle: 'Perbarui password akun admin',
                             onTap: _showChangePassword,
                           ),
                           const SizedBox(height: 10),
                           _buildSettingItem(
                             icon: Icons.logout_outlined,
-                            title: "Logout",
-                            subtitle: "Keluar dari akun admin",
+                            title: 'Logout',
+                            subtitle: 'Keluar dari akun admin',
                             iconColor: AppColors.error,
                             titleColor: AppColors.error,
                             onTap: _showLogoutConfirmation,
@@ -133,10 +140,6 @@ class _ProfilAdminPageState extends State<ProfilAdminPage> {
     );
   }
 
-  // ============================================================
-  // HEADER
-  // ============================================================
-
   Widget _buildHeader() {
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
@@ -145,7 +148,7 @@ class _ProfilAdminPageState extends State<ProfilAdminPage> {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           const Text(
-            "Profil Admin",
+            'Profil Admin',
             style: TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.bold,
@@ -159,18 +162,21 @@ class _ProfilAdminPageState extends State<ProfilAdminPage> {
               color: AppColors.primaryLight,
               borderRadius: BorderRadius.circular(12),
             ),
-            child: const Icon(Icons.person_outline, color: AppColors.primary),
+            child: const Icon(
+              Icons.person_outline,
+              color: AppColors.primary,
+            ),
           ),
         ],
       ),
     );
   }
 
-  // ============================================================
-  // PROFILE CARD
-  // ============================================================
-
-  Widget _buildProfileCard(String username, String email, String fotoProfile) {
+  Widget _buildProfileCard(
+    String username,
+    String email,
+    String fotoProfile,
+  ) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(18),
@@ -195,8 +201,11 @@ class _ProfilAdminPageState extends State<ProfilAdminPage> {
                         child: Image.network(
                           fotoProfile,
                           fit: BoxFit.cover,
-                          width: 90,
-                          height: 90,
+                          errorBuilder: (_, __, ___) => const Icon(
+                            Icons.person,
+                            size: 45,
+                            color: AppColors.primary,
+                          ),
                         ),
                       )
                     : const Icon(
@@ -246,13 +255,16 @@ class _ProfilAdminPageState extends State<ProfilAdminPage> {
           ),
           const SizedBox(height: 14),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 14,
+              vertical: 6,
+            ),
             decoration: BoxDecoration(
               color: AppColors.primaryLight,
               borderRadius: BorderRadius.circular(20),
             ),
             child: const Text(
-              "ADMIN",
+              'ADMIN',
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.bold,
@@ -265,71 +277,74 @@ class _ProfilAdminPageState extends State<ProfilAdminPage> {
     );
   }
 
-  // ============================================================
-  // EDIT PROFILE (Terhubung Supabase Update User Metadata)
-  // ============================================================
+  Future<void> _editProfile() async {
+    final nameController = TextEditingController(
+      text: adminData['username'] as String? ?? '',
+    );
 
-  void _editProfile() {
-    final nameController = TextEditingController(text: adminData['username']);
-
-    showDialog(
+    await showDialog<void>(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text("Edit Profil Admin"),
-          content: TextField(
-            controller: nameController,
-            decoration: InputDecoration(
-              labelText: "Username Baru",
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Edit Profil Admin'),
+        content: TextField(
+          controller: nameController,
+          autofocus: true,
+          decoration: InputDecoration(
+            labelText: 'Username Baru',
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
             ),
           ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
-              child: const Text("Batal"),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                final newName = nameController.text.trim();
-                if (newName.isNotEmpty) {
-                  try {
-                    await supabase.auth.updateUser(
-                      UserAttributes(
-                        data: {"username": newName},
-                      ),
-                    );
-                    setState(() {
-                      adminData['username'] = newName;
-                    });
-                    if (!mounted) return;
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text("Profil berhasil diperbarui")),
-                    );
-                  } catch (e) {
-                    if (!mounted) return;
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text("Gagal memperbarui profil: $e")),
-                    );
-                  }
-                }
-              },
-              child: const Text("Simpan"),
-            ),
-          ],
-        );
-      },
-    );
-  }
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: _isSaving
+                ? null
+                : () async {
+                    final newName = nameController.text.trim();
 
-  // ============================================================
-  // SETTING ITEM
-  // ============================================================
+                    if (newName.isEmpty) {
+                      _showMessage('Username tidak boleh kosong');
+                      return;
+                    }
+
+                    setState(() => _isSaving = true);
+
+                    try {
+                      await supabase.auth.updateUser(
+                        UserAttributes(
+                          data: {'username': newName},
+                        ),
+                      );
+
+                      if (!mounted) return;
+
+                      setState(() {
+                        adminData['username'] = newName;
+                      });
+
+                      Navigator.pop(dialogContext);
+                      _showMessage('Profil berhasil diperbarui');
+                    } catch (e) {
+                      _showMessage('Gagal memperbarui profil: $e');
+                    } finally {
+                      if (mounted) {
+                        setState(() => _isSaving = false);
+                      }
+                    }
+                  },
+            child: const Text('Simpan'),
+          ),
+        ],
+      ),
+    );
+
+    nameController.dispose();
+  }
 
   Widget _buildSettingItem({
     required IconData icon,
@@ -394,115 +409,100 @@ class _ProfilAdminPageState extends State<ProfilAdminPage> {
     );
   }
 
-  // ============================================================
-  // CHANGE PASSWORD (Terhubung Supabase Auth)
-  // ============================================================
-
-  void _showChangePassword() {
+  Future<void> _showChangePassword() async {
     final passwordController = TextEditingController();
 
-    showDialog(
+    await showDialog<void>(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text("Ubah Password"),
-          content: TextField(
-            controller: passwordController,
-            obscureText: true,
-            decoration: InputDecoration(
-              hintText: "Password baru",
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Ubah Password'),
+        content: TextField(
+          controller: passwordController,
+          obscureText: true,
+          decoration: InputDecoration(
+            hintText: 'Password baru (minimal 6 karakter)',
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
             ),
           ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
-              child: const Text("Batal"),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                final newPassword = passwordController.text.trim();
-                if (newPassword.length >= 6) {
-                  try {
-                    await supabase.auth.updateUser(
-                      UserAttributes(password: newPassword),
-                    );
-                    if (!mounted) return;
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text("Password berhasil diperbarui")),
-                    );
-                  } catch (e) {
-                    if (!mounted) return;
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text("Gagal mengubah password: $e")),
-                    );
-                  }
-                } else {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("Password minimal 6 karakter")),
-                  );
-                }
-              },
-              child: const Text("Simpan"),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  // ============================================================
-  // LOGOUT CONFIRMATION (Terhubung Supabase Auth SignOut)
-  // ============================================================
-
-  void _showLogoutConfirmation() {
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text("Logout"),
-          content: const Text(
-            "Apakah Anda yakin ingin keluar dari akun admin?",
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Batal'),
           ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
-              child: const Text("Batal"),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                await supabase.auth.signOut();
-                if (!mounted) return;
-                Navigator.pop(context);
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const HomeAdminPage(),
-                  ),
+          ElevatedButton(
+            onPressed: () async {
+              final newPassword = passwordController.text.trim();
+
+              if (newPassword.length < 6) {
+                _showMessage('Password minimal 6 karakter');
+                return;
+              }
+
+              try {
+                await supabase.auth.updateUser(
+                  UserAttributes(password: newPassword),
                 );
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.error,
-                foregroundColor: AppColors.white,
-              ),
-              child: const Text("Logout"),
-            ),
-          ],
-        );
-      },
+
+                if (!mounted) return;
+
+                Navigator.pop(dialogContext);
+                _showMessage('Password berhasil diperbarui');
+              } catch (e) {
+                _showMessage('Gagal mengubah password: $e');
+              }
+            },
+            child: const Text('Simpan'),
+          ),
+        ],
+      ),
     );
+
+    passwordController.dispose();
   }
 
-  // ============================================================
-  // BOTTOM NAVIGATION
-  // ============================================================
+  Future<void> _showLogoutConfirmation() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Logout'),
+        content: const Text(
+          'Apakah Anda yakin ingin keluar dari akun admin?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.error,
+              foregroundColor: AppColors.white,
+            ),
+            child: const Text('Logout'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    try {
+      await supabase.auth.signOut();
+
+      if (!mounted) return;
+
+      // Ganti '/login' jika nama route login di main.dart berbeda.
+      Navigator.of(context).pushNamedAndRemoveUntil(
+        '/login',
+        (route) => false,
+      );
+    } catch (e) {
+      _showMessage('Gagal logout: $e');
+    }
+  }
 
   Widget _buildBottomNav() {
     return Container(
@@ -514,10 +514,10 @@ class _ProfilAdminPageState extends State<ProfilAdminPage> {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: [
-            _buildNavItem(Icons.home_outlined, "Home", false),
-            _buildNavItem(Icons.apartment_outlined, "Data Kost", false),
-            _buildNavItem(Icons.chat_bubble_outline, "Chat", false),
-            _buildNavItem(Icons.person, "Profil", true),
+            _buildNavItem(Icons.home_outlined, 'Home', false),
+            _buildNavItem(Icons.apartment_outlined, 'Data Kost', false),
+            _buildNavItem(Icons.chat_bubble_outline, 'Chat', false),
+            _buildNavItem(Icons.person, 'Profil', true),
           ],
         ),
       ),
@@ -530,27 +530,31 @@ class _ProfilAdminPageState extends State<ProfilAdminPage> {
     return GestureDetector(
       onTap: () {
         switch (label) {
-          case "Home":
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (context) => const HomeAdminPage()),
-            );
-            break;
-          case "Data Kost":
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (context) => const DataKostPage()),
-            );
-            break;
-          case "Chat":
+          case 'Home':
             Navigator.pushReplacement(
               context,
               MaterialPageRoute(
-                builder: (context) => const DaftarChatAdminPage(chatData: {}),
+                builder: (_) => const HomeAdminPage(),
               ),
             );
             break;
-          case "Profil":
+          case 'Data Kost':
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const DataKostPage(),
+              ),
+            );
+            break;
+          case 'Chat':
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const DaftarChatAdminPage(chatData: {}),
+              ),
+            );
+            break;
+          case 'Profil':
             break;
         }
       },
