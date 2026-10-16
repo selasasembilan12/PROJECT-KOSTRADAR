@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -83,7 +84,9 @@ class _ProfilAdminPageState extends State<ProfilAdminPage> {
       path,
       bytes,
       fileOptions: FileOptions(
-        contentType: ext == 'jpg' ? 'image/jpeg' : 'image/$ext',
+        contentType: ext == 'jpg' || ext == 'jpeg'
+            ? 'image/jpeg'
+            : 'image/$ext',
       ),
     );
 
@@ -399,6 +402,7 @@ class _ProfilAdminPageState extends State<ProfilAdminPage> {
     final nameController = TextEditingController(
       text: adminData['username'] as String? ?? '',
     );
+
     final emailController = TextEditingController(
       text: adminData['email'] as String? ?? '',
     );
@@ -516,8 +520,11 @@ class _ProfilAdminPageState extends State<ProfilAdminPage> {
                                 adminData['foto_profile'] as String? ?? '';
 
                             if (fotoBaru != null) {
-                              fotoUrl = await _uploadProfilePhoto(fotoBaru!);
+                              fotoUrl =
+                                  await _uploadProfilePhoto(fotoBaru!);
                             }
+
+                            final emailBerubah = email != user.email;
 
                             await supabase.auth.updateUser(
                               UserAttributes(
@@ -525,16 +532,9 @@ class _ProfilAdminPageState extends State<ProfilAdminPage> {
                                   'username': nama,
                                   'foto_profile': fotoUrl,
                                 },
+                                email: emailBerubah ? email : null,
                               ),
                             );
-
-                            final emailBerubah = email != user.email;
-
-                            if (emailBerubah) {
-                              await supabase.auth.updateUser(
-                                UserAttributes(email: email),
-                              );
-                            }
 
                             if (!mounted) return;
 
@@ -555,7 +555,9 @@ class _ProfilAdminPageState extends State<ProfilAdminPage> {
                             _showMessage(
                               'Gagal memperbarui profil: $e',
                             );
-                            setDialogState(() => savingInDialog = false);
+                            setDialogState(
+                              () => savingInDialog = false,
+                            );
                           } finally {
                             if (mounted) {
                               setState(() => _isSaving = false);
@@ -698,7 +700,9 @@ class _ProfilAdminPageState extends State<ProfilAdminPage> {
                             Navigator.pop(dialogContext);
                             _showMessage('Password berhasil diperbarui');
                           } catch (e) {
-                            _showMessage('Gagal mengubah password: $e');
+                            _showMessage(
+                              'Gagal mengubah password: $e',
+                            );
                             setDialogState(() => saving = false);
                           }
                         },
@@ -722,6 +726,8 @@ class _ProfilAdminPageState extends State<ProfilAdminPage> {
     passwordController.dispose();
   }
 
+  // LOGOUT: mengakhiri sesi Supabase dan menghapus
+  // seluruh halaman admin dari navigation stack.
   Future<void> _showLogoutConfirmation() async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -754,10 +760,9 @@ class _ProfilAdminPageState extends State<ProfilAdminPage> {
 
       if (!mounted) return;
 
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(
-          builder: (_) => const HomeAdminPage(),
-        ),
+      // Rute login harus sudah terdaftar di aplikasi.
+      Navigator.of(context).pushNamedAndRemoveUntil(
+        '/login',
         (route) => false,
       );
     } catch (e) {
@@ -769,7 +774,9 @@ class _ProfilAdminPageState extends State<ProfilAdminPage> {
     return Container(
       decoration: const BoxDecoration(
         color: AppColors.white,
-        border: Border(top: BorderSide(color: AppColors.border)),
+        border: Border(
+          top: BorderSide(color: AppColors.border),
+        ),
       ),
       child: SafeArea(
         child: Row(
@@ -818,7 +825,9 @@ class _ProfilAdminPageState extends State<ProfilAdminPage> {
             Navigator.pushReplacement(
               context,
               MaterialPageRoute(
-                builder: (_) => const DaftarChatAdminPage(chatData: {}),
+                builder: (_) => const DaftarChatAdminPage(
+                  chatData: {},
+                ),
               ),
             );
             break;
@@ -840,7 +849,7 @@ class _ProfilAdminPageState extends State<ProfilAdminPage> {
                 fontSize: 10,
                 fontWeight:
                     active ? FontWeight.w600 : FontWeight.normal,
-                 color: color,
+                color: color,
               ),
             ),
           ],
