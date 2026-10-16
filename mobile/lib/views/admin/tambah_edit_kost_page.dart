@@ -1,3 +1,4 @@
+
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -6,7 +7,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/theme/app_theme.dart';
 
 // ============================================================
-// TAMBAH / EDIT KOST PAGE (Lengkap dengan Tipe, Fasilitas, & Deskripsi)
+// TAMBAH / EDIT KOST PAGE
+// Data kost disimpan sesuai akun admin yang sedang login.
 // ============================================================
 
 class TambahEditKostPage extends StatefulWidget {
@@ -20,21 +22,21 @@ class TambahEditKostPage extends StatefulWidget {
 
 class _TambahEditKostPageState extends State<TambahEditKostPage> {
   static const int maxFoto = 5;
+
   final SupabaseClient supabase = Supabase.instance.client;
   final ImagePicker _picker = ImagePicker();
 
   final TextEditingController namaController = TextEditingController();
   final TextEditingController hargaController = TextEditingController();
   final TextEditingController alamatController = TextEditingController();
-  final TextEditingController ketersediaanController = TextEditingController();
+  final TextEditingController ketersediaanController =
+      TextEditingController();
   final TextEditingController deskripsiController = TextEditingController();
 
-  // Pilihan Tambahan
-  String selectedTipe = 'Campur'; // Campur, Putra, Putri
+  String selectedTipe = 'Campur';
   bool isVerifikasi = true;
   bool termasukListrik = true;
 
-  // Pilihan Fasilitas Utama
   final Map<String, bool> fasilitasPilihan = {
     'WiFi': false,
     'AC': false,
@@ -56,21 +58,25 @@ class _TambahEditKostPageState extends State<TambahEditKostPage> {
           ? widget.kostData!['harga'].toString().split('.').first
           : '';
       alamatController.text = widget.kostData!['alamat'] ?? '';
-      ketersediaanController.text = widget.kostData!['ketersediaan_kamar'] != null
-          ? widget.kostData!['ketersediaan_kamar'].toString()
-          : '1';
+      ketersediaanController.text =
+          widget.kostData!['ketersediaan_kamar']?.toString() ?? '1';
       deskripsiController.text = widget.kostData!['deskripsi'] ?? '';
-      selectedTipe = widget.kostData!['tipe'] ?? 'Campur';
+
+      final tipe = widget.kostData!['tipe']?.toString() ?? 'Campur';
+      selectedTipe =
+          ['Campur', 'Putra', 'Putri'].contains(tipe) ? tipe : 'Campur';
+
       isVerifikasi = widget.kostData!['terverifikasi'] ?? true;
       termasukListrik = widget.kostData!['termasuk_listrik'] ?? true;
 
-      // Ambil fasilitas jika ada tersimpan (format string koma atau list)
-      if (widget.kostData!['fasilitas'] != null) {
-        final List<dynamic> savedFasilitas = widget.kostData!['fasilitas'] is List 
-            ? widget.kostData!['fasilitas'] 
-            : widget.kostData!['fasilitas'].toString().split(',');
-        for (var f in savedFasilitas) {
-          String key = f.toString().trim();
+      final fasilitas = widget.kostData!['fasilitas'];
+      if (fasilitas != null) {
+        final List<dynamic> savedFasilitas = fasilitas is List
+            ? fasilitas
+            : fasilitas.toString().split(',');
+
+        for (final f in savedFasilitas) {
+          final key = f.toString().trim();
           if (fasilitasPilihan.containsKey(key)) {
             fasilitasPilihan[key] = true;
           }
@@ -81,7 +87,8 @@ class _TambahEditKostPageState extends State<TambahEditKostPage> {
       hargaController.text = '1200000';
       alamatController.text = 'Jl. Gegerkalong No. 12, Bandung';
       ketersediaanController.text = '3';
-      deskripsiController.text = 'Kost nyaman, aman, dan strategis dekat kampus.';
+      deskripsiController.text =
+          'Kost nyaman, aman, dan strategis dekat kampus.';
     }
   }
 
@@ -99,7 +106,7 @@ class _TambahEditKostPageState extends State<TambahEditKostPage> {
     if (fotoTerunggah.length >= maxFoto) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text("Maksimal 5 foto yang dapat diunggah"),
+          content: Text('Maksimal 5 foto yang dapat diunggah'),
           backgroundColor: AppColors.error,
         ),
       );
@@ -112,15 +119,14 @@ class _TambahEditKostPageState extends State<TambahEditKostPage> {
         imageQuality: 80,
       );
 
-      if (image != null) {
-        setState(() {
-          fotoTerunggah.add(image);
-        });
+      if (image != null && mounted) {
+        setState(() => fotoTerunggah.add(image));
       }
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text("Gagal memilih foto: $e"),
+          content: Text('Gagal memilih foto: $e'),
           backgroundColor: AppColors.error,
         ),
       );
@@ -143,57 +149,57 @@ class _TambahEditKostPageState extends State<TambahEditKostPage> {
                   children: [
                     _buildFormInfo(),
                     const SizedBox(height: 18),
-                    _buildFieldLabel("Foto Unit Kost"),
+                    _buildFieldLabel('Foto Unit Kost'),
                     const SizedBox(height: 8),
                     _buildUploadBox(),
                     const SizedBox(height: 10),
                     if (fotoTerunggah.isNotEmpty) _buildFotoThumbnailRow(),
                     const SizedBox(height: 20),
-                    _buildFieldLabel("Nama Kost"),
+                    _buildFieldLabel('Nama Kost'),
                     _buildTextField(
                       controller: namaController,
                       icon: Icons.home_outlined,
                     ),
                     const SizedBox(height: 16),
-                    _buildFieldLabel("Tipe Kost"),
+                    _buildFieldLabel('Tipe Kost'),
                     _buildTipeDropdown(),
                     const SizedBox(height: 16),
-                    _buildFieldLabel("Harga Kost (/bulan)"),
+                    _buildFieldLabel('Harga Kost (/bulan)'),
                     _buildHargaField(),
                     const SizedBox(height: 10),
                     _buildSwitchOpsi(
-                      "Termasuk Listrik",
-                      "Centang jika harga sudah termasuk listrik",
+                      'Termasuk Listrik',
+                      'Centang jika harga sudah termasuk listrik',
                       termasukListrik,
                       (val) => setState(() => termasukListrik = val),
                     ),
                     const SizedBox(height: 10),
                     _buildSwitchOpsi(
-                      "Status Terverifikasi",
-                      "Tandai jika kost memiliki lencana terverifikasi",
+                      'Status Terverifikasi',
+                      'Tandai jika kost memiliki lencana terverifikasi',
                       isVerifikasi,
                       (val) => setState(() => isVerifikasi = val),
                     ),
                     const SizedBox(height: 16),
-                    _buildFieldLabel("Ketersediaan Kamar (Jumlah)"),
+                    _buildFieldLabel('Ketersediaan Kamar (Jumlah)'),
                     _buildTextField(
                       controller: ketersediaanController,
                       icon: Icons.meeting_room_outlined,
                       keyboardType: TextInputType.number,
                     ),
                     const SizedBox(height: 16),
-                    _buildFieldLabel("Fasilitas Utama"),
+                    _buildFieldLabel('Fasilitas Utama'),
                     const SizedBox(height: 6),
                     _buildFasilitasCheckboxes(),
                     const SizedBox(height: 16),
-                    _buildFieldLabel("Alamat / Lokasi Lengkap"),
+                    _buildFieldLabel('Alamat / Lokasi Lengkap'),
                     _buildTextField(
                       controller: alamatController,
                       icon: Icons.location_on_outlined,
                       maxLines: 2,
                     ),
                     const SizedBox(height: 16),
-                    _buildFieldLabel("Deskripsi Kost"),
+                    _buildFieldLabel('Deskripsi Kost'),
                     _buildTextField(
                       controller: deskripsiController,
                       icon: Icons.description_outlined,
@@ -222,11 +228,14 @@ class _TambahEditKostPageState extends State<TambahEditKostPage> {
         children: [
           IconButton(
             onPressed: () => Navigator.pop(context),
-            icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
+            icon: const Icon(
+              Icons.arrow_back,
+              color: AppColors.textPrimary,
+            ),
           ),
           const Expanded(
             child: Text(
-              "Tambah / Edit Kost",
+              'Tambah / Edit Kost',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 16,
@@ -235,7 +244,7 @@ class _TambahEditKostPageState extends State<TambahEditKostPage> {
               ),
             ),
           ),
-          const SizedBox(width: 48), // Penyeimbang tombol back
+          const SizedBox(width: 48),
         ],
       ),
     );
@@ -255,8 +264,11 @@ class _TambahEditKostPageState extends State<TambahEditKostPage> {
           SizedBox(width: 10),
           Expanded(
             child: Text(
-              "Lengkapi seluruh informasi detail agar calon penghuni mendapatkan gambaran lengkap unit Anda.",
-              style: TextStyle(fontSize: 12, color: AppColors.textPrimary),
+              'Lengkapi seluruh informasi detail agar calon penghuni mendapatkan gambaran lengkap unit Anda.',
+              style: TextStyle(
+                fontSize: 12,
+                color: AppColors.textPrimary,
+              ),
             ),
           ),
         ],
@@ -276,7 +288,7 @@ class _TambahEditKostPageState extends State<TambahEditKostPage> {
   }
 
   // ============================================================
-  // TIPE DROPDOWN
+  // TIPE KOST
   // ============================================================
 
   Widget _buildTipeDropdown() {
@@ -298,9 +310,8 @@ class _TambahEditKostPageState extends State<TambahEditKostPage> {
             );
           }).toList(),
           onChanged: (newValue) {
-            setState(() {
-              selectedTipe = newValue!;
-            });
+            if (newValue == null) return;
+            setState(() => selectedTipe = newValue);
           },
         ),
       ),
@@ -311,7 +322,12 @@ class _TambahEditKostPageState extends State<TambahEditKostPage> {
   // SWITCH OPTIONS
   // ============================================================
 
-  Widget _buildSwitchOpsi(String title, String subtitle, bool value, ValueChanged<bool> onChanged) {
+  Widget _buildSwitchOpsi(
+    String title,
+    String subtitle,
+    bool value,
+    ValueChanged<bool> onChanged,
+  ) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       decoration: BoxDecoration(
@@ -322,12 +338,26 @@ class _TambahEditKostPageState extends State<TambahEditKostPage> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(title, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-              Text(subtitle, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
-            ],
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                Text(
+                  subtitle,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
           ),
           Switch(
             value: value,
@@ -340,13 +370,13 @@ class _TambahEditKostPageState extends State<TambahEditKostPage> {
   }
 
   // ============================================================
-  // FASILITAS CHECKBOXES
+  // FASILITAS
   // ============================================================
 
   Widget _buildFasilitasCheckboxes() {
     return Wrap(
-      spacing: 8.0,
-      runSpacing: 4.0,
+      spacing: 8,
+      runSpacing: 4,
       children: fasilitasPilihan.keys.map((String key) {
         return FilterChip(
           label: Text(key),
@@ -354,13 +384,13 @@ class _TambahEditKostPageState extends State<TambahEditKostPage> {
           selectedColor: AppColors.primaryLight,
           checkmarkColor: AppColors.primary,
           labelStyle: TextStyle(
-            color: fasilitasPilihan[key]! ? AppColors.primary : AppColors.textPrimary,
+            color: fasilitasPilihan[key]!
+                ? AppColors.primary
+                : AppColors.textPrimary,
             fontSize: 12,
           ),
           onSelected: (bool selected) {
-            setState(() {
-              fasilitasPilihan[key] = selected;
-            });
+            setState(() => fasilitasPilihan[key] = selected);
           },
         );
       }).toList(),
@@ -368,7 +398,7 @@ class _TambahEditKostPageState extends State<TambahEditKostPage> {
   }
 
   // ============================================================
-  // UPLOAD & THUMBNAIL FOTO
+  // FOTO
   // ============================================================
 
   Widget _buildUploadBox() {
@@ -385,9 +415,19 @@ class _TambahEditKostPageState extends State<TambahEditKostPage> {
         child: const Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.add_photo_alternate_outlined, color: AppColors.primary, size: 28),
+            Icon(
+              Icons.add_photo_alternate_outlined,
+              color: AppColors.primary,
+              size: 28,
+            ),
             SizedBox(height: 6),
-            Text("Tambah Foto Kost", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+            Text(
+              'Tambah Foto Kost',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ],
         ),
       ),
@@ -418,12 +458,21 @@ class _TambahEditKostPageState extends State<TambahEditKostPage> {
                   right: 4,
                   top: 4,
                   child: GestureDetector(
-                    onTap: () => setState(() => fotoTerunggah.removeAt(index)),
+                    onTap: () {
+                      setState(() => fotoTerunggah.removeAt(index));
+                    },
                     child: Container(
                       width: 20,
                       height: 20,
-                      decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle),
-                      child: const Icon(Icons.close, size: 12, color: Colors.white),
+                      decoration: const BoxDecoration(
+                        color: Colors.black54,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.close,
+                        size: 12,
+                        color: Colors.white,
+                      ),
                     ),
                   ),
                 ),
@@ -434,6 +483,10 @@ class _TambahEditKostPageState extends State<TambahEditKostPage> {
       ),
     );
   }
+
+  // ============================================================
+  // TEXT FIELDS
+  // ============================================================
 
   Widget _buildTextField({
     required TextEditingController controller,
@@ -446,13 +499,29 @@ class _TambahEditKostPageState extends State<TambahEditKostPage> {
       maxLines: maxLines,
       keyboardType: keyboardType,
       decoration: InputDecoration(
-        prefixIcon: Icon(icon, size: 20, color: AppColors.textSecondary),
+        prefixIcon: Icon(
+          icon,
+          size: 20,
+          color: AppColors.textSecondary,
+        ),
         filled: true,
         fillColor: AppColors.white,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.border)),
-        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.border)),
-        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.primary)),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: AppColors.border),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: AppColors.border),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: AppColors.primary),
+        ),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: 12,
+        ),
       ),
     );
   }
@@ -460,19 +529,39 @@ class _TambahEditKostPageState extends State<TambahEditKostPage> {
   Widget _buildHargaField() {
     return TextField(
       controller: hargaController,
-      keyboardType: TextInputType.number,
+      keyboardType: const TextInputType.numberWithOptions(decimal: true),
       decoration: InputDecoration(
-        prefixText: "Rp ",
-        prefixIcon: const Icon(Icons.payments_outlined, size: 20, color: AppColors.textSecondary),
+        prefixText: 'Rp ',
+        prefixIcon: const Icon(
+          Icons.payments_outlined,
+          size: 20,
+          color: AppColors.textSecondary,
+        ),
         filled: true,
         fillColor: AppColors.white,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.border)),
-        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.border)),
-        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.primary)),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: AppColors.border),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: AppColors.border),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: AppColors.primary),
+        ),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: 12,
+        ),
       ),
     );
   }
+
+  // ============================================================
+  // BUTTON SIMPAN
+  // ============================================================
 
   Widget _buildSimpanButton() {
     return Container(
@@ -487,11 +576,28 @@ class _TambahEditKostPageState extends State<TambahEditKostPage> {
             backgroundColor: AppColors.primary,
             foregroundColor: AppColors.white,
             elevation: 0,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
           ),
           child: _isLoading
-              ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: AppColors.white, strokeWidth: 2))
-              : Text(widget.kostData == null ? "Simpan Data Kost" : "Perbarui Data Kost", style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    color: AppColors.white,
+                    strokeWidth: 2,
+                  ),
+                )
+              : Text(
+                  widget.kostData == null
+                      ? 'Simpan Data Kost'
+                      : 'Perbarui Data Kost',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
         ),
       ),
     );
@@ -502,89 +608,217 @@ class _TambahEditKostPageState extends State<TambahEditKostPage> {
   // ============================================================
 
   Future<void> _saveKost() async {
-    if (namaController.text.trim().isEmpty || hargaController.text.trim().isEmpty || alamatController.text.trim().isEmpty) {
+    if (namaController.text.trim().isEmpty ||
+        hargaController.text.trim().isEmpty ||
+        alamatController.text.trim().isEmpty ||
+        ketersediaanController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Harap lengkapi data utama kost"), backgroundColor: AppColors.error),
+        const SnackBar(
+          content: Text('Harap lengkapi data utama kost'),
+          backgroundColor: AppColors.error,
+        ),
       );
       return;
     }
 
+    // Pastikan ada akun yang sedang login.
+    final user = supabase.auth.currentUser;
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Sesi login tidak ditemukan. Silakan login kembali.'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
+    if (_isLoading) return;
     setState(() => _isLoading = true);
 
     try {
       final bool isEdit = widget.kostData != null;
-      final double harga = double.parse(hargaController.text.trim());
-      final int ketersediaan = int.parse(ketersediaanController.text.trim());
 
-      // Kumpulkan fasilitas yang dipilih menjadi teks list koma
-      List<String> listFasilitasAktif = [];
-      fasilitasPilihan.forEach((key, value) {
-        if (value) listFasilitasAktif.add(key);
-      });
+      final double? harga = double.tryParse(
+        hargaController.text.trim(),
+      );
+      final int? ketersediaan = int.tryParse(
+        ketersediaanController.text.trim(),
+      );
 
-      final Map<String, dynamic> dataToSave = {
-        "nama": namaController.text.trim(),
-        "harga": harga,
-        "alamat": alamatController.text.trim(),
-        "ketersediaan_kamar": ketersediaan,
-        "deskripsi": deskripsiController.text.trim(),
-        "tipe": selectedTipe,
-        "terverifikasi": isVerifikasi,
-        "termasuk_listrik": termasukListrik,
-        "fasilitas": listFasilitasAktif.join(', '),
-      };
-
-      String idKostTujuan = '';
-
-      if (isEdit) {
-        idKostTujuan = widget.kostData!['id_kost']?.toString() ?? widget.kostData!['id']?.toString() ?? '';
-        if (idKostTujuan.isNotEmpty) {
-          await supabase.from('kost').update(dataToSave).eq('id_kost', idKostTujuan);
-        } else {
-          throw Exception("ID Kost tidak ditemukan.");
-        }
-      } else {
-        final response = await supabase.from('kost').insert(dataToSave).select('id_kost').single();
-        idKostTujuan = response['id_kost']?.toString() ?? '';
+      if (harga == null || harga <= 0) {
+        throw Exception('Harga kost harus berupa angka lebih dari 0.');
       }
 
-      // UPLOAD FOTO KE SUPABASE STORAGE
+      if (ketersediaan == null || ketersediaan < 0) {
+        throw Exception(
+          'Ketersediaan kamar harus berupa bilangan bulat minimal 0.',
+        );
+      }
+
+      final List<String> listFasilitasAktif = fasilitasPilihan.entries
+          .where((entry) => entry.value)
+          .map((entry) => entry.key)
+          .toList();
+
+      final Map<String, dynamic> dataToSave = {
+        'nama': namaController.text.trim(),
+        'harga': harga,
+        'alamat': alamatController.text.trim(),
+        'ketersediaan_kamar': ketersediaan,
+        'deskripsi': deskripsiController.text.trim(),
+        'tipe': selectedTipe,
+        'terverifikasi': isVerifikasi,
+        'termasuk_listrik': termasukListrik,
+        'fasilitas': listFasilitasAktif.join(', '),
+      };
+
+      String idKostTujuan;
+
+      if (isEdit) {
+        idKostTujuan =
+            widget.kostData!['id_kost']?.toString() ??
+            widget.kostData!['id']?.toString() ??
+            '';
+
+        if (idKostTujuan.isEmpty) {
+          throw Exception('ID Kost tidak ditemukan.');
+        }
+
+        // Periksa bahwa kost memang dimiliki akun yang sedang login.
+        final pemilikKost = await supabase
+            .from('kost')
+            .select('id_kost, id_user')
+            .eq('id_kost', idKostTujuan)
+            .eq('id_user', user.id)
+            .maybeSingle();
+
+        if (pemilikKost == null) {
+          throw Exception(
+            'Kost tidak ditemukan atau bukan milik akun Anda.',
+          );
+        }
+
+        // Jangan mengganti id_user ketika mengedit kost.
+        final hasilUpdate = await supabase
+            .from('kost')
+            .update(dataToSave)
+            .eq('id_kost', idKostTujuan)
+            .eq('id_user', user.id)
+            .select('id_kost')
+            .maybeSingle();
+
+        if (hasilUpdate == null) {
+          throw Exception(
+            'Data kost gagal diperbarui. Periksa izin akses Supabase.',
+          );
+        }
+      } else {
+        // Kost baru harus memiliki ID pemilik dari sesi login.
+        final dataKostBaru = {
+          ...dataToSave,
+          'id_user': user.id,
+        };
+
+        final response = await supabase
+            .from('kost')
+            .insert(dataKostBaru)
+            .select('id_kost')
+            .single();
+
+        idKostTujuan = response['id_kost']?.toString() ?? '';
+
+        if (idKostTujuan.isEmpty) {
+          throw Exception('ID Kost baru tidak berhasil diperoleh.');
+        }
+      }
+
+      // ========================================================
+      // UPLOAD FOTO
+      // Operasi ini dilakukan setelah pemilik kost diverifikasi.
+      // ========================================================
+
       if (idKostTujuan.isNotEmpty && fotoTerunggah.isNotEmpty) {
         if (isEdit) {
-          await supabase.from('foto_kost').delete().eq('id_kost', idKostTujuan);
+          await supabase
+              .from('foto_kost')
+              .delete()
+              .eq('id_kost', idKostTujuan);
         }
 
         for (int i = 0; i < fotoTerunggah.length; i++) {
           final fileX = fotoTerunggah[i];
           final bytes = await fileX.readAsBytes();
-          final fileExt = fileX.name.split('.').last;
-          final fileName = '${DateTime.now().millisecondsSinceEpoch}_$i.$fileExt';
+
+          final fileExt = fileX.name.contains('.')
+              ? fileX.name.split('.').last.toLowerCase()
+              : 'jpg';
+
+          final mimeType = switch (fileExt) {
+            'jpg' || 'jpeg' => 'image/jpeg',
+            'png' => 'image/png',
+            'webp' => 'image/webp',
+            'gif' => 'image/gif',
+            _ => 'application/octet-stream',
+          };
+
+          final fileName =
+              '${DateTime.now().millisecondsSinceEpoch}_$i.$fileExt';
           final filePath = 'kost_$idKostTujuan/$fileName';
 
           await supabase.storage.from('kost-images').uploadBinary(
-            filePath,
-            bytes,
-            fileOptions: FileOptions(contentType: 'image/$fileExt', upsert: true),
-          );
+                filePath,
+                bytes,
+                fileOptions: FileOptions(
+                  contentType: mimeType,
+                  upsert: true,
+                ),
+              );
 
-          final imageUrl = supabase.storage.from('kost-images').getPublicUrl(filePath);
+          final imageUrl =
+              supabase.storage.from('kost-images').getPublicUrl(filePath);
 
           await supabase.from('foto_kost').insert({
-            "id_kost": idKostTujuan,
-            "foto": imageUrl,
+            'id_kost': idKostTujuan,
+            'foto': imageUrl,
           });
         }
       }
 
       if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            isEdit
+                ? 'Data kost berhasil diperbarui.'
+                : 'Data kost berhasil disimpan.',
+          ),
+        ),
+      );
+
       Navigator.pop(context, true);
-    } catch (e) {
+    } on FormatException {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Gagal menyimpan data: $e"), backgroundColor: AppColors.error),
+        const SnackBar(
+          content: Text('Harga dan ketersediaan kamar harus berupa angka.'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Gagal menyimpan data: $e'),
+          backgroundColor: AppColors.error,
+        ),
       );
     } finally {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 }

@@ -1,15 +1,11 @@
+
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/theme/app_theme.dart';
-
 import 'data_kost_page.dart';
 import 'daftar_chat_admin_page.dart';
 import 'profil_admin_page.dart';
-
-// ============================================================
-// HOME ADMIN PAGE (Terintegrasi Supabase & Statistik Real-time)
-// ============================================================
 
 class HomeAdminPage extends StatefulWidget {
   const HomeAdminPage({super.key});
@@ -21,27 +17,46 @@ class HomeAdminPage extends StatefulWidget {
 class _HomeAdminPageState extends State<HomeAdminPage> {
   final SupabaseClient supabase = Supabase.instance.client;
 
-  // Fungsi untuk menghitung total kost dan total kamar tersedia secara otomatis
-  Future<Map<String, int>> _fetchRingkasanProperti() async {
-    try {
-      final response = await supabase.from('kost').select('ketersediaan_kamar');
-      final List<dynamic> data = response as List<dynamic>;
+  // ============================================================
+  // RINGKASAN DATA KOST MILIK ADMIN YANG LOGIN
+  // ============================================================
 
-      int totalKost = data.length;
+  Future<Map<String, int>> _fetchRingkasanProperti() async {
+    final user = supabase.auth.currentUser;
+
+    if (user == null) {
+      return {
+        'totalKost': 0,
+        'totalKamarTersedia': 0,
+      };
+    }
+
+    try {
+      final response = await supabase
+          .from('kost')
+          .select('ketersediaan_kamar')
+          .eq('id_user', user.id);
+
+      final data = List<Map<String, dynamic>>.from(response);
+
       int totalKamarTersedia = 0;
 
-      for (var item in data) {
-        int kamar = (item['ketersediaan_kamar'] != null)
-            ? int.parse(item['ketersediaan_kamar'].toString())
-            : 0;
+      for (final item in data) {
+        final kamar = int.tryParse(
+              item['ketersediaan_kamar']?.toString() ?? '0',
+            ) ??
+            0;
+
         totalKamarTersedia += kamar;
       }
 
       return {
-        'totalKost': totalKost,
+        'totalKost': data.length,
         'totalKamarTersedia': totalKamarTersedia,
       };
     } catch (e) {
+      debugPrint('Gagal mengambil ringkasan kost: $e');
+
       return {
         'totalKost': 0,
         'totalKamarTersedia': 0,
@@ -49,16 +64,95 @@ class _HomeAdminPageState extends State<HomeAdminPage> {
     }
   }
 
-  // Fungsi untuk mengambil data kost terbaru dari Supabase beserta fotonya
-  Future<List<Map<String, dynamic>>> _fetchKostTerbaru() async {
-    final response = await supabase
-        .from('kost')
-        .select('*, foto_kost(foto)')
-        .order('created_at', ascending: false)
-        .limit(3);
+  // ============================================================
+  // STATISTIK CHAT ADMIN YANG LOGIN
+  // ============================================================
 
-    return List<Map<String, dynamic>>.from(response);
+  Future<Map<String, int>> _fetchStatistikChat() async {
+    final user = supabase.auth.currentUser;
+
+    if (user == null) {
+      return {
+        'pesanMasuk': 0,
+        'totalChat': 0,
+      };
+    }
+
+    try {
+      final response = await supabase
+          .from('messages')
+          .select('id_message, pengirim_id, penerima_id, id_kost')
+          .or(
+            'pengirim_id.eq.${user.id},penerima_id.eq.${user.id}',
+          );
+
+      final rows = List<Map<String, dynamic>>.from(response);
+
+      int pesanMasuk = 0;
+      final Set<String> percakapan = {};
+
+      for (final row in rows) {
+        final pengirimId = row['pengirim_id']?.toString();
+        final penerimaId = row['penerima_id']?.toString();
+        final idKost = row['id_kost']?.toString() ?? '';
+
+        if (penerimaId == user.id) {
+          pesanMasuk++;
+        }
+
+        if (pengirimId == user.id || penerimaId == user.id) {
+          final lawanBicara =
+              pengirimId == user.id ? penerimaId : pengirimId;
+
+          if (lawanBicara != null && lawanBicara.isNotEmpty) {
+            percakapan.add('$lawanBicara|$idKost');
+          }
+        }
+      }
+
+      return {
+        'pesanMasuk': pesanMasuk,
+        'totalChat': percakapan.length,
+      };
+    } catch (e) {
+      debugPrint('Gagal mengambil statistik chat: $e');
+
+      return {
+        'pesanMasuk': 0,
+        'totalChat': 0,
+      };
+    }
   }
+
+  // ============================================================
+  // TIGA KOST TERBARU MILIK ADMIN YANG LOGIN
+  // ============================================================
+
+  Future<List<Map<String, dynamic>>> _fetchKostTerbaru() async {
+    final user = supabase.auth.currentUser;
+
+    if (user == null) {
+      return [];
+    }
+
+    try {
+      final response = await supabase
+          .from('kost')
+          .select('*, foto_kost(foto)')
+          .eq('id_user', user.id)
+          .order('created_at', ascending: false)
+          .limit(3);
+
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      debugPrint('Gagal mengambil kost terbaru: $e');
+      rethrow;
+    }
+  }
+
+  // ============================================================
+  // TAMPILAN UTAMA
+  // ============================================================
 
   @override
   Widget build(BuildContext context) {
@@ -76,7 +170,7 @@ class _HomeAdminPageState extends State<HomeAdminPage> {
               const SizedBox(height: 16),
               _buildBannerKelolaUnit(context),
               const SizedBox(height: 20),
-              _buildSectionHeader(context, "Kost Terbaru"),
+              _buildSectionHeader(context, 'Kost Terbaru'),
               const SizedBox(height: 12),
               _buildDaftarKostTerbaru(),
             ],
@@ -99,7 +193,7 @@ class _HomeAdminPageState extends State<HomeAdminPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              "KOSTRADAR ADMIN",
+              'KOSTRADAR ADMIN',
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.bold,
@@ -109,7 +203,7 @@ class _HomeAdminPageState extends State<HomeAdminPage> {
             ),
             SizedBox(height: 2),
             Text(
-              "Home",
+              'Home',
               style: TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
@@ -136,7 +230,7 @@ class _HomeAdminPageState extends State<HomeAdminPage> {
   }
 
   // ============================================================
-  // RINGKASAN PROPERTI (Otomatis dari Supabase)
+  // RINGKASAN PROPERTI DAN STATISTIK CHAT
   // ============================================================
 
   Widget _buildRingkasanProperti() {
@@ -144,7 +238,8 @@ class _HomeAdminPageState extends State<HomeAdminPage> {
       future: _fetchRingkasanProperti(),
       builder: (context, snapshot) {
         final totalKost = snapshot.data?['totalKost'] ?? 0;
-        final totalKamar = snapshot.data?['totalKamarTersedia'] ?? 0;
+        final totalKamar =
+            snapshot.data?['totalKamarTersedia'] ?? 0;
 
         return Container(
           padding: const EdgeInsets.all(16),
@@ -159,35 +254,40 @@ class _HomeAdminPageState extends State<HomeAdminPage> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        "Ringkasan Properti",
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.textPrimary,
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Ringkasan Properti',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textPrimary,
+                          ),
                         ),
-                      ),
-                      SizedBox(height: 2),
-                      Text(
-                        "Pantau aktivitas kost dan calon penghuni hari ini",
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: AppColors.textSecondary,
+                        SizedBox(height: 2),
+                        Text(
+                          'Pantau aktivitas kost dan calon penghuni hari ini',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: AppColors.textSecondary,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: AppColors.successLight,
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: const Text(
-                      "• Aktif",
+                      '• Aktif',
                       style: TextStyle(
                         fontSize: 10,
                         fontWeight: FontWeight.bold,
@@ -205,9 +305,12 @@ class _HomeAdminPageState extends State<HomeAdminPage> {
                       icon: Icons.apartment,
                       iconBg: AppColors.primaryLight,
                       iconColor: AppColors.primary,
-                      value: totalKost.toString(),
-                      label: "Total Kost",
-                      badgeText: "+$totalKost",
+                      value: snapshot.connectionState ==
+                              ConnectionState.waiting
+                          ? '...'
+                          : totalKost.toString(),
+                      label: 'Total Kost',
+                      badgeText: 'Terdaftar',
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -216,40 +319,66 @@ class _HomeAdminPageState extends State<HomeAdminPage> {
                       icon: Icons.door_front_door_outlined,
                       iconBg: AppColors.successLight,
                       iconColor: AppColors.success,
-                      value: totalKamar.toString(),
-                      label: "Kamar Tersedia",
-                      badgeText: "Siap huni",
+                      value: snapshot.connectionState ==
+                              ConnectionState.waiting
+                          ? '...'
+                          : totalKamar.toString(),
+                      label: 'Kamar Tersedia',
+                      badgeText: 'Siap huni',
                       badgeColor: AppColors.textSecondary,
                     ),
                   ),
                 ],
               ),
               const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildStatCard(
-                      icon: Icons.mail_outline,
-                      iconBg: AppColors.primaryLight,
-                      iconColor: AppColors.primary,
-                      value: "4",
-                      label: "Pesan Masuk",
-                      badgeText: "•",
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _buildStatCard(
-                      icon: Icons.chat_bubble_outline,
-                      iconBg: AppColors.primaryLight,
-                      iconColor: AppColors.primary,
-                      value: "25",
-                      label: "Total Chat",
-                      badgeText: "Bulan ini",
-                      badgeColor: AppColors.textSecondary,
-                    ),
-                  ),
-                ],
+              FutureBuilder<Map<String, int>>(
+                future: _fetchStatistikChat(),
+                builder: (context, chatSnapshot) {
+                  final statistik = chatSnapshot.data ??
+                      {
+                        'pesanMasuk': 0,
+                        'totalChat': 0,
+                      };
+
+                  final sedangMemuat =
+                      chatSnapshot.connectionState ==
+                          ConnectionState.waiting;
+
+                  return Row(
+                    children: [
+                      Expanded(
+                        child: _buildStatCard(
+                          icon: Icons.mail_outline,
+                          iconBg: AppColors.primaryLight,
+                          iconColor: AppColors.primary,
+                          value: sedangMemuat
+                              ? '...'
+                              : (statistik['pesanMasuk'] ?? 0)
+                                  .toString(),
+                          label: 'Pesan Masuk',
+                          badgeText:
+                              sedangMemuat ? 'Memuat' : 'Aktual',
+                          badgeColor: AppColors.textSecondary,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _buildStatCard(
+                          icon: Icons.chat_bubble_outline,
+                          iconBg: AppColors.primaryLight,
+                          iconColor: AppColors.primary,
+                          value: sedangMemuat
+                              ? '...'
+                              : (statistik['totalChat'] ?? 0)
+                                  .toString(),
+                          label: 'Total Chat',
+                          badgeText: 'Percakapan',
+                          badgeColor: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  );
+                },
               ),
             ],
           ),
@@ -257,6 +386,10 @@ class _HomeAdminPageState extends State<HomeAdminPage> {
       },
     );
   }
+
+  // ============================================================
+  // KARTU STATISTIK
+  // ============================================================
 
   Widget _buildStatCard({
     required IconData icon,
@@ -285,14 +418,21 @@ class _HomeAdminPageState extends State<HomeAdminPage> {
                   color: iconBg,
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Icon(icon, size: 18, color: iconColor),
+                child: Icon(
+                  icon,
+                  size: 18,
+                  color: iconColor,
+                ),
               ),
-              Text(
-                badgeText,
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                  color: badgeColor,
+              Flexible(
+                child: Text(
+                  badgeText,
+                  textAlign: TextAlign.end,
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: badgeColor,
+                  ),
                 ),
               ),
             ],
@@ -327,7 +467,9 @@ class _HomeAdminPageState extends State<HomeAdminPage> {
       onTap: () {
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const DataKostPage()),
+          MaterialPageRoute(
+            builder: (context) => const DataKostPage(),
+          ),
         );
       },
       child: Container(
@@ -356,7 +498,7 @@ class _HomeAdminPageState extends State<HomeAdminPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    "Kelola Unit Baru",
+                    'Kelola Unit Baru',
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.bold,
@@ -365,7 +507,7 @@ class _HomeAdminPageState extends State<HomeAdminPage> {
                   ),
                   SizedBox(height: 2),
                   Text(
-                    "Tambahkan kamar & perbarui ketersediaan",
+                    'Tambahkan kamar & perbarui ketersediaan',
                     style: TextStyle(
                       fontSize: 11,
                       color: AppColors.white,
@@ -385,10 +527,13 @@ class _HomeAdminPageState extends State<HomeAdminPage> {
   }
 
   // ============================================================
-  // SECTION HEADER
+  // HEADER KOST TERBARU
   // ============================================================
 
-  Widget _buildSectionHeader(BuildContext context, String title) {
+  Widget _buildSectionHeader(
+    BuildContext context,
+    String title,
+  ) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -404,13 +549,15 @@ class _HomeAdminPageState extends State<HomeAdminPage> {
           onTap: () {
             Navigator.pushReplacement(
               context,
-              MaterialPageRoute(builder: (context) => const DataKostPage()),
+              MaterialPageRoute(
+                builder: (context) => const DataKostPage(),
+              ),
             );
           },
           child: const Row(
             children: [
               Text(
-                "Lihat Semua",
+                'Lihat Semua',
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
@@ -430,7 +577,7 @@ class _HomeAdminPageState extends State<HomeAdminPage> {
   }
 
   // ============================================================
-  // DAFTAR KOST TERBARU (Membaca Supabase)
+  // DAFTAR KOST TERBARU
   // ============================================================
 
   Widget _buildDaftarKostTerbaru() {
@@ -440,13 +587,17 @@ class _HomeAdminPageState extends State<HomeAdminPage> {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(
             child: Padding(
-              padding: EdgeInsets.all(20.0),
-              child: CircularProgressIndicator(color: AppColors.primary),
+              padding: EdgeInsets.all(20),
+              child: CircularProgressIndicator(
+                color: AppColors.primary,
+              ),
             ),
           );
         }
 
-        if (snapshot.hasError || !snapshot.hasData || snapshot.data!.isEmpty) {
+        if (snapshot.hasError ||
+            !snapshot.hasData ||
+            snapshot.data!.isEmpty) {
           return Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -456,8 +607,11 @@ class _HomeAdminPageState extends State<HomeAdminPage> {
             ),
             child: const Center(
               child: Text(
-                "Belum ada unit kost terbaru.",
-                style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                'Belum ada unit kost terbaru.',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: AppColors.textSecondary,
+                ),
               ),
             ),
           );
@@ -467,13 +621,23 @@ class _HomeAdminPageState extends State<HomeAdminPage> {
 
         return Column(
           children: listKost.map((item) {
-            final double harga = (item['harga'] != null)
-                ? double.parse(item['harga'].toString())
-                : 0.0;
-            final formattedHarga =
-                "Rp ${harga.toInt().toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')}";
+            final harga = double.tryParse(
+                  item['harga']?.toString() ?? '0',
+                ) ??
+                0.0;
 
-            final listFoto = item['foto_kost'] as List<dynamic>? ?? [];
+            final formattedHarga =
+                'Rp ${harga.toInt().toString().replaceAllMapped(
+                      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+                      (Match m) => '${m[1]}.',
+                    )}';
+
+            final listFoto =
+                item['foto_kost'] as List<dynamic>? ?? [];
+
+            final fotoUrl = listFoto.isNotEmpty
+                ? listFoto.first['foto']?.toString() ?? ''
+                : '';
 
             return Container(
               margin: const EdgeInsets.only(bottom: 12),
@@ -492,13 +656,17 @@ class _HomeAdminPageState extends State<HomeAdminPage> {
                       color: AppColors.backgroundLight,
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: listFoto.isNotEmpty
+                    child: fotoUrl.isNotEmpty
                         ? ClipRRect(
                             borderRadius: BorderRadius.circular(10),
                             child: Image.network(
-                              listFoto.first['foto'] ?? '',
+                              fotoUrl,
                               fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) {
+                              errorBuilder: (
+                                context,
+                                error,
+                                stackTrace,
+                              ) {
                                 return const Icon(
                                   Icons.image,
                                   color: AppColors.primary,
@@ -519,7 +687,7 @@ class _HomeAdminPageState extends State<HomeAdminPage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          item['nama'] ?? '',
+                          item['nama']?.toString() ?? '',
                           style: const TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.bold,
@@ -528,7 +696,7 @@ class _HomeAdminPageState extends State<HomeAdminPage> {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          "$formattedHarga/bulan",
+                          '$formattedHarga/bulan',
                           style: const TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
@@ -544,11 +712,13 @@ class _HomeAdminPageState extends State<HomeAdminPage> {
                               color: AppColors.success,
                             ),
                             const SizedBox(width: 4),
-                            Text(
-                              "Tersedia ${item['ketersediaan_kamar'] ?? 0} kamar",
-                              style: const TextStyle(
-                                fontSize: 10,
-                                color: AppColors.success,
+                            Expanded(
+                              child: Text(
+                                'Tersedia ${item['ketersediaan_kamar'] ?? 0} kamar',
+                                style: const TextStyle(
+                                  fontSize: 10,
+                                  color: AppColors.success,
+                                ),
                               ),
                             ),
                           ],
@@ -573,21 +743,47 @@ class _HomeAdminPageState extends State<HomeAdminPage> {
     return Container(
       decoration: const BoxDecoration(
         color: AppColors.white,
-        border: Border(top: BorderSide(color: AppColors.border)),
+        border: Border(
+          top: BorderSide(color: AppColors.border),
+        ),
       ),
       child: SafeArea(
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: [
-            _buildNavItem(context, Icons.home, "Home", true),
-            _buildNavItem(context, Icons.apartment, "Data Kost", false),
-            _buildNavItem(context, Icons.chat_bubble_outline, "Chat", false),
-            _buildNavItem(context, Icons.person_outline, "Profil", false),
+            _buildNavItem(
+              context,
+              Icons.home,
+              'Home',
+              true,
+            ),
+            _buildNavItem(
+              context,
+              Icons.apartment,
+              'Data Kost',
+              false,
+            ),
+            _buildNavItem(
+              context,
+              Icons.chat_bubble_outline,
+              'Chat',
+              false,
+            ),
+            _buildNavItem(
+              context,
+              Icons.person_outline,
+              'Profil',
+              false,
+            ),
           ],
         ),
       ),
     );
   }
+
+  // ============================================================
+  // ITEM NAVIGASI
+  // ============================================================
 
   Widget _buildNavItem(
     BuildContext context,
@@ -595,31 +791,40 @@ class _HomeAdminPageState extends State<HomeAdminPage> {
     String label,
     bool isActive,
   ) {
-    final color = isActive ? AppColors.primary : AppColors.textSecondary;
+    final color =
+        isActive ? AppColors.primary : AppColors.textSecondary;
 
     return GestureDetector(
       onTap: () {
         switch (label) {
-          case "Home":
+          case 'Home':
             break;
-          case "Data Kost":
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (context) => const DataKostPage()),
-            );
-            break;
-          case "Chat":
+
+          case 'Data Kost':
             Navigator.pushReplacement(
               context,
               MaterialPageRoute(
-                builder: (context) => const DaftarChatAdminPage(chatData: {}),
+                builder: (context) => const DataKostPage(),
               ),
             );
             break;
-          case "Profil":
+
+          case 'Chat':
             Navigator.pushReplacement(
               context,
-              MaterialPageRoute(builder: (context) => const ProfilAdminPage()),
+              MaterialPageRoute(
+                builder: (context) =>
+                    const DaftarChatAdminPage(chatData: {}),
+              ),
+            );
+            break;
+
+          case 'Profil':
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const ProfilAdminPage(),
+              ),
             );
             break;
         }
@@ -629,14 +834,20 @@ class _HomeAdminPageState extends State<HomeAdminPage> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 22, color: color),
+            Icon(
+              icon,
+              size: 22,
+              color: color,
+            ),
             const SizedBox(height: 3),
             Text(
               label,
               style: TextStyle(
                 fontSize: 10,
                 color: color,
-                fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
+                fontWeight: isActive
+                    ? FontWeight.w600
+                    : FontWeight.normal,
               ),
             ),
           ],

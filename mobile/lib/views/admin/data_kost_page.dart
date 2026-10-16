@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -49,6 +48,10 @@ class _DataKostPageState extends State<DataKostPage> {
     _loadKost();
   }
 
+  // ============================================================
+  // MEMUAT KOST MILIK AKUN YANG SEDANG LOGIN
+  // ============================================================
+
   Future<void> _loadKost() async {
     if (mounted) {
       setState(() {
@@ -58,15 +61,27 @@ class _DataKostPageState extends State<DataKostPage> {
     }
 
     try {
-      final response = await supabase.from('kost').select();
+      final user = supabase.auth.currentUser;
+
+      if (user == null) {
+        throw Exception('Sesi login tidak ditemukan. Silakan login kembali.');
+      }
+
+      // Hanya mengambil kost yang id_user-nya sesuai dengan akun login.
+      final response = await supabase
+          .from('kost')
+          .select()
+          .eq('id_user', user.id);
 
       final items = <KostItem>[];
+
       for (final row in response) {
         items.add(KostItem(Map<String, dynamic>.from(row)));
       }
 
-      // Ambil foto untuk setiap kost.
+      // Mengambil foto hanya untuk kost milik akun yang login.
       final fotoMap = <String, String?>{};
+
       for (final kost in items) {
         if (kost.id.isEmpty) continue;
 
@@ -99,6 +114,10 @@ class _DataKostPageState extends State<DataKostPage> {
     }
   }
 
+  // ============================================================
+  // MEMBUKA FORM TAMBAH / EDIT KOST
+  // ============================================================
+
   Future<void> _openForm({KostItem? kost}) async {
     final result = await Navigator.push<bool>(
       context,
@@ -113,6 +132,10 @@ class _DataKostPageState extends State<DataKostPage> {
       await _loadKost();
     }
   }
+
+  // ============================================================
+  // MENGHAPUS KOST MILIK AKUN YANG LOGIN
+  // ============================================================
 
   Future<void> _showDeleteDialog(KostItem kost) async {
     final confirmed = await showDialog<bool>(
@@ -148,17 +171,38 @@ class _DataKostPageState extends State<DataKostPage> {
     }
 
     try {
-      // Hapus data foto terlebih dahulu.
+      final user = supabase.auth.currentUser;
+
+      if (user == null) {
+        throw Exception('Silakan login kembali.');
+      }
+
+      // Pastikan data yang akan dihapus memang milik akun login.
+      final existingKost = await supabase
+          .from('kost')
+          .select('id_kost')
+          .eq('id_kost', kost.id)
+          .eq('id_user', user.id)
+          .maybeSingle();
+
+      if (existingKost == null) {
+        throw Exception(
+          'Kost tidak ditemukan atau bukan milik akun yang sedang login.',
+        );
+      }
+
+      // Hapus foto yang terhubung dengan kost tersebut.
       await supabase
           .from('foto_kost')
           .delete()
           .eq('id_kost', kost.id);
 
-      // Hapus data kost dari database.
+      // Hapus kost dengan filter ID dan pemilik.
       await supabase
           .from('kost')
           .delete()
-          .eq('id_kost', kost.id);
+          .eq('id_kost', kost.id)
+          .eq('id_user', user.id);
 
       if (!mounted) return;
 
@@ -191,6 +235,10 @@ class _DataKostPageState extends State<DataKostPage> {
       bottomNavigationBar: _buildBottomNav(),
     );
   }
+
+  // ============================================================
+  // HEADER
+  // ============================================================
 
   Widget _buildTopBar() {
     return Container(
@@ -232,6 +280,10 @@ class _DataKostPageState extends State<DataKostPage> {
     );
   }
 
+  // ============================================================
+  // KONTEN DATA KOST
+  // ============================================================
+
   Widget _buildContent() {
     if (isLoading) {
       return const Center(
@@ -246,7 +298,11 @@ class _DataKostPageState extends State<DataKostPage> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.error_outline, size: 42, color: AppColors.error),
+              const Icon(
+                Icons.error_outline,
+                size: 42,
+                color: AppColors.error,
+              ),
               const SizedBox(height: 12),
               const Text(
                 'Data kost gagal dimuat.',
@@ -319,6 +375,10 @@ class _DataKostPageState extends State<DataKostPage> {
       ),
     );
   }
+
+  // ============================================================
+  // KARTU KOST
+  // ============================================================
 
   Widget _buildKostCard(KostItem kost) {
     final foto = fotoKost[kost.id];
@@ -419,6 +479,10 @@ class _DataKostPageState extends State<DataKostPage> {
     );
   }
 
+  // ============================================================
+  // FOTO KOST KOSONG / GAGAL DIMUAT
+  // ============================================================
+
   Widget _photoPlaceholder() {
     return Container(
       color: AppColors.backgroundLight,
@@ -429,6 +493,10 @@ class _DataKostPageState extends State<DataKostPage> {
       ),
     );
   }
+
+  // ============================================================
+  // INFORMASI MANAJEMEN KAMAR
+  // ============================================================
 
   Widget _buildManajemenKamarInfo() {
     return Container(
@@ -471,6 +539,10 @@ class _DataKostPageState extends State<DataKostPage> {
     );
   }
 
+  // ============================================================
+  // BOTTOM NAVIGATION
+  // ============================================================
+
   Widget _buildBottomNav() {
     return Container(
       decoration: const BoxDecoration(
@@ -503,6 +575,7 @@ class _DataKostPageState extends State<DataKostPage> {
               MaterialPageRoute(builder: (_) => const HomeAdminPage()),
             );
             break;
+
           case 'Chat':
             Navigator.pushReplacement(
               context,
@@ -511,12 +584,14 @@ class _DataKostPageState extends State<DataKostPage> {
               ),
             );
             break;
+
           case 'Profil':
             Navigator.pushReplacement(
               context,
               MaterialPageRoute(builder: (_) => const ProfilAdminPage()),
             );
             break;
+
           case 'Data Kost':
             break;
         }
