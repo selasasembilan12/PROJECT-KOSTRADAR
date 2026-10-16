@@ -3,8 +3,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 // --- IMPORT STANDAR TIM ---
 import '../../core/theme/app_theme.dart';
-import '../../core/utils/formatter.dart';
-
 import '../../models/kost_model.dart';
 
 class DetailKostPage extends StatefulWidget {
@@ -44,7 +42,6 @@ class _DetailKostPageState extends State<DetailKostPage> {
         isFavorite = data != null;
       });
     } catch (e) {
-      // Fallback jika tabel belum siap, agar UI tidak crash saat testing
       print('Error cek favorite: $e');
     }
   }
@@ -53,7 +50,6 @@ class _DetailKostPageState extends State<DetailKostPage> {
   Future<void> toggleFavorite() async {
     final user = Supabase.instance.client.auth.currentUser;
 
-    // 1. CEK LOGIN
     if (user == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -67,7 +63,6 @@ class _DetailKostPageState extends State<DetailKostPage> {
     }
 
     try {
-      // 2. PROSES DATABASE
       if (isFavorite) {
         await Supabase.instance.client
             .from('favorite')
@@ -95,12 +90,10 @@ class _DetailKostPageState extends State<DetailKostPage> {
         );
       }
 
-      // 3. UPDATE UI
       setState(() {
         isFavorite = !isFavorite;
       });
     } catch (e) {
-      // Fallback mode simulasi jika database error, agar UI tetap responsif
       setState(() {
         isFavorite = !isFavorite;
       });
@@ -113,7 +106,6 @@ class _DetailKostPageState extends State<DetailKostPage> {
     }
   }
 
-  // Tombol kembali
   void goBack() {
     if (Navigator.canPop(context)) {
       Navigator.pop(context);
@@ -122,6 +114,22 @@ class _DetailKostPageState extends State<DetailKostPage> {
 
   @override
   Widget build(BuildContext context) {
+    // Format harga secara manual agar aman tanpa error Formatter
+    final double hargaVal = double.tryParse(widget.kost.harga.toString()) ?? 0.0;
+    final formattedHarga = "Rp ${hargaVal.toInt().toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')}";
+
+    // Data aman dengan fallback dari model
+    final String tipeKost = widget.kost.tipe.isNotEmpty ? widget.kost.tipe : "Campur";
+    final bool isVerifikasi = widget.kost.terverifikasi;
+    final bool termasukListrik = widget.kost.termasukListrik;
+    
+    // Gabungkan List<String> fasilitas menjadi satu string huruf kecil agar mudah dicek
+    final String fasilitasStr = widget.kost.fasilitas.map((e) => e.toLowerCase()).join(', ');
+    
+    final String deskripsiKost = widget.kost.deskripsi.isNotEmpty
+        ? widget.kost.deskripsi
+        : "Kost nyaman, aman, dan strategis dekat kampus.";
+
     return Scaffold(
       backgroundColor: AppColors.background,
       body: Stack(
@@ -213,18 +221,18 @@ class _DetailKostPageState extends State<DetailKostPage> {
                           color: Colors.black54,
                           borderRadius: BorderRadius.circular(20),
                         ),
-                        child: const Row(
+                        child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(
+                            const Icon(
                               Icons.photo_library_outlined,
                               size: 14,
                               color: AppColors.white,
                             ),
-                            SizedBox(width: 5),
+                            const SizedBox(width: 5),
                             Text(
-                              "Foto",
-                              style: TextStyle(
+                              "${widget.kost.foto.length} Foto",
+                              style: const TextStyle(
                                 color: AppColors.white,
                                 fontSize: 12,
                               ),
@@ -239,7 +247,7 @@ class _DetailKostPageState extends State<DetailKostPage> {
                 // DETAIL KOST
                 Container(
                   transform: Matrix4.translationValues(0, -20, 0),
-                  padding: const EdgeInsets.all(AppSpacing.defaultPadding),
+                  padding: const EdgeInsets.all(16.0),
                   decoration: const BoxDecoration(
                     color: AppColors.white,
                     borderRadius: BorderRadius.vertical(
@@ -253,16 +261,17 @@ class _DetailKostPageState extends State<DetailKostPage> {
                       Row(
                         children: [
                           badge(
-                            "Campur",
+                            tipeKost,
                             AppColors.chipBackground,
                             AppColors.textPrimary,
                           ),
                           const SizedBox(width: 8),
-                          badge(
-                            "✓ Terverifikasi",
-                            AppColors.successLight,
-                            AppColors.success,
-                          ),
+                          if (isVerifikasi)
+                            badge(
+                              "✓ Terverifikasi",
+                              AppColors.successLight,
+                              AppColors.success,
+                            ),
                         ],
                       ),
                       const SizedBox(height: 15),
@@ -330,9 +339,11 @@ class _DetailKostPageState extends State<DetailKostPage> {
                                     color: AppColors.border,
                                     borderRadius: BorderRadius.circular(20),
                                   ),
-                                  child: const Text(
-                                    "Termasuk Listrik",
-                                    style: TextStyle(
+                                  child: Text(
+                                    termasukListrik
+                                        ? "Termasuk Listrik"
+                                        : "Tidak Termasuk Listrik",
+                                    style: const TextStyle(
                                       fontSize: 11,
                                       color: AppColors.textSecondary,
                                     ),
@@ -345,7 +356,7 @@ class _DetailKostPageState extends State<DetailKostPage> {
                               crossAxisAlignment: CrossAxisAlignment.end,
                               children: [
                                 Text(
-                                  "Rp ${widget.kost.harga}",
+                                  formattedHarga,
                                   style: const TextStyle(
                                     color: AppColors.primary,
                                     fontSize: 22,
@@ -403,7 +414,7 @@ class _DetailKostPageState extends State<DetailKostPage> {
                       ),
                       const SizedBox(height: 25),
 
-                      // Fasilitas
+                      // Fasilitas Utama
                       const Text(
                         "Fasilitas Utama",
                         style: TextStyle(
@@ -416,20 +427,16 @@ class _DetailKostPageState extends State<DetailKostPage> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Expanded(child: facility(Icons.wifi, "WiFi")),
-                          Expanded(child: facility(Icons.ac_unit, "AC")),
-                          Expanded(
-                            child: facility(Icons.bathroom, "K. Mandi\nDalam"),
-                          ),
-                          Expanded(child: facility(Icons.kitchen, "Dapur")),
-                          Expanded(
-                            child: facility(Icons.directions_car, "Parkir"),
-                          ),
+                          Expanded(child: facility(Icons.wifi, "WiFi", fasilitasStr.contains('wifi'))),
+                          Expanded(child: facility(Icons.ac_unit, "AC", fasilitasStr.contains('ac'))),
+                          Expanded(child: facility(Icons.bathroom, "K. Mandi\nDalam", fasilitasStr.contains('mandi') || fasilitasStr.contains('bathroom'))),
+                          Expanded(child: facility(Icons.kitchen, "Dapur", fasilitasStr.contains('dapur'))),
+                          Expanded(child: facility(Icons.directions_car, "Parkir", fasilitasStr.contains('parkir'))),
                         ],
                       ),
                       const SizedBox(height: 25),
 
-                      // Deskripsi dari database
+                      // Deskripsi
                       const Text(
                         "Deskripsi",
                         style: TextStyle(
@@ -440,7 +447,7 @@ class _DetailKostPageState extends State<DetailKostPage> {
                       ),
                       const SizedBox(height: 10),
                       Text(
-                        widget.kost.deskripsi,
+                        deskripsiKost,
                         style: const TextStyle(
                           color: AppColors.textSecondary,
                           height: 1.5,
@@ -466,13 +473,9 @@ class _DetailKostPageState extends State<DetailKostPage> {
                     ),
                     child: Row(
                       children: [
-                        // ==========================================
-                        // PERBAIKAN 1: TOMBOL CHAT
-                        // ==========================================
                         Expanded(
                           child: OutlinedButton.icon(
                             onPressed: () {
-                              // Langsung navigasi ke halaman ruang chat
                               Navigator.pushNamed(context, '/ruang-chat');
                             },
                             icon: const Icon(Icons.chat_outlined, size: 18),
@@ -488,14 +491,10 @@ class _DetailKostPageState extends State<DetailKostPage> {
                           ),
                         ),
                         const SizedBox(width: 10),
-
-                        // ==========================================
-                        // PERBAIKAN 2: TOMBOL FAVORIT
-                        // ==========================================
                         Expanded(
                           flex: 2,
                           child: ElevatedButton.icon(
-                            onPressed: toggleFavorite, // Langsung panggil fungsi yang sudah diupdate
+                            onPressed: toggleFavorite,
                             icon: Icon(
                               isFavorite
                                   ? Icons.favorite
@@ -508,7 +507,7 @@ class _DetailKostPageState extends State<DetailKostPage> {
                             style: ElevatedButton.styleFrom(
                               backgroundColor: isFavorite
                                   ? AppColors.textSecondary
-                                  : AppColors.error, // <-- DIUBAH: Jadi abu-abu kalau sudah favorit
+                                  : AppColors.error,
                               foregroundColor: AppColors.white,
                               minimumSize: const Size(0, 48),
                               shape: RoundedRectangleBorder(
@@ -529,7 +528,6 @@ class _DetailKostPageState extends State<DetailKostPage> {
     );
   }
 
-  // Tombol bulat di atas gambar
   Widget circleButton({
     required IconData icon,
     required VoidCallback onTap,
@@ -549,7 +547,6 @@ class _DetailKostPageState extends State<DetailKostPage> {
     );
   }
 
-  // Badge kecil
   Widget badge(String text, Color bg, Color textColor) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
@@ -568,26 +565,32 @@ class _DetailKostPageState extends State<DetailKostPage> {
     );
   }
 
-  // Item fasilitas
-  Widget facility(IconData icon, String title) {
-    return Column(
-      children: [
-        Container(
-          width: 45,
-          height: 45,
-          decoration: BoxDecoration(
-            color: AppColors.primaryLight,
-            borderRadius: BorderRadius.circular(12),
+  Widget facility(IconData icon, String title, bool isAvailable) {
+    return Opacity(
+      opacity: isAvailable ? 1.0 : 0.4,
+      child: Column(
+        children: [
+          Container(
+            width: 45,
+            height: 45,
+            decoration: BoxDecoration(
+              color: isAvailable ? AppColors.primaryLight : AppColors.border,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(
+              icon,
+              color: isAvailable ? AppColors.primary : AppColors.textSecondary,
+              size: 22,
+            ),
           ),
-          child: Icon(icon, color: AppColors.primary, size: 22),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          title,
-          textAlign: TextAlign.center,
-          style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
-        ),
-      ],
+          const SizedBox(height: 6),
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+          ),
+        ],
+      ),
     );
   }
 }

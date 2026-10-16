@@ -1,21 +1,23 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 // --- IMPORT STANDAR TIM ---
 import '../../core/theme/app_theme.dart';
+import '../../models/kost_model.dart';
 
-// Import file home
+// Import file pencarian & hasil
 import 'pencarian_page.dart';
 import 'hasil_pencarian.dart';
 
 // Import file kost
 import '../kost/detail_kost_page.dart';
 
-// Import file chatUser (PUNYA SALSA)
+// Import file chatUser & profil (PUNYA SALSA)
 import '../chatUser/daftar_chat_page.dart';
 import '../chatUser/profil_page.dart';
 
 // ========================================
-// HALAMAN HOME
+// HALAMAN HOME (TERINTEGRASI SUPABASE)
 // ========================================
 
 class HomePage extends StatefulWidget {
@@ -26,8 +28,8 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
+  final SupabaseClient supabase = Supabase.instance.client;
   int _selectedIndex = 0;
-  final Set<String> _favorites = {'Kost Adiwarna'};
 
   void _openSearch() {
     Navigator.push(
@@ -43,11 +45,11 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  void _openDetail(KostResult kost) {
+  void _openDetail(KostModel kost) {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => DetailKostPage(kost: kost.toKostModel()),
+        builder: (_) => DetailKostPage(kost: kost),
       ),
     );
   }
@@ -61,65 +63,17 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
-    final allKost = kostRadarData;
-    final displayedKost = _selectedIndex == 1
-        ? allKost.where((kost) => _favorites.contains(kost.name)).toList()
-        : allKost;
-
     return Scaffold(
       backgroundColor: AppColors.background,
-      // Menggunakan IndexedStack agar state (seperti scroll) tidak hilang saat pindah tab
       body: SafeArea(
         child: IndexedStack(
           index: _selectedIndex,
           children: [
             // TAB 0: BERANDA
-            ListView(
-              padding: const EdgeInsets.only(bottom: 24),
-              children: [
-                const SizedBox(height: 20),
-                _buildHeader(),
-                const SizedBox(height: 20),
-                _buildSearchBar(),
-                const SizedBox(height: 20),
-                _buildBanner(),
-                const SizedBox(height: 24),
-                _buildSectionHeader(),
-                const SizedBox(height: 16),
-                if (displayedKost.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.all(32),
-                    child: Center(
-                      child: Text(
-                        'Belum ada kost',
-                        style: TextStyle(color: AppColors.textSecondary),
-                      ),
-                    ),
-                  ),
-                ...displayedKost.map(_buildKostCard),
-              ],
-            ),
+            _buildBerandaTab(),
 
             // TAB 1: FAVORIT
-            ListView(
-              padding: const EdgeInsets.only(bottom: 24),
-              children: [
-                const SizedBox(height: 20),
-                _buildSectionHeader(),
-                const SizedBox(height: 16),
-                if (displayedKost.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.all(32),
-                    child: Center(
-                      child: Text(
-                        'Belum ada kost favorit',
-                        style: TextStyle(color: AppColors.textSecondary),
-                      ),
-                    ),
-                  ),
-                ...displayedKost.map(_buildKostCard),
-              ],
-            ),
+            _buildFavoritTab(),
 
             // TAB 2: CHAT (PUNYA SALSA)
             const DaftarChatPage(),
@@ -160,7 +114,112 @@ class _HomePageState extends State<HomePage> {
   }
 
   // ========================================
-  // WIDGET-WIDGET PEMBANTU (TIDAK BERUBAH)
+  // TAB BERANDA (AMBIL DATA DARI SUPABASE)
+  // ========================================
+  Widget _buildBerandaTab() {
+    return FutureBuilder<List<Map<String, dynamic>>>(
+      future: supabase.from('kost').select('*, foto_kost(*), fasilitas_kost(*)'),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator(color: AppColors.primary));
+        }
+
+        if (snapshot.hasError) {
+          return Center(child: Text('Gagal memuat data: ${snapshot.error}'));
+        }
+
+        final rawData = snapshot.data ?? [];
+        final List<KostModel> listKost = rawData.map((e) => KostModel.fromJson(e)).toList();
+
+        return ListView(
+          padding: const EdgeInsets.only(bottom: 24),
+          children: [
+            const SizedBox(height: 20),
+            _buildHeader(),
+            const SizedBox(height: 20),
+            _buildSearchBar(),
+            const SizedBox(height: 20),
+            _buildBanner(),
+            const SizedBox(height: 24),
+            _buildSectionHeader('Rekomendasi Kost', true),
+            const SizedBox(height: 16),
+            if (listKost.isEmpty)
+              const Padding(
+                padding: EdgeInsets.all(32),
+                child: Center(
+                  child: Text(
+                    'Belum ada kost tersedia',
+                    style: TextStyle(color: AppColors.textSecondary),
+                  ),
+                ),
+              ),
+            ...listKost.map(_buildKostCard),
+          ],
+        );
+      },
+    );
+  }
+
+  // ========================================
+  // TAB FAVORIT (AMBIL DARI TABEL FAVORITE)
+  // ========================================
+  Widget _buildFavoritTab() {
+    final user = supabase.auth.currentUser;
+
+    if (user == null) {
+      return const Center(
+        child: Text(
+          'Silakan login untuk melihat kost favorit',
+          style: TextStyle(color: AppColors.textSecondary),
+        ),
+      );
+    }
+
+    return FutureBuilder<List<Map<String, dynamic>>>(
+      future: supabase
+          .from('favorite')
+          .select('id_kost, kost(*, foto_kost(*), fasilitas_kost(*))')
+          .eq('id_user', user.id),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator(color: AppColors.primary));
+        }
+
+        if (snapshot.hasError) {
+          return Center(child: Text('Gagal memuat favorit: ${snapshot.error}'));
+        }
+
+        final rawData = snapshot.data ?? [];
+        final List<KostModel> listKostFavorites = rawData
+            .where((item) => item['kost'] != null)
+            .map((item) => KostModel.fromJson(item['kost']))
+            .toList();
+
+        return ListView(
+          padding: const EdgeInsets.only(bottom: 24),
+          children: [
+            const SizedBox(height: 20),
+            _buildSectionHeader('Kost Favorit', false),
+            const SizedBox(height: 16),
+            if (listKostFavorites.isEmpty)
+              const Padding(
+                padding: EdgeInsets.all(32),
+                child: Center(
+                  child: Text(
+                    'Belum ada kost favorit',
+                    style: TextStyle(color: AppColors.textSecondary),
+                  ),
+                ),
+              ),
+            ...listKostFavorites.map(_buildKostCard),
+          ],
+        );
+      },
+    );
+  }
+
+  // ========================================
+  // WIDGET-WIDGET PEMBANTU
   // ========================================
 
   Widget _buildHeader() {
@@ -309,14 +368,14 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _buildSectionHeader() {
+  Widget _buildSectionHeader(String title, bool showSeeAll) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Row(
         children: [
           Expanded(
             child: Text(
-              _selectedIndex == 1 ? 'Kost Favorit' : 'Rekomendasi Kost',
+              title,
               style: const TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
@@ -324,7 +383,7 @@ class _HomePageState extends State<HomePage> {
               ),
             ),
           ),
-          if (_selectedIndex == 0)
+          if (showSeeAll)
             TextButton(
               onPressed: _openAllResults,
               child: const Text(
@@ -337,8 +396,9 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _buildKostCard(KostResult kost) {
-    final isFavorite = _favorites.contains(kost.name);
+  Widget _buildKostCard(KostModel kost) {
+    final imageUrl = kost.foto.isNotEmpty ? kost.foto[0] : '';
+
     return Container(
       margin: const EdgeInsets.fromLTRB(20, 0, 20, 16),
       decoration: BoxDecoration(
@@ -362,11 +422,11 @@ class _HomePageState extends State<HomePage> {
                   top: Radius.circular(16),
                 ),
                 child: Image.network(
-                  kost.image,
+                  imageUrl,
                   height: 180,
                   width: double.infinity,
                   fit: BoxFit.cover,
-                  errorBuilder: (_, _, _) => Container(
+                  errorBuilder: (_, __, ___) => Container(
                     height: 180,
                     color: AppColors.primaryLight,
                     child: const Center(
@@ -379,7 +439,7 @@ class _HomePageState extends State<HomePage> {
                   ),
                 ),
               ),
-              if (kost.isVerified)
+              if (kost.terverifikasi)
                 Positioned(
                   top: 12,
                   left: 12,
@@ -398,30 +458,6 @@ class _HomePageState extends State<HomePage> {
                     ),
                   ),
                 ),
-              Positioned(
-                top: 8,
-                right: 8,
-                child: CircleAvatar(
-                  backgroundColor: AppColors.white,
-                  child: IconButton(
-                    onPressed: () {
-                      setState(() {
-                        if (isFavorite) {
-                          _favorites.remove(kost.name);
-                        } else {
-                          _favorites.add(kost.name);
-                        }
-                      });
-                    },
-                    icon: Icon(
-                      isFavorite ? Icons.favorite : Icons.favorite_border,
-                      color: isFavorite
-                          ? AppColors.error
-                          : AppColors.textSecondary,
-                    ),
-                  ),
-                ),
-              ),
             ],
           ),
           Padding(
@@ -430,7 +466,7 @@ class _HomePageState extends State<HomePage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  kost.name,
+                  kost.nama,
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
@@ -439,7 +475,7 @@ class _HomePageState extends State<HomePage> {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  'Rp ${_formatRupiah(kost.price)} /bulan',
+                  'Rp ${_formatRupiah(kost.harga)} /bulan',
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
@@ -457,7 +493,7 @@ class _HomePageState extends State<HomePage> {
                     const SizedBox(width: 5),
                     Expanded(
                       child: Text(
-                        kost.address,
+                        kost.alamat,
                         style: const TextStyle(
                           fontSize: 12,
                           color: AppColors.textSecondary,
@@ -470,7 +506,7 @@ class _HomePageState extends State<HomePage> {
                 Wrap(
                   spacing: 8,
                   runSpacing: 8,
-                  children: kost.facilities
+                  children: kost.fasilitas
                       .map(
                         (facility) => Chip(
                           label: Text(
@@ -493,7 +529,7 @@ class _HomePageState extends State<HomePage> {
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(
-                        'Tersedia ${kost.availableRooms} kamar',
+                        'Tersedia ${kost.ketersediaanKamar} kamar',
                         style: const TextStyle(
                           color: AppColors.success,
                           fontSize: 11,
