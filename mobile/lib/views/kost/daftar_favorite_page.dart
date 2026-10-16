@@ -3,8 +3,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 // --- IMPORT STANDAR TIM ---
 import '../../core/theme/app_theme.dart';
-import '../../core/utils/formatter.dart';
-
 import '../../models/kost_model.dart';
 import 'detail_kost_page.dart';
 import 'hapus_favorite_dialog.dart';
@@ -17,7 +15,7 @@ class DaftarFavoritePage extends StatefulWidget {
 }
 
 class _DaftarFavoritePageState extends State<DaftarFavoritePage> {
-  // Menyimpan data kost dari database
+  final SupabaseClient supabase = Supabase.instance.client;
   List<KostModel> daftarKost = [];
   bool isLoading = true;
 
@@ -27,105 +25,87 @@ class _DaftarFavoritePageState extends State<DaftarFavoritePage> {
     loadFavorite();
   }
 
-  // Mengambil data favorit dari Supabase
+  // Mengambil data kost favorit dari tabel 'favorite' di Supabase
   Future<void> loadFavorite() async {
-    final user = Supabase.instance.client.auth.currentUser;
+    final user = supabase.auth.currentUser;
 
     if (user == null) {
-      setState(() => isLoading = false);
+      if (mounted) setState(() => isLoading = false);
       return;
     }
 
-    final response = await Supabase.instance.client
-        .from('favorite')
-        .select('''
-          id_favorite,
-          kost(
-            id_kost,
-            nama,
-            alamat,
-            harga,
-            deskripsi,
-            ketersediaan_kamar,
-            foto_kost(foto),
-            fasilitas_kost(fasilitas)
-          )
-        ''')
-        .eq('id_user', user.id);
+    try {
+      final response = await supabase
+          .from('favorite')
+          .select('''
+            id_favorite,
+            kost(
+              id_kost,
+              nama,
+              alamat,
+              harga,
+              deskripsi,
+              ketersediaan_kamar,
+              tipe,
+              terverifikasi,
+              termasuk_listrik,
+              foto_kost(foto),
+              fasilitas_kost(fasilitas)
+            )
+          ''')
+          .eq('id_user', user.id);
 
-    final data = response.map<KostModel>((item) {
-      final kost = item['kost'];
+      final data = response
+          .where((item) => item['kost'] != null)
+          .map<KostModel>((item) {
+        return KostModel.fromJson(item['kost']);
+      }).toList();
 
-      return KostModel(
-        idKost: kost['id_kost'].toString(),
-        nama: kost['nama'] ?? "",
-        alamat: kost['alamat'] ?? "",
-        harga: kost['harga'] ?? 0,
-        deskripsi: kost['deskripsi'] ?? "",
-        ketersediaanKamar: kost['ketersediaan_kamar'] ?? 0,
-        foto: (kost['foto_kost'] as List)
-            .map<String>((e) => e['foto'].toString())
-            .toList(),
-        fasilitas: (kost['fasilitas_kost'] as List)
-            .map<String>((e) => e['fasilitas'].toString())
-            .toList(),
-      );
-    }).toList();
-
-    setState(() {
-      daftarKost = data;
-      isLoading = false;
-    });
-  }
-
-  // Menghapus favorit dari database
-  Future<void> hapusFavorite(int index) async {
-    final user = Supabase.instance.client.auth.currentUser;
-
-    if (user == null) return;
-
-    final kost = daftarKost[index];
-
-    await Supabase.instance.client
-        .from('favorite')
-        .delete()
-        .eq('id_user', user.id)
-        .eq('id_kost', kost.idKost);
-
-    setState(() {
-      daftarKost.removeAt(index);
-    });
+      if (mounted) {
+        setState(() {
+          daftarKost = data;
+          isLoading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint("Gagal memuat favorit: $e");
+      if (mounted) {
+        setState(() => isLoading = false);
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background, // <-- DIUBAH
+      backgroundColor: AppColors.background,
       body: SafeArea(
         child: Column(
           children: [
-            // Header halaman
+            // Header Halaman
             Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.smallPadding,
-                10,
-                AppSpacing.smallPadding,
-                AppSpacing.smallSpacing,
-              ), // <-- DIUBAH
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
               child: Row(
                 children: [
-                  const Icon(
-                    Icons.arrow_back_ios,
-                    size: 18,
-                    color: AppColors.textPrimary,
-                  ), // <-- DIUBAH
+                  GestureDetector(
+                    onTap: () {
+                      if (Navigator.canPop(context)) {
+                        Navigator.pop(context);
+                      }
+                    },
+                    child: const Icon(
+                      Icons.arrow_back_ios,
+                      size: 18,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
                   const SizedBox(width: 6),
                   const Text(
                     "Kost Favorit",
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary, // <-- DIUBAH
+                      color: AppColors.textPrimary,
                     ),
                   ),
                   const Spacer(),
@@ -135,13 +115,13 @@ class _DaftarFavoritePageState extends State<DaftarFavoritePage> {
                       vertical: 5,
                     ),
                     decoration: BoxDecoration(
-                      color: AppColors.errorLight, // <-- DIUBAH (pengganti Colors.red.shade50)
+                      color: AppColors.errorLight,
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(
                       "${daftarKost.length} Tersimpan",
                       style: const TextStyle(
-                        color: AppColors.error, // <-- DIUBAH
+                        color: AppColors.error,
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
                       ),
@@ -150,107 +130,130 @@ class _DaftarFavoritePageState extends State<DaftarFavoritePage> {
                 ],
               ),
             ),
+            
+            // List / Konten Favorit
             Expanded(
               child: isLoading
                   ? const Center(
                       child: CircularProgressIndicator(
                         color: AppColors.primary,
                       ),
-                    ) // <-- DIUBAH
-                  : ListView.builder(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.smallPadding,
-                      ), // <-- DIUBAH
-                      itemCount: daftarKost.length,
-                      itemBuilder: (context, index) {
-                        final kost = daftarKost[index];
-
-                        return GestureDetector(
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) =>
-                                    DetailKostPage(kost: kost),
-                              ),
-                            ).then((value) {
-                              loadFavorite();
-                            });
-                          },
-                          child: Card(
-                            margin: const EdgeInsets.only(
-                              bottom: AppSpacing.smallSpacing,
-                            ), // <-- DIUBAH
-                            color: AppColors.white, // <-- DIUBAH
-                            child: ListTile(
-                              leading: ClipRRect(
-                                borderRadius: BorderRadius.circular(8),
-                                child: Image.network(
-                                  kost.foto.isNotEmpty ? kost.foto[0] : "",
-                                  width: 70,
-                                  height: 70,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) =>
-                                      const Icon(
-                                        Icons.broken_image,
-                                        size: 70,
-                                        color: AppColors.textHint,
-                                      ),
-                                ),
-                              ),
-                              title: Text(
-                                kost.nama,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: AppColors.textPrimary, // <-- DIUBAH
-                                ),
-                              ),
-                              subtitle: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    "Rp ${kost.harga}/bulan",
-                                    style: const TextStyle(
-                                      color: AppColors.primary, // <-- DIUBAH
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    kost.alamat,
-                                    style: const TextStyle(
-                                      color: AppColors.textSecondary,
-                                    ), // <-- DIUBAH
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    kost.fasilitas.join(" • "),
-                                    style: const TextStyle(
-                                      fontSize: 11,
-                                      color:
-                                          AppColors.textSecondary, // <-- DIUBAH
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              //disini di ganti
-                              trailing: GestureDetector(
-                                onTap: () {
-                                  showHapusFavoriteDialog(context, () {
-                                    hapusFavorite(index);
-                                  });
-                                },
-                                child: const Icon(
-                                  Icons.favorite,
-                                  color: AppColors.error, // <-- DIUBAH
-                                ),
-                              ),
-                            ),
+                    )
+                  : daftarKost.isEmpty
+                      ? const Center(
+                          child: Text(
+                            "Belum ada kost favorit yang disimpan.",
+                            style: TextStyle(color: AppColors.textSecondary),
                           ),
-                        );
-                      },
-                    ),
+                        )
+                      : ListView.builder(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          itemCount: daftarKost.length,
+                          itemBuilder: (context, index) {
+                            final kost = daftarKost[index];
+                            
+                            // Format harga otomatis
+                            final double hargaVal = double.tryParse(kost.harga.toString()) ?? 0.0;
+                            final hargaFormatted = hargaVal.toInt().toString().replaceAllMapped(
+                              RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), 
+                              (Match m) => '${m[1]}.',
+                            );
+
+                            return GestureDetector(
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) =>
+                                        DetailKostPage(kost: kost),
+                                  ),
+                                ).then((value) {
+                                  loadFavorite();
+                                });
+                              },
+                              child: Card(
+                                margin: const EdgeInsets.only(bottom: 12),
+                                color: AppColors.white,
+                                elevation: 0,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  side: const BorderSide(color: AppColors.border),
+                                ),
+                                child: ListTile(
+                                  contentPadding: const EdgeInsets.all(8),
+                                  leading: ClipRRect(
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: Image.network(
+                                      kost.foto.isNotEmpty ? kost.foto[0] : "",
+                                      width: 70,
+                                      height: 70,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (context, error, stackTrace) =>
+                                          Container(
+                                        width: 70,
+                                        height: 70,
+                                        color: AppColors.backgroundGray,
+                                        child: const Icon(
+                                          Icons.broken_image,
+                                          color: AppColors.textHint,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  title: Text(
+                                    kost.nama,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.textPrimary,
+                                    ),
+                                  ),
+                                  subtitle: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        "Rp $hargaFormatted /bulan",
+                                        style: const TextStyle(
+                                          color: AppColors.primary,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        kost.alamat,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          color: AppColors.textSecondary,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  trailing: GestureDetector(
+                                    onTap: () {
+                                      // Memanggil dialog konfirmasi hapus sesuai mockup
+                                      showHapusFavoriteDialog(
+                                        context,
+                                        idKost: kost.idKost,
+                                        onSuccess: () {
+                                          loadFavorite(); // Refresh data setelah terhapus dari database
+                                        },
+                                      );
+                                    },
+                                    child: const Padding(
+                                      padding: EdgeInsets.all(8.0),
+                                      child: Icon(
+                                        Icons.favorite,
+                                        color: AppColors.error,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
             ),
           ],
         ),

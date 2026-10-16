@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 // --- IMPORT STANDAR TIM ---
 import '../../core/theme/app_theme.dart';
 import '../../models/kost_model.dart';
+import 'hapus_favorite_dialog.dart';
 
 class DetailKostPage extends StatefulWidget {
   // Data kost dari halaman sebelumnya
@@ -38,15 +39,17 @@ class _DetailKostPageState extends State<DetailKostPage> {
           .eq('id_kost', widget.kost.idKost)
           .maybeSingle();
 
-      setState(() {
-        isFavorite = data != null;
-      });
+      if (mounted) {
+        setState(() {
+          isFavorite = data != null;
+        });
+      }
     } catch (e) {
       print('Error cek favorite: $e');
     }
   }
 
-  // Tambah / hapus favorit database
+  // Tambah / hapus favorit database dengan dialog konfirmasi
   Future<void> toggleFavorite() async {
     final user = Supabase.instance.client.auth.currentUser;
 
@@ -62,47 +65,45 @@ class _DetailKostPageState extends State<DetailKostPage> {
       return;
     }
 
-    try {
-      if (isFavorite) {
-        await Supabase.instance.client
-            .from('favorite')
-            .delete()
-            .eq('id_user', user.id)
-            .eq('id_kost', widget.kost.idKost);
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Dihapus dari favorit'),
-            backgroundColor: AppColors.textSecondary,
-          ),
-        );
-      } else {
+    if (isFavorite) {
+      // Tampilkan dialog konfirmasi hapus pop-up sesuai desain
+      showHapusFavoriteDialog(
+        context,
+        idKost: widget.kost.idKost,
+        onSuccess: () {
+          setState(() {
+            isFavorite = false;
+          });
+        },
+      );
+    } else {
+      // Langsung tambahkan ke database Supabase jika belum favorit
+      try {
         await Supabase.instance.client.from('favorite').insert({
           'id_user': user.id,
           'id_kost': widget.kost.idKost,
         });
 
+        setState(() {
+          isFavorite = true;
+        });
+
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Berhasil ditambahkan ke favorit! ❤️'),
             backgroundColor: AppColors.success,
           ),
         );
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal menambahkan favorit: $e'),
+            backgroundColor: AppColors.warning,
+          ),
+        );
       }
-
-      setState(() {
-        isFavorite = !isFavorite;
-      });
-    } catch (e) {
-      setState(() {
-        isFavorite = !isFavorite;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Mode simulasi: Favorit diupdate (DB: $e)'),
-          backgroundColor: AppColors.warning,
-        ),
-      );
     }
   }
 
@@ -457,70 +458,70 @@ class _DetailKostPageState extends State<DetailKostPage> {
                     ],
                   ),
                 ),
+              ],
+            ),
+          ),
 
-                // Bottom action button
-                Positioned(
-                  bottom: 0,
-                  left: 0,
-                  right: 0,
-                  child: Container(
-                    padding: const EdgeInsets.fromLTRB(20, 10, 20, 20),
-                    decoration: BoxDecoration(
-                      color: AppColors.white,
-                      boxShadow: [
-                        BoxShadow(color: AppColors.cardShadow, blurRadius: 10),
-                      ],
-                    ),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: () {
-                              Navigator.pushNamed(context, '/ruang-chat');
-                            },
-                            icon: const Icon(Icons.chat_outlined, size: 18),
-                            label: const Text("Chat"),
-                            style: OutlinedButton.styleFrom(
-                              minimumSize: const Size(0, 48),
-                              side: const BorderSide(color: AppColors.primary),
-                              foregroundColor: AppColors.primary,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                          ),
+          // Bottom action button
+          Positioned(
+            bottom: 0,
+            left: 0,
+            right: 0,
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(20, 10, 20, 20),
+              decoration: BoxDecoration(
+                color: AppColors.white,
+                boxShadow: [
+                  BoxShadow(color: AppColors.cardShadow, blurRadius: 10),
+                ],
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        Navigator.pushNamed(context, '/ruang-chat');
+                      },
+                      icon: const Icon(Icons.chat_outlined, size: 18),
+                      label: const Text("Chat"),
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size(0, 48),
+                        side: const BorderSide(color: AppColors.primary),
+                        foregroundColor: AppColors.primary,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
                         ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          flex: 2,
-                          child: ElevatedButton.icon(
-                            onPressed: toggleFavorite,
-                            icon: Icon(
-                              isFavorite
-                                  ? Icons.favorite
-                                  : Icons.favorite_border,
-                              size: 18,
-                            ),
-                            label: Text(
-                              isFavorite ? "Sudah Favorit" : "Tambah Favorit",
-                            ),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: isFavorite
-                                  ? AppColors.textSecondary
-                                  : AppColors.error,
-                              foregroundColor: AppColors.white,
-                              minimumSize: const Size(0, 48),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
                   ),
-                ),
-              ],
+                  const SizedBox(width: 10),
+                  Expanded(
+                    flex: 2,
+                    child: ElevatedButton.icon(
+                      onPressed: toggleFavorite,
+                      icon: Icon(
+                        isFavorite
+                            ? Icons.favorite
+                            : Icons.favorite_border,
+                        size: 18,
+                      ),
+                      label: Text(
+                        isFavorite ? "Sudah Favorit" : "Tambah Favorit",
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: isFavorite
+                            ? AppColors.textSecondary
+                            : AppColors.error,
+                        foregroundColor: AppColors.white,
+                        minimumSize: const Size(0, 48),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ],
