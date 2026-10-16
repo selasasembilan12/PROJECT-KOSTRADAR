@@ -1,10 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 // --- IMPORT STANDAR TIM ---
 import '../../core/theme/app_theme.dart';
+import '../../providers/chat_provider.dart';
 
 class RuangChatPage extends StatefulWidget {
-  const RuangChatPage({super.key});
+  // Tambahan wajib: Parameter untuk tahu ini lagi nge-chat sama siapa
+  final String idAdminTujuan;
+  final String namaAdmin;
+
+  const RuangChatPage({
+    super.key,
+    required this.idAdminTujuan,
+    required this.namaAdmin,
+  });
 
   @override
   State<RuangChatPage> createState() => _RuangChatPageState();
@@ -13,68 +24,37 @@ class RuangChatPage extends StatefulWidget {
 class _RuangChatPageState extends State<RuangChatPage> {
   final TextEditingController _messageController = TextEditingController();
 
-  // Data dummy chat
-  final List<Map<String, dynamic>> _messages = [
-    {
-      'message': 'Halo, apakah kamar masih tersedia?',
-      'isMe': true,
-      'time': '10:10',
-      'type': 'text',
-    },
-    {
-      'message':
-          'Halo, masih tersedia ya. Saat ini tersedia 3 kamar siap huni.',
-      'isMe': false,
-      'time': '10:12',
-      'type': 'text',
-    },
-    {
-      'message': 'Apakah bisa melihat foto kamar lebih lengkap?',
-      'isMe': true,
-      'time': '10:16',
-      'type': 'text',
-    },
-    {
-      'message': 'Tentu, ini saya kirimkan beberapa foto tambahan:',
-      'isMe': false,
-      'time': '10:18',
-      'type': 'gallery',
-      'images': [
-        {
-          'url': 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=200',
-          'label': 'Kamar',
-        },
-        {
-          'url':
-              'https://images.unsplash.com/photo-1552321554-5fefe8c9ef14?w=200',
-          'label': 'K. Mandi',
-        },
-        {
-          'url':
-              'https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=200',
-          'label': 'Dapur',
-        },
-      ],
-      'footer': 'Fasilitas Lengkap: Kasur, Meja, Lemari, AC',
-    },
-  ];
+  @override
+  void initState() {
+    super.initState();
+    // Nyalakan mesin realtime saat halaman ini dibuka
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Provider.of<ChatProvider>(context, listen: false)
+          .listenToMessages(widget.idAdminTujuan);
+    });
+  }
 
   void _sendMessage() {
     if (_messageController.text.trim().isEmpty) return;
-    setState(() {
-      _messages.add({
-        'message': _messageController.text.trim(),
-        'isMe': true,
-        'time':
-            '${DateTime.now().hour}:${DateTime.now().minute.toString().padLeft(2, '0')}',
-        'type': 'text',
-      });
-    });
+
+    // Kirim pesan ke database Supabase
+    Provider.of<ChatProvider>(context, listen: false)
+        .sendNewMessage(widget.idAdminTujuan, _messageController.text.trim());
+
     _messageController.clear();
   }
 
   @override
+  void dispose() {
+    _messageController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    // Ambil ID kita sendiri buat ngecek bubble chat kiri/kanan
+    final myUserId = Supabase.instance.client.auth.currentUser?.id;
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -84,27 +64,27 @@ class _RuangChatPageState extends State<RuangChatPage> {
         titleSpacing: 0,
         title: Row(
           children: [
-            const CircleAvatar(
+            CircleAvatar(
               radius: 18,
               backgroundColor: AppColors.primary,
               child: Text(
-                'A',
-                style: TextStyle(color: AppColors.white, fontSize: 14),
+                widget.namaAdmin[0], // Ambil huruf pertama dari nama admin
+                style: const TextStyle(color: AppColors.white, fontSize: 14),
               ),
             ),
             const SizedBox(width: 10),
-            const Column(
+            Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Kost Adiwarna',
-                  style: TextStyle(
+                  widget.namaAdmin, // Pakai nama admin dinamis
+                  style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
                     color: AppColors.textPrimary,
                   ),
                 ),
-                Text(
+                const Text(
                   'Online',
                   style: TextStyle(fontSize: 12, color: AppColors.success),
                 ),
@@ -119,7 +99,7 @@ class _RuangChatPageState extends State<RuangChatPage> {
       ),
       body: Column(
         children: [
-          // KOST INFO CARD
+          // KOST INFO CARD (Tetap dipertahankan sesuai desain asli)
           Container(
             margin: const EdgeInsets.all(12),
             padding: const EdgeInsets.all(12),
@@ -198,225 +178,140 @@ class _RuangChatPageState extends State<RuangChatPage> {
               ],
             ),
           ),
-
-          // CHAT MESSAGES
+          
+          // CHAT MESSAGES (Sekarang pakai Consumer untuk tarikan data asli)
           Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              itemCount: _messages.length,
-              itemBuilder: (context, index) {
-                final msg = _messages[index];
-                final isMe = msg['isMe'] as bool;
+            child: Consumer<ChatProvider>(
+              builder: (context, chatProvider, child) {
+                final messages = chatProvider.messages;
 
-                return Column(
-                  children: [
-                    // Date separator (only for first message)
-                    if (index == 0)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: AppColors.backgroundLight,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: const Text(
-                            'Hari Ini',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: AppColors.textSecondary,
-                            ),
-                          ),
-                        ),
-                      ),
-                    Align(
-                      alignment: isMe
-                          ? Alignment.centerRight
-                          : Alignment.centerLeft,
-                      child: Container(
-                        margin: const EdgeInsets.symmetric(vertical: 6),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 10,
-                        ),
-                        constraints: BoxConstraints(
-                          maxWidth: MediaQuery.of(context).size.width * 0.75,
-                        ),
-                        decoration: BoxDecoration(
-                          color: isMe ? AppColors.primary : AppColors.white,
-                          borderRadius: BorderRadius.only(
-                            topLeft: const Radius.circular(16),
-                            topRight: const Radius.circular(16),
-                            bottomLeft: Radius.circular(isMe ? 16 : 4),
-                            bottomRight: Radius.circular(isMe ? 4 : 16),
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: AppColors.cardShadow,
-                              blurRadius: 4,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            if (msg['type'] == 'gallery') ...[
-                              Text(
-                                msg['message'] as String,
+                if (chatProvider.isLoading) {
+                  return const Center(child: CircularProgressIndicator(color: AppColors.primary));
+                }
+
+                if (messages.isEmpty) {
+                  return const Center(
+                    child: Text(
+                      'Belum ada percakapan.\nKirim pesan untuk mulai!',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: AppColors.textSecondary),
+                    ),
+                  );
+                }
+
+                return ListView.builder(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  itemCount: messages.length,
+                  itemBuilder: (context, index) {
+                    final msg = messages[index];
+                    final isMe = msg.pengirimId == myUserId;
+                    
+                    // Format Jam (misal: 14:05)
+                    final String timeString = '${msg.createdAt.hour.toString().padLeft(2, '0')}:${msg.createdAt.minute.toString().padLeft(2, '0')}';
+
+                    return Column(
+                      children: [
+                        // Date separator (Hanya untuk pesan pertama)
+                        if (index == 0)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppColors.backgroundLight,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: const Text(
+                                'Hari Ini',
                                 style: TextStyle(
-                                  color: isMe
-                                      ? AppColors.white
-                                      : AppColors.textPrimary,
-                                  fontSize: 14,
+                                  fontSize: 11,
+                                  color: AppColors.textSecondary,
                                 ),
                               ),
-                              const SizedBox(height: 8),
-                              Row(
-                                children: [
-                                  for (final img
-                                      in msg['images']
-                                          as List<Map<String, dynamic>>) ...[
-                                    Expanded(
-                                      child: ClipRRect(
-                                        borderRadius: BorderRadius.circular(8),
-                                        child: Stack(
-                                          children: [
-                                            Image.network(
-                                              img['url'],
-                                              height: 80,
-                                              width: double.infinity,
-                                              fit: BoxFit.cover,
-                                              errorBuilder: (_, _, _) =>
-                                                  Container(
-                                                    height: 80,
-                                                    color:
-                                                        AppColors.primaryLight,
-                                                    child: const Icon(
-                                                      Icons.image,
-                                                      color: AppColors.primary,
-                                                    ),
-                                                  ),
-                                            ),
-                                            Positioned(
-                                              bottom: 4,
-                                              left: 4,
-                                              right: 4,
-                                              child: Container(
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                      horizontal: 4,
-                                                      vertical: 2,
-                                                    ),
-                                                decoration: BoxDecoration(
-                                                  color: Colors.black
-                                                      .withOpacity(0.6),
-                                                  borderRadius:
-                                                      BorderRadius.circular(4),
-                                                ),
-                                                child: Text(
-                                                  img['label'],
-                                                  style: const TextStyle(
-                                                    color: AppColors.white,
-                                                    fontSize: 9,
-                                                    fontWeight: FontWeight.bold,
-                                                  ),
-                                                  textAlign: TextAlign.center,
-                                                ),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                    if (img != msg['images'].last)
-                                      const SizedBox(width: 4),
-                                  ],
-                                ],
+                            ),
+                          ),
+                        Align(
+                          alignment: isMe
+                              ? Alignment.centerRight
+                              : Alignment.centerLeft,
+                          child: Container(
+                            margin: const EdgeInsets.symmetric(vertical: 6),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 10,
+                            ),
+                            constraints: BoxConstraints(
+                              maxWidth: MediaQuery.of(context).size.width * 0.75,
+                            ),
+                            decoration: BoxDecoration(
+                              color: isMe ? AppColors.primary : AppColors.white,
+                              borderRadius: BorderRadius.only(
+                                topLeft: const Radius.circular(16),
+                                topRight: const Radius.circular(16),
+                                bottomLeft: Radius.circular(isMe ? 16 : 4),
+                                bottomRight: Radius.circular(isMe ? 4 : 16),
                               ),
-                              const SizedBox(height: 8),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 4,
+                              boxShadow: const [
+                                BoxShadow(
+                                  color: AppColors.cardShadow,
+                                  blurRadius: 4,
+                                  offset: Offset(0, 2),
                                 ),
-                                decoration: BoxDecoration(
-                                  color: isMe
-                                      ? AppColors.white.withOpacity(0.2)
-                                      : AppColors.backgroundLight,
-                                  borderRadius: BorderRadius.circular(8),
+                              ],
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                // Karena dari database bentuknya selalu text, desain gallery diabaikan sementara
+                                Text(
+                                  msg.message,
+                                  style: TextStyle(
+                                    color: isMe
+                                        ? AppColors.white
+                                        : AppColors.textPrimary,
+                                    fontSize: 14,
+                                    height: 1.4,
+                                  ),
                                 ),
-                                child: Row(
+                                const SizedBox(height: 4),
+                                Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     Text(
-                                      msg['footer'] as String,
+                                      timeString,
                                       style: TextStyle(
                                         color: isMe
-                                            ? AppColors.white
-                                            : AppColors.textPrimary,
+                                            ? AppColors.white.withOpacity(0.7)
+                                            : AppColors.textHint,
                                         fontSize: 10,
                                       ),
                                     ),
-                                    const SizedBox(width: 4),
-                                    Icon(
-                                      Icons.chevron_right,
-                                      size: 14,
-                                      color: isMe
-                                          ? AppColors.white
-                                          : AppColors.textPrimary,
-                                    ),
+                                    if (isMe) ...[
+                                      const SizedBox(width: 4),
+                                      Icon(
+                                        Icons.check,
+                                        size: 12,
+                                        color: AppColors.white.withOpacity(0.7),
+                                      ),
+                                    ],
                                   ],
                                 ),
-                              ),
-                            ] else
-                              Text(
-                                msg['message'] as String,
-                                style: TextStyle(
-                                  color: isMe
-                                      ? AppColors.white
-                                      : AppColors.textPrimary,
-                                  fontSize: 14,
-                                  height: 1.4,
-                                ),
-                              ),
-                            const SizedBox(height: 4),
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  msg['time'] as String,
-                                  style: TextStyle(
-                                    color: isMe
-                                        ? AppColors.white.withOpacity(0.7)
-                                        : AppColors.textHint,
-                                    fontSize: 10,
-                                  ),
-                                ),
-                                if (isMe) ...[
-                                  const SizedBox(width: 4),
-                                  Icon(
-                                    Icons.check,
-                                    size: 12,
-                                    color: AppColors.white.withOpacity(0.7),
-                                  ),
-                                ],
                               ],
                             ),
-                          ],
+                          ),
                         ),
-                      ),
-                    ),
-                  ],
+                      ],
+                    );
+                  },
                 );
               },
             ),
           ),
-
-          // QUICK ACTION BUTTONS
+          
+          // QUICK ACTION BUTTONS (Tetap dipertahankan)
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             color: AppColors.white,
@@ -433,17 +328,17 @@ class _RuangChatPageState extends State<RuangChatPage> {
               ),
             ),
           ),
-
+          
           // INPUT FIELD
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
+            decoration: const BoxDecoration(
               color: AppColors.white,
               boxShadow: [
                 BoxShadow(
                   color: AppColors.cardShadow,
                   blurRadius: 10,
-                  offset: const Offset(0, -2),
+                  offset: Offset(0, -2),
                 ),
               ],
             ),
@@ -517,11 +412,5 @@ class _RuangChatPageState extends State<RuangChatPage> {
         ],
       ),
     );
-  }
-
-  @override
-  void dispose() {
-    _messageController.dispose();
-    super.dispose();
   }
 }

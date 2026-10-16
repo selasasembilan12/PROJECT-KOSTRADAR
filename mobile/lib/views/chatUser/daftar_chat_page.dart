@@ -1,50 +1,17 @@
 import 'package:flutter/material.dart';
-
 // --- IMPORT STANDAR TIM ---
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/formatter.dart';
+// Import file ruang chat karena bakal dibutuhin buat testing ntar
+import 'ruang_chat_page.dart'; 
 
 class DaftarChatPage extends StatelessWidget {
   const DaftarChatPage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    // Data dummy yang lebih lengkap
-    final List<Map<String, dynamic>> chatList = [
-      {
-        "name": "Kost Adiwarna",
-        "address": "Jl. Gegerkalong Hilir",
-        "lastMessage": "Halo, apakah kamar masih tersedia?",
-        "time": "10.30",
-        "unread": 2,
-        "image": "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=100",
-      },
-      {
-        "name": "Kost Melati",
-        "address": "Jl. Jati Metro No. 45",
-        "lastMessage": "Baik, terima kasih informasinya",
-        "time": "Kemarin",
-        "unread": 0,
-        "image": "https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=100",
-      },
-      {
-        "name": "Kost Cemara",
-        "address": "Jl. Jati Perumnas No. 8",
-        "lastMessage": "Apakah bisa survey terlebih dahulu?",
-        "time": "12 Sep",
-        "unread": 0,
-        "image": "https://images.unsplash.com/photo-1596276020587-8044fe049813?w=100",
-      },
-      {
-        "name": "Kost Bukit Indah",
-        "address": "Jl. Bukit Indah Raya",
-        "lastMessage": "Kunci kamar siap diambil hari Senin",
-        "time": "08 Sep",
-        "unread": 1,
-        "image":
-            "https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?w=100",
-      },
-    ];
+    // KITA BUAT DATANYA KOSONG (Simulasi saat user baru pertama kali pakai aplikasi)
+    final List<Map<String, dynamic>> chatList = [];
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -66,7 +33,7 @@ class DaftarChatPage extends StatelessWidget {
       ),
       body: Column(
         children: [
-          // SEARCH BAR
+          // SEARCH BAR (Dibiarkan sesuai desain asli)
           Padding(
             padding: const EdgeInsets.all(16),
             child: Container(
@@ -90,8 +57,8 @@ class DaftarChatPage extends StatelessWidget {
               ),
             ),
           ),
-
-          // FILTER TABS
+          
+          // FILTER TABS (Dibiarkan sesuai desain asli)
           SizedBox(
             height: 40,
             child: ListView(
@@ -106,114 +73,25 @@ class DaftarChatPage extends StatelessWidget {
               ],
             ),
           ),
-
           const SizedBox(height: 16),
-
-          // CHAT LIST
+          
+          // AREA DAFTAR CHAT
           Expanded(
-            child: ListView.separated(
-              itemCount: chatList.length,
-              separatorBuilder: (context, index) =>
-                  const Divider(height: 0, color: AppColors.border),
-              itemBuilder: (context, index) {
-                final chat = chatList[index];
-                final hasUnread = chat['unread'] > 0;
-
-                return ListTile(
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 12,
+            child: chatList.isEmpty
+                ? _buildEmptyState() // Jika data kosong, tampilkan ini
+                : ListView.separated(
+                    itemCount: chatList.length,
+                    separatorBuilder: (context, index) =>
+                        const Divider(height: 0, color: AppColors.border),
+                    itemBuilder: (context, index) {
+                      // Ini ga akan dieksekusi selama chatList kosong, 
+                      // tapi tetep gw biarin strukturnya buat ntar kalau udah disambung ke DB
+                      return const SizedBox(); 
+                    },
                   ),
-                  leading: CircleAvatar(
-                    radius: 28,
-                    backgroundImage: NetworkImage(chat['image']),
-                    backgroundColor: AppColors.primaryLight,
-                    child: chat['image'].isEmpty
-                        ? Text(
-                            chat["name"][0],
-                            style: const TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.primary,
-                            ),
-                          )
-                        : null,
-                  ),
-                  title: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          chat["name"],
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 15,
-                            color: AppColors.textPrimary,
-                          ),
-                        ),
-                      ),
-                      Text(
-                        chat["time"],
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: hasUnread
-                              ? AppColors.primary
-                              : AppColors.textHint,
-                          fontWeight: hasUnread
-                              ? FontWeight.bold
-                              : FontWeight.normal,
-                        ),
-                      ),
-                    ],
-                  ),
-                  subtitle: Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            chat["lastMessage"],
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: hasUnread
-                                  ? AppColors.textPrimary
-                                  : AppColors.textSecondary,
-                              fontWeight: hasUnread
-                                  ? FontWeight.w600
-                                  : FontWeight.normal,
-                            ),
-                          ),
-                        ),
-                        if (hasUnread) ...[
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.all(6),
-                            decoration: const BoxDecoration(
-                              color: AppColors.error,
-                              shape: BoxShape.circle,
-                            ),
-                            child: Text(
-                              chat["unread"].toString(),
-                              style: const TextStyle(
-                                color: AppColors.white,
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                  onTap: () {
-                    Navigator.pushNamed(context, '/ruang-chat');
-                  },
-                );
-              },
-            ),
           ),
-
-          // TIPS KOMUNIKASI AMAN
+          
+          // TIPS KOMUNIKASI AMAN (Dibiarkan sesuai desain asli)
           Container(
             margin: const EdgeInsets.all(16),
             padding: const EdgeInsets.all(16),
@@ -262,6 +140,43 @@ class DaftarChatPage extends StatelessWidget {
                   ),
                 ),
               ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // WIDGET KETIKA DATA KOSONG (EMPTY STATE)
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.chat_bubble_outline_rounded,
+            size: 64,
+            color: AppColors.textHint.withOpacity(0.5),
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            'Belum ada percakapan',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 40),
+            child: Text(
+              'Silakan cari kost yang Anda inginkan dan mulai mengobrol dengan pengelola kost.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 14,
+                color: AppColors.textSecondary,
+              ),
             ),
           ),
         ],
