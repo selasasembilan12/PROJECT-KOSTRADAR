@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -52,6 +51,7 @@ class _DaftarChatAdminPageState
 
       setState(() {
         loading = false;
+        chats = [];
         error = 'Silakan login terlebih dahulu.';
       });
       return;
@@ -63,48 +63,89 @@ class _DaftarChatAdminPageState
     });
 
     try {
+      // Ambil hanya kost milik admin yang sedang login.
+      final kostRows = await supabase
+          .from('kost')
+          .select('id_kost')
+          .eq('id_user', me);
+
+      final kostIds = kostRows
+          .map((row) => row['id_kost']?.toString() ?? '')
+          .where((id) => id.isNotEmpty)
+          .toSet()
+          .toList();
+
+      // Admin belum mempunyai kost.
+      if (kostIds.isEmpty) {
+        if (!mounted) return;
+
+        setState(() {
+          chats = [];
+          loading = false;
+          error = null;
+        });
+        return;
+      }
+
+      // Ambil percakapan yang melibatkan admin dan hanya
+      // berkaitan dengan kost milik admin tersebut.
       final rows = await supabase
           .from('messages')
           .select(
-            'id_message, pengirim_id, penerima_id, id_kost, isi_pesan',
+            'id_message, pengirim_id, penerima_id, '
+            'id_kost, isi_pesan',
           )
-          .or('penerima_id.eq.$me,pengirim_id.eq.$me');
+          .inFilter('id_kost', kostIds)
+          .or(
+            'penerima_id.eq.$me,pengirim_id.eq.$me',
+          );
 
       final Map<String, Map<String, dynamic>> grouped = {};
 
       for (final row in rows) {
         final message = Map<String, dynamic>.from(row);
+
         final sender =
             message['pengirim_id']?.toString() ?? '';
         final receiver =
             message['penerima_id']?.toString() ?? '';
+        final kostId =
+            message['id_kost']?.toString() ?? '';
+
+        if (kostId.isEmpty) continue;
+
+        // Pastikan pesan benar-benar melibatkan admin ini.
+        if (sender != me && receiver != me) continue;
 
         final other = sender == me ? receiver : sender;
 
         if (other.isEmpty || other == me) continue;
 
-        if (!grouped.containsKey(other)) {
-          grouped[other] = {
+        // Satu pengguna dapat memiliki percakapan berbeda
+        // untuk kost yang berbeda.
+        final conversationKey = '$other|$kostId';
+
+        if (!grouped.containsKey(conversationKey)) {
+          grouped[conversationKey] = {
             'user_id': other,
+            'id_kost': kostId,
             'message': '',
-            'id_kost': message['id_kost'],
             'has_incoming': false,
             'has_outgoing': false,
           };
         }
 
         if (receiver == me) {
-          grouped[other]!['has_incoming'] = true;
+          grouped[conversationKey]!['has_incoming'] = true;
         }
 
         if (sender == me) {
-          grouped[other]!['has_outgoing'] = true;
+          grouped[conversationKey]!['has_outgoing'] = true;
         }
 
-        grouped[other]!['message'] =
+        // Simpan isi pesan dari baris yang sedang diproses.
+        grouped[conversationKey]!['message'] =
             message['isi_pesan']?.toString() ?? '';
-
-        grouped[other]!['id_kost'] = message['id_kost'];
       }
 
       if (!mounted) return;
@@ -125,8 +166,7 @@ class _DaftarChatAdminPageState
   }
 
   List<Map<String, dynamic>> get filteredChats {
-    final keyword =
-        searchController.text.trim().toLowerCase();
+    final keyword = searchController.text.trim().toLowerCase();
 
     return chats.where((chat) {
       final id =
@@ -218,9 +258,7 @@ class _DaftarChatAdminPageState
               ),
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(
-                20, 18, 20, 12,
-              ),
+              padding: const EdgeInsets.fromLTRB(20, 18, 20, 12),
               child: TextField(
                 controller: searchController,
                 onChanged: (_) => setState(() {}),
@@ -248,9 +286,7 @@ class _DaftarChatAdminPageState
             SizedBox(
               height: 44,
               child: ListView.separated(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 20),
                 scrollDirection: Axis.horizontal,
                 itemCount: filterOptions.length,
                 separatorBuilder: (_, __) =>
@@ -269,9 +305,7 @@ class _DaftarChatAdminPageState
                     selectedColor: const Color(0xFF2563EB),
                     backgroundColor: Colors.white,
                     labelStyle: TextStyle(
-                      color: selected
-                          ? Colors.white
-                          : Colors.black87,
+                      color: selected ? Colors.white : Colors.black87,
                       fontWeight: FontWeight.w600,
                     ),
                     side: BorderSide(
@@ -292,9 +326,7 @@ class _DaftarChatAdminPageState
     );
   }
 
-  Widget _buildChatList(
-    List<Map<String, dynamic>> data,
-  ) {
+  Widget _buildChatList(List<Map<String, dynamic>> data) {
     if (loading) {
       return const Center(
         child: CircularProgressIndicator(),
@@ -344,13 +376,24 @@ class _DaftarChatAdminPageState
               const SizedBox(height: 12),
               Text(
                 chats.isEmpty
-                    ? 'Belum ada percakapan.'
+                    ? 'Belum ada percakapan untuk kost Anda.'
                     : 'Tidak ada chat yang sesuai filter.',
                 textAlign: TextAlign.center,
                 style: const TextStyle(
                   color: Colors.black54,
                 ),
               ),
+              if (chats.isEmpty) ...[
+                const SizedBox(height: 6),
+                const Text(
+                  'Pesan akan muncul ketika pengguna menghubungi Anda.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.black45,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
             ],
           ),
         ),
@@ -362,11 +405,12 @@ class _DaftarChatAdminPageState
       child: ListView.separated(
         padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
         itemCount: data.length,
-        separatorBuilder: (_, __) =>
-            const SizedBox(height: 10),
+        separatorBuilder: (_, __) => const SizedBox(height: 10),
         itemBuilder: (context, index) {
           final chat = data[index];
-          final id = chat['user_id'].toString();
+          final id = chat['user_id']?.toString() ?? '';
+          final kostId = chat['id_kost']?.toString();
+
           final shortId =
               id.length > 12 ? '${id.substring(0, 12)}...' : id;
 
@@ -381,13 +425,13 @@ class _DaftarChatAdminPageState
                   MaterialPageRoute(
                     builder: (_) => AdminChatDetailPage(
                       receiverId: id,
-                      idKost: chat['id_kost']?.toString(),
+                      idKost: kostId,
                     ),
                   ),
                 );
 
                 if (mounted) {
-                  loadChats();
+                  await loadChats();
                 }
               },
               child: Padding(
@@ -398,9 +442,7 @@ class _DaftarChatAdminPageState
                       radius: 25,
                       backgroundColor: const Color(0xFFDBEAFE),
                       child: Text(
-                        id.isNotEmpty
-                            ? id[0].toUpperCase()
-                            : '?',
+                        id.isNotEmpty ? id[0].toUpperCase() : '?',
                         style: const TextStyle(
                           color: Color(0xFF2563EB),
                           fontWeight: FontWeight.bold,
@@ -411,8 +453,7 @@ class _DaftarChatAdminPageState
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
-                        crossAxisAlignment:
-                            CrossAxisAlignment.start,
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
                             'Pengguna $shortId',
@@ -425,10 +466,7 @@ class _DaftarChatAdminPageState
                           ),
                           const SizedBox(height: 6),
                           Text(
-                            chat['message']
-                                        ?.toString()
-                                        .isNotEmpty ==
-                                    true
+                            chat['message']?.toString().isNotEmpty == true
                                 ? chat['message'].toString()
                                 : 'Belum ada isi pesan',
                             maxLines: 2,
@@ -510,9 +548,7 @@ class _DaftarChatAdminPageState
 
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(
-            builder: (_) => page,
-          ),
+          MaterialPageRoute(builder: (_) => page),
         );
       },
     );
@@ -566,8 +602,7 @@ class _AdminChatDetailPageState
   final TextEditingController messageController =
       TextEditingController();
 
-  final ScrollController scrollController =
-      ScrollController();
+  final ScrollController scrollController = ScrollController();
 
   List<Map<String, dynamic>> messages = [];
   bool loading = true;
@@ -592,6 +627,7 @@ class _AdminChatDetailPageState
 
   Future<void> loadMessages() async {
     final me = userId;
+    final kostId = widget.idKost;
 
     if (me == null) {
       if (!mounted) return;
@@ -603,12 +639,48 @@ class _AdminChatDetailPageState
       return;
     }
 
+    if (kostId == null || kostId.isEmpty) {
+      if (!mounted) return;
+
+      setState(() {
+        loading = false;
+        error = 'ID kost tidak tersedia untuk percakapan ini.';
+      });
+      return;
+    }
+
+    setState(() {
+      loading = true;
+      error = null;
+    });
+
     try {
+      // Validasi kepemilikan kost sebelum membaca percakapan.
+      final ownedKost = await supabase
+          .from('kost')
+          .select('id_kost')
+          .eq('id_kost', kostId)
+          .eq('id_user', me)
+          .maybeSingle();
+
+      if (ownedKost == null) {
+        if (!mounted) return;
+
+        setState(() {
+          messages = [];
+          loading = false;
+          error = 'Anda tidak memiliki akses ke percakapan kost ini.';
+        });
+        return;
+      }
+
       final rows = await supabase
           .from('messages')
           .select(
-            'id_message, pengirim_id, penerima_id, id_kost, isi_pesan',
+            'id_message, pengirim_id, penerima_id, '
+            'id_kost, isi_pesan',
           )
+          .eq('id_kost', kostId)
           .or(
             'and(pengirim_id.eq.$me,penerima_id.eq.${widget.receiverId}),'
             'and(pengirim_id.eq.${widget.receiverId},penerima_id.eq.$me)',
@@ -651,6 +723,7 @@ class _AdminChatDetailPageState
   Future<void> sendMessage() async {
     final me = userId;
     final text = messageController.text.trim();
+    final kostId = widget.idKost;
 
     if (me == null) {
       _showMessage('Silakan login terlebih dahulu.');
@@ -662,29 +735,42 @@ class _AdminChatDetailPageState
       return;
     }
 
-    if (widget.idKost == null || widget.idKost!.isEmpty) {
-      _showMessage(
-        'ID kost belum tersedia. Pesan belum dapat dikirim.',
-      );
+    if (kostId == null || kostId.isEmpty) {
+      _showMessage('ID kost tidak tersedia. Pesan belum dapat dikirim.');
       return;
     }
+
+    if (sending) return;
 
     setState(() => sending = true);
 
     try {
+      // Pastikan kost masih milik admin yang login.
+      final ownedKost = await supabase
+          .from('kost')
+          .select('id_kost')
+          .eq('id_kost', kostId)
+          .eq('id_user', me)
+          .maybeSingle();
+
+      if (ownedKost == null) {
+        throw Exception('Anda tidak memiliki akses ke kost ini.');
+      }
+
       await supabase.from('messages').insert({
         'pengirim_id': me,
         'penerima_id': widget.receiverId,
-        'id_kost': widget.idKost,
+        'id_kost': kostId,
         'isi_pesan': text,
       });
 
       messageController.clear();
-      await loadMessages();
 
       if (mounted) {
         setState(() => sending = false);
       }
+
+      await loadMessages();
     } catch (e) {
       if (!mounted) return;
 
@@ -710,6 +796,10 @@ class _AdminChatDetailPageState
 
   @override
   Widget build(BuildContext context) {
+    final receiver = widget.receiverId;
+    final shortReceiver =
+        receiver.length > 16 ? '${receiver.substring(0, 16)}...' : receiver;
+
     return Scaffold(
       backgroundColor: const Color(0xFFF7F8FC),
       appBar: AppBar(
@@ -730,9 +820,7 @@ class _AdminChatDetailPageState
               ),
             ),
             Text(
-              widget.receiverId.length > 16
-                  ? '${widget.receiverId.substring(0, 16)}...'
-                  : widget.receiverId,
+              'Pengguna $shortReceiver',
               style: const TextStyle(
                 color: Colors.black54,
                 fontSize: 11,
@@ -809,13 +897,11 @@ class _AdminChatDetailPageState
             message['pengirim_id']?.toString() == userId;
 
         return Align(
-          alignment: isAdmin
-              ? Alignment.centerRight
-              : Alignment.centerLeft,
+          alignment:
+              isAdmin ? Alignment.centerRight : Alignment.centerLeft,
           child: Container(
             constraints: BoxConstraints(
-              maxWidth:
-                  MediaQuery.of(context).size.width * 0.78,
+              maxWidth: MediaQuery.of(context).size.width * 0.78,
             ),
             margin: const EdgeInsets.only(bottom: 10),
             padding: const EdgeInsets.symmetric(
@@ -829,18 +915,14 @@ class _AdminChatDetailPageState
               borderRadius: BorderRadius.only(
                 topLeft: const Radius.circular(16),
                 topRight: const Radius.circular(16),
-                bottomLeft:
-                    Radius.circular(isAdmin ? 16 : 4),
-                bottomRight:
-                    Radius.circular(isAdmin ? 4 : 16),
+                bottomLeft: Radius.circular(isAdmin ? 16 : 4),
+                bottomRight: Radius.circular(isAdmin ? 4 : 16),
               ),
             ),
             child: Text(
               message['isi_pesan']?.toString() ?? '',
               style: TextStyle(
-                color: isAdmin
-                    ? Colors.white
-                    : Colors.black87,
+                color: isAdmin ? Colors.white : Colors.black87,
                 fontSize: 14,
               ),
             ),
@@ -900,9 +982,8 @@ class _AdminChatDetailPageState
                       Icons.bolt,
                       size: 16,
                     ),
-                    onPressed: () => chooseQuickResponse(
-                      quickResponses[index],
-                    ),
+                    onPressed: () =>
+                        chooseQuickResponse(quickResponses[index]),
                   );
                 },
               ),
@@ -916,20 +997,17 @@ class _AdminChatDetailPageState
                     controller: messageController,
                     minLines: 1,
                     maxLines: 4,
-                    textCapitalization:
-                        TextCapitalization.sentences,
+                    textCapitalization: TextCapitalization.sentences,
                     decoration: InputDecoration(
                       hintText: 'Tulis pesan...',
                       filled: true,
                       fillColor: const Color(0xFFF3F4F6),
-                      contentPadding:
-                          const EdgeInsets.symmetric(
+                      contentPadding: const EdgeInsets.symmetric(
                         horizontal: 14,
                         vertical: 12,
                       ),
                       border: OutlineInputBorder(
-                        borderRadius:
-                            BorderRadius.circular(18),
+                        borderRadius: BorderRadius.circular(18),
                         borderSide: BorderSide.none,
                       ),
                     ),
@@ -943,12 +1021,10 @@ class _AdminChatDetailPageState
                     onPressed: sending ? null : sendMessage,
                     style: ElevatedButton.styleFrom(
                       padding: EdgeInsets.zero,
-                      backgroundColor:
-                          const Color(0xFF2563EB),
+                      backgroundColor: const Color(0xFF2563EB),
                       foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(
-                        borderRadius:
-                            BorderRadius.circular(15),
+                        borderRadius: BorderRadius.circular(15),
                       ),
                     ),
                     child: sending

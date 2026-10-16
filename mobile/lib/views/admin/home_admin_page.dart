@@ -1,3 +1,4 @@
+
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -17,18 +18,27 @@ class _HomeAdminPageState extends State<HomeAdminPage> {
   final SupabaseClient supabase = Supabase.instance.client;
 
   // ============================================================
-  // MENGAMBIL RINGKASAN DATA KOST
+  // RINGKASAN DATA KOST MILIK ADMIN YANG LOGIN
   // ============================================================
 
   Future<Map<String, int>> _fetchRingkasanProperti() async {
+    final user = supabase.auth.currentUser;
+
+    if (user == null) {
+      return {
+        'totalKost': 0,
+        'totalKamarTersedia': 0,
+      };
+    }
+
     try {
       final response = await supabase
           .from('kost')
-          .select('ketersediaan_kamar');
+          .select('ketersediaan_kamar')
+          .eq('id_user', user.id);
 
-      final List<dynamic> data = response as List<dynamic>;
+      final data = List<Map<String, dynamic>>.from(response);
 
-      int totalKost = data.length;
       int totalKamarTersedia = 0;
 
       for (final item in data) {
@@ -41,7 +51,7 @@ class _HomeAdminPageState extends State<HomeAdminPage> {
       }
 
       return {
-        'totalKost': totalKost,
+        'totalKost': data.length,
         'totalKamarTersedia': totalKamarTersedia,
       };
     } catch (e) {
@@ -55,13 +65,7 @@ class _HomeAdminPageState extends State<HomeAdminPage> {
   }
 
   // ============================================================
-  // MENGAMBIL STATISTIK CHAT DARI SUPABASE
-  //
-  // Pesan Masuk:
-  // Jumlah pesan yang penerimanya adalah admin yang login.
-  //
-  // Total Chat:
-  // Jumlah percakapan unik berdasarkan lawan bicara dan id_kost.
+  // STATISTIK CHAT ADMIN YANG LOGIN
   // ============================================================
 
   Future<Map<String, int>> _fetchStatistikChat() async {
@@ -77,7 +81,10 @@ class _HomeAdminPageState extends State<HomeAdminPage> {
     try {
       final response = await supabase
           .from('messages')
-          .select('id_message, pengirim_id, penerima_id, id_kost');
+          .select('id_message, pengirim_id, penerima_id, id_kost')
+          .or(
+            'pengirim_id.eq.${user.id},penerima_id.eq.${user.id}',
+          );
 
       final rows = List<Map<String, dynamic>>.from(response);
 
@@ -89,16 +96,13 @@ class _HomeAdminPageState extends State<HomeAdminPage> {
         final penerimaId = row['penerima_id']?.toString();
         final idKost = row['id_kost']?.toString() ?? '';
 
-        // Hitung pesan yang diterima admin.
         if (penerimaId == user.id) {
           pesanMasuk++;
         }
 
-        // Hitung percakapan yang melibatkan admin yang login.
         if (pengirimId == user.id || penerimaId == user.id) {
-          final lawanBicara = pengirimId == user.id
-              ? penerimaId
-              : pengirimId;
+          final lawanBicara =
+              pengirimId == user.id ? penerimaId : pengirimId;
 
           if (lawanBicara != null && lawanBicara.isNotEmpty) {
             percakapan.add('$lawanBicara|$idKost');
@@ -121,17 +125,29 @@ class _HomeAdminPageState extends State<HomeAdminPage> {
   }
 
   // ============================================================
-  // MENGAMBIL 3 DATA KOST TERBARU
+  // TIGA KOST TERBARU MILIK ADMIN YANG LOGIN
   // ============================================================
 
   Future<List<Map<String, dynamic>>> _fetchKostTerbaru() async {
-    final response = await supabase
-        .from('kost')
-        .select('*, foto_kost(foto)')
-        .order('created_at', ascending: false)
-        .limit(3);
+    final user = supabase.auth.currentUser;
 
-    return List<Map<String, dynamic>>.from(response);
+    if (user == null) {
+      return [];
+    }
+
+    try {
+      final response = await supabase
+          .from('kost')
+          .select('*, foto_kost(foto)')
+          .eq('id_user', user.id)
+          .order('created_at', ascending: false)
+          .limit(3);
+
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      debugPrint('Gagal mengambil kost terbaru: $e');
+      rethrow;
+    }
   }
 
   // ============================================================
@@ -282,8 +298,6 @@ class _HomeAdminPageState extends State<HomeAdminPage> {
                 ],
               ),
               const SizedBox(height: 16),
-
-              // Total kost dan kamar tersedia.
               Row(
                 children: [
                   Expanded(
@@ -291,7 +305,10 @@ class _HomeAdminPageState extends State<HomeAdminPage> {
                       icon: Icons.apartment,
                       iconBg: AppColors.primaryLight,
                       iconColor: AppColors.primary,
-                      value: totalKost.toString(),
+                      value: snapshot.connectionState ==
+                              ConnectionState.waiting
+                          ? '...'
+                          : totalKost.toString(),
                       label: 'Total Kost',
                       badgeText: 'Terdaftar',
                     ),
@@ -302,7 +319,10 @@ class _HomeAdminPageState extends State<HomeAdminPage> {
                       icon: Icons.door_front_door_outlined,
                       iconBg: AppColors.successLight,
                       iconColor: AppColors.success,
-                      value: totalKamar.toString(),
+                      value: snapshot.connectionState ==
+                              ConnectionState.waiting
+                          ? '...'
+                          : totalKamar.toString(),
                       label: 'Kamar Tersedia',
                       badgeText: 'Siap huni',
                       badgeColor: AppColors.textSecondary,
@@ -310,10 +330,7 @@ class _HomeAdminPageState extends State<HomeAdminPage> {
                   ),
                 ],
               ),
-
               const SizedBox(height: 12),
-
-              // Statistik chat dari tabel messages.
               FutureBuilder<Map<String, int>>(
                 future: _fetchStatistikChat(),
                 builder: (context, chatSnapshot) {
@@ -510,7 +527,7 @@ class _HomeAdminPageState extends State<HomeAdminPage> {
   }
 
   // ============================================================
-  // HEADER BAGIAN KOST TERBARU
+  // HEADER KOST TERBARU
   // ============================================================
 
   Widget _buildSectionHeader(
@@ -567,8 +584,7 @@ class _HomeAdminPageState extends State<HomeAdminPage> {
     return FutureBuilder<List<Map<String, dynamic>>>(
       future: _fetchKostTerbaru(),
       builder: (context, snapshot) {
-        if (snapshot.connectionState ==
-            ConnectionState.waiting) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(
             child: Padding(
               padding: EdgeInsets.all(20),
