@@ -1,10 +1,264 @@
+//SALSA
+//MINTA TOLONG SKALI JANG KORE SINI, KASE TAU SA NANTI KT YANG PERBAIKI
 import 'package:flutter/material.dart';
-
-// --- IMPORT STANDAR TIM ---
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../core/theme/app_theme.dart';
 
-class ProfilPage extends StatelessWidget {
+class ProfilPage extends StatefulWidget {
   const ProfilPage({super.key});
+
+  @override
+  State<ProfilPage> createState() => _ProfilPageState();
+}
+
+class _ProfilPageState extends State<ProfilPage> {
+  final supabase = Supabase.instance.client;
+  
+  String nama = "Pengguna KostRadar";
+  String email = "Memuat...";
+  String? fotoUrl;
+  bool isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserData();
+  }
+
+  Future<void> _loadUserData() async {
+    try {
+      final user = supabase.auth.currentUser;
+      if (user != null) {
+        final userEmail = user.email ?? 'Tidak ada email';
+        String userName = 'Pengguna KostRadar';
+        String? userFoto;
+
+        try {
+          final data = await supabase
+              .from('users')
+              .select()
+              .eq('id_user', user.id)
+              .maybeSingle();
+
+          if (data != null) {
+            userName = data['username'] ?? 'Pengguna KostRadar';
+            userFoto = data['foto'];
+          }
+        } catch (dbError) {
+          debugPrint("Info DB load: $dbError");
+        }
+
+        if (mounted) {
+          setState(() {
+            email = userEmail;
+            nama = userName;
+            fotoUrl = userFoto;
+            isLoading = false;
+          });
+        }
+      } else {
+        if (mounted) setState(() => isLoading = false);
+      }
+    } catch (e) {
+      debugPrint("Error umum load: $e");
+      if (mounted) setState(() => isLoading = false);
+    }
+  }
+
+  Future<void> _gantiFotoProfil() async {
+    try {
+      final ImagePicker picker = ImagePicker();
+      final XFile? image = await picker.pickImage(source: ImageSource.gallery, imageQuality: 70);
+      
+      if (image == null) return;
+
+      final user = supabase.auth.currentUser;
+      if (user == null) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Mengunggah foto profil...')),
+      );
+
+      final fileName = 'avatar_${user.id}_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      
+      // Murni pakai bytes, TIDAK ADA PEMANGGILAN File(image.path) SAMA SEKALI
+      final bytes = await image.readAsBytes();
+
+      await supabase.storage.from('avatars').uploadBinary(
+        fileName, 
+        bytes,
+        fileOptions: const FileOptions(upsert: true),
+      );
+
+      final String publicUrl = supabase.storage.from('avatars').getPublicUrl(fileName);
+
+      await supabase.from('users').update({
+        'foto': publicUrl,
+      }).eq('id_user', user.id);
+
+      setState(() {
+        fotoUrl = publicUrl;
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Foto profil berhasil diperbarui!'), backgroundColor: AppColors.success),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal mengunggah foto: $e'), backgroundColor: AppColors.error),
+        );
+      }
+    }
+  }
+
+  void _bukaFormEditProfil() {
+    final TextEditingController namaController = TextEditingController(text: nama);
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Edit Profil', style: TextStyle(fontWeight: FontWeight.bold)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: namaController,
+              decoration: const InputDecoration(
+                labelText: 'Nama Lengkap (Username)',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Batal', style: TextStyle(color: AppColors.textSecondary)),
+                ),
+                const SizedBox(width: 8),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    elevation: 0,
+                  ),
+                  onPressed: () async {
+                    final newName = namaController.text.trim();
+                    if (newName.isEmpty) return;
+
+                    final user = supabase.auth.currentUser;
+                    if (user != null) {
+                      try {
+                        await supabase
+                            .from('users')
+                            .update({'username': newName})
+                            .eq('id_user', user.id);
+
+                        setState(() {
+                          nama = newName;
+                        });
+
+                        if (mounted) {
+                          Navigator.pop(context);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Profil berhasil diperbarui!'),
+                              backgroundColor: AppColors.success,
+                            ),
+                          );
+                        }
+                      } catch (e) {
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Gagal menyimpan: $e'),
+                              backgroundColor: AppColors.error,
+                            ),
+                          );
+                        }
+                      }
+                    }
+                  },
+                  child: const Text('Simpan', style: TextStyle(color: AppColors.white)),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _bukaFormUbahPassword() {
+    final TextEditingController passController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Ubah Password', style: TextStyle(fontWeight: FontWeight.bold)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: passController,
+              obscureText: true,
+              decoration: const InputDecoration(
+                labelText: 'Password Baru',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Batal', style: TextStyle(color: AppColors.textSecondary)),
+                ),
+                const SizedBox(width: 8),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    elevation: 0,
+                  ),
+                  onPressed: () async {
+                    final newPassword = passController.text.trim();
+                    if (newPassword.length < 6) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Password minimal 6 karakter!'), backgroundColor: AppColors.error),
+                      );
+                      return;
+                    }
+
+                    try {
+                      await supabase.auth.updateUser(UserAttributes(password: newPassword));
+                      if (mounted) {
+                        Navigator.pop(context);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Password berhasil diubah!'), backgroundColor: AppColors.success),
+                        );
+                      }
+                    } catch (e) {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Gagal ubah password: $e'), backgroundColor: AppColors.error),
+                        );
+                      }
+                    }
+                  },
+                  child: const Text('Simpan', style: TextStyle(color: AppColors.white)),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -22,70 +276,61 @@ class ProfilPage extends StatelessWidget {
         backgroundColor: AppColors.background,
         foregroundColor: AppColors.textPrimary,
         elevation: 0,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.person, color: AppColors.primary),
-            onPressed: () {},
-          ),
-        ],
       ),
-      body: SingleChildScrollView(
+      body: isLoading 
+          ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
+          : SingleChildScrollView(
         child: Column(
           children: [
             const SizedBox(height: 16),
-
-            // AVATAR DENGAN ICON KAMERA
-            Stack(
-              children: [
-                const CircleAvatar(
-                  radius: 55,
-                  backgroundColor: AppColors.primaryLight,
-                  backgroundImage: NetworkImage(
-                    'https://images.unsplash.com/photo-1531123897727-8f129e1688ce?w=200',
+            GestureDetector(
+              onTap: _gantiFotoProfil,
+              child: Stack(
+                children: [
+                  CircleAvatar(
+                    radius: 55,
+                    backgroundColor: AppColors.primaryLight,
+                    backgroundImage: fotoUrl != null && fotoUrl!.isNotEmpty
+                        ? NetworkImage(fotoUrl!)
+                        : const NetworkImage('https://images.unsplash.com/photo-1531123897727-8f129e1688ce?w=200'),
                   ),
-                  child: Icon(Icons.person, size: 55, color: AppColors.primary),
-                ),
-                Positioned(
-                  bottom: 0,
-                  right: 0,
-                  child: Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: const BoxDecoration(
-                      color: AppColors.primary,
-                      shape: BoxShape.circle,
-                      border: Border.fromBorderSide(
-                        BorderSide(color: AppColors.white, width: 2),
+                  Positioned(
+                    bottom: 0,
+                    right: 0,
+                    child: Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: const BoxDecoration(
+                        color: AppColors.primary,
+                        shape: BoxShape.circle,
+                        border: Border.fromBorderSide(
+                          BorderSide(color: AppColors.white, width: 2),
+                        ),
+                      ),
+                      child: const Icon(
+                        Icons.camera_alt,
+                        color: AppColors.white,
+                        size: 16,
                       ),
                     ),
-                    child: const Icon(
-                      Icons.camera_alt,
-                      color: AppColors.white,
-                      size: 16,
-                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-
             const SizedBox(height: 16),
-
-            // NAMA DAN EMAIL
-            const Text(
-              'Alya Putri',
-              style: TextStyle(
+            Text(
+              nama,
+              style: const TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
                 color: AppColors.textPrimary,
               ),
             ),
             const SizedBox(height: 4),
-            const Text(
-              'alya.putri@email.com',
-              style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
+            Text(
+              email,
+              style: const TextStyle(fontSize: 14, color: AppColors.textSecondary),
             ),
             const SizedBox(height: 12),
-
-            // BADGE MAHASISWA AKTIF
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
               decoration: BoxDecoration(
@@ -93,12 +338,12 @@ class ProfilPage extends StatelessWidget {
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(color: AppColors.primary.withOpacity(0.3)),
               ),
-              child: Row(
+              child: const Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.school, size: 14, color: AppColors.primary),
-                  const SizedBox(width: 6),
-                  const Text(
+                  Icon(Icons.school, size: 14, color: AppColors.primary),
+                  SizedBox(width: 6),
+                  Text(
                     'Mahasiswa',
                     style: TextStyle(
                       fontSize: 12,
@@ -106,17 +351,10 @@ class ProfilPage extends StatelessWidget {
                       color: AppColors.primary,
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  Container(
-                    width: 6,
-                    height: 6,
-                    decoration: const BoxDecoration(
-                      color: AppColors.success,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  const Text(
+                  SizedBox(width: 8),
+                  CircleAvatar(radius: 3, backgroundColor: AppColors.success),
+                  SizedBox(width: 4),
+                  Text(
                     'Aktif',
                     style: TextStyle(
                       fontSize: 12,
@@ -127,20 +365,17 @@ class ProfilPage extends StatelessWidget {
                 ],
               ),
             ),
-
             const SizedBox(height: 24),
-
-            // MENU ITEMS
             Container(
               margin: const EdgeInsets.symmetric(horizontal: 16),
               decoration: BoxDecoration(
                 color: AppColors.white,
                 borderRadius: BorderRadius.circular(16),
-                boxShadow: [
+                boxShadow: const [
                   BoxShadow(
                     color: AppColors.cardShadow,
                     blurRadius: 10,
-                    offset: const Offset(0, 2),
+                    offset: Offset(0, 2),
                   ),
                 ],
               ),
@@ -151,8 +386,8 @@ class ProfilPage extends StatelessWidget {
                     iconBg: AppColors.primaryLight,
                     iconColor: AppColors.primary,
                     title: 'Edit Profil',
-                    subtitle: 'Informasi nama & kontak',
-                    onTap: () {},
+                    subtitle: 'Ubah nama lengkap',
+                    onTap: _bukaFormEditProfil,
                   ),
                   const Divider(height: 1, color: AppColors.border, indent: 60),
                   _buildMenuItem(
@@ -161,7 +396,7 @@ class ProfilPage extends StatelessWidget {
                     iconColor: AppColors.primary,
                     title: 'Ubah Password',
                     subtitle: 'Perbarui kata sandi akun',
-                    onTap: () {},
+                    onTap: _bukaFormUbahPassword,
                   ),
                   const Divider(height: 1, color: AppColors.border, indent: 60),
                   _buildMenuItem(
@@ -171,25 +406,15 @@ class ProfilPage extends StatelessWidget {
                     title: 'Logout',
                     subtitle: 'Keluar dari akun Anda',
                     isDestructive: true,
-                    onTap: () {
-                      Navigator.pushReplacementNamed(context, '/login');
+                    onTap: () async {
+                      await supabase.auth.signOut();
+                      if (context.mounted) {
+                        Navigator.pushReplacementNamed(context, '/login');
+                      }
                     },
                   ),
                 ],
               ),
-            ),
-
-            const SizedBox(height: 24),
-
-            // FOOTER VERSION
-            const Text(
-              'KostRadar App v1.0.4',
-              style: TextStyle(fontSize: 12, color: AppColors.textHint),
-            ),
-            const SizedBox(height: 4),
-            const Text(
-              'Terdaftar sejak Februari 2025',
-              style: TextStyle(fontSize: 11, color: AppColors.textHint),
             ),
             const SizedBox(height: 24),
           ],

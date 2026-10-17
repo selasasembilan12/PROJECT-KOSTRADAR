@@ -8,10 +8,8 @@ import '../../models/kost_model.dart';
 // Import file pencarian & hasil
 import 'pencarian_page.dart';
 import 'hasil_pencarian.dart';
-
 // Import file kost
 import '../kost/detail_kost_page.dart';
-
 // Import file chatUser & profil (PUNYA SALSA)
 import '../chatUser/daftar_chat_page.dart';
 import '../chatUser/profil_page.dart';
@@ -19,7 +17,6 @@ import '../chatUser/profil_page.dart';
 // ========================================
 // HALAMAN HOME (TERINTEGRASI SUPABASE)
 // ========================================
-
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
 
@@ -30,6 +27,53 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   final SupabaseClient supabase = Supabase.instance.client;
   int _selectedIndex = 0;
+  
+  // Variabel buat nyimpen nama user di beranda
+  String namaUser = "Memuat..."; 
+
+  @override
+  void initState() {
+    super.initState();
+    _loadNamaUser(); // Panggil fungsi narik nama pas home dibuka
+  }
+
+  // LOGIKA NARIK NAMA LANGSUNG DARI TABEL 'mahasiswa'
+  Future<void> _loadNamaUser() async {
+    try {
+      final user = supabase.auth.currentUser;
+      if (user != null) {
+        String userName = 'Pengguna KostRadar';
+
+        try {
+          final data = await supabase
+              .from('mahasiswa') // <-- Mengarah ke tabel mahasiswa
+              .select('nama')
+              .eq('id', user.id)
+              .maybeSingle();
+
+          if (data != null && data['nama'] != null) {
+            userName = data['nama'];
+          } else if (user.userMetadata != null && user.userMetadata!['nama'] != null) {
+            userName = user.userMetadata!['nama'];
+          }
+        } catch (dbError) {
+          if (user.userMetadata != null && user.userMetadata!['nama'] != null) {
+            userName = user.userMetadata!['nama'];
+          }
+        }
+
+        if (mounted) {
+          setState(() {
+            namaUser = userName;
+          });
+        }
+      } else {
+        if (mounted) setState(() => namaUser = 'Pengguna KostRadar');
+      }
+    } catch (e) {
+      if (mounted) setState(() => namaUser = 'Pengguna KostRadar');
+    }
+  }
 
   void _openSearch() {
     Navigator.push(
@@ -71,13 +115,10 @@ class _HomePageState extends State<HomePage> {
           children: [
             // TAB 0: BERANDA
             _buildBerandaTab(),
-
             // TAB 1: FAVORIT
             _buildFavoritTab(),
-
             // TAB 2: CHAT (PUNYA SALSA)
             const DaftarChatPage(),
-
             // TAB 3: PROFIL (PUNYA SALSA)
             const ProfilPage(),
           ],
@@ -123,19 +164,16 @@ class _HomePageState extends State<HomePage> {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator(color: AppColors.primary));
         }
-
         if (snapshot.hasError) {
           return Center(child: Text('Gagal memuat data: ${snapshot.error}'));
         }
-
         final rawData = snapshot.data ?? [];
         final List<KostModel> listKost = rawData.map((e) => KostModel.fromJson(e)).toList();
-
         return ListView(
           padding: const EdgeInsets.only(bottom: 24),
           children: [
             const SizedBox(height: 20),
-            _buildHeader(),
+            _buildHeader(), // <-- NAMA DI HEADER UDAH OTOMATIS SESUAI AKUN
             const SizedBox(height: 20),
             _buildSearchBar(),
             const SizedBox(height: 20),
@@ -153,7 +191,7 @@ class _HomePageState extends State<HomePage> {
                   ),
                 ),
               ),
-            ...listKost.map(_buildKostCard),
+            ...listKost.map((kost) => _buildKostCard(kost)),
           ],
         );
       },
@@ -165,7 +203,6 @@ class _HomePageState extends State<HomePage> {
   // ========================================
   Widget _buildFavoritTab() {
     final user = supabase.auth.currentUser;
-
     if (user == null) {
       return const Center(
         child: Text(
@@ -174,7 +211,6 @@ class _HomePageState extends State<HomePage> {
         ),
       );
     }
-
     return FutureBuilder<List<Map<String, dynamic>>>(
       future: supabase
           .from('favorite')
@@ -184,17 +220,14 @@ class _HomePageState extends State<HomePage> {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator(color: AppColors.primary));
         }
-
         if (snapshot.hasError) {
           return Center(child: Text('Gagal memuat favorit: ${snapshot.error}'));
         }
-
         final rawData = snapshot.data ?? [];
         final List<KostModel> listKostFavorites = rawData
             .where((item) => item['kost'] != null)
             .map((item) => KostModel.fromJson(item['kost']))
             .toList();
-
         return ListView(
           padding: const EdgeInsets.only(bottom: 24),
           children: [
@@ -211,7 +244,7 @@ class _HomePageState extends State<HomePage> {
                   ),
                 ),
               ),
-            ...listKostFavorites.map(_buildKostCard),
+            ...listKostFavorites.map((kost) => _buildKostCard(kost)),
           ],
         );
       },
@@ -221,7 +254,6 @@ class _HomePageState extends State<HomePage> {
   // ========================================
   // WIDGET-WIDGET PEMBANTU
   // ========================================
-
   Widget _buildHeader() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -233,25 +265,27 @@ class _HomePageState extends State<HomePage> {
             child: Icon(Icons.person, color: AppColors.primary),
           ),
           const SizedBox(width: 12),
-          const Expanded(
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                const Text(
                   'Selamat datang kembali,',
                   style: TextStyle(
                     fontSize: 12,
                     color: AppColors.textSecondary,
                   ),
                 ),
-                SizedBox(height: 4),
+                const SizedBox(height: 4),
                 Text(
-                  'Pengguna KostRadar',
-                  style: TextStyle(
+                  namaUser, // <-- NAMA AKUN MUNCUL DI SINI
+                  style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
                     color: AppColors.textPrimary,
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
@@ -398,7 +432,6 @@ class _HomePageState extends State<HomePage> {
 
   Widget _buildKostCard(KostModel kost) {
     final imageUrl = kost.foto.isNotEmpty ? kost.foto[0] : '';
-
     return Container(
       margin: const EdgeInsets.fromLTRB(20, 0, 20, 16),
       decoration: BoxDecoration(
