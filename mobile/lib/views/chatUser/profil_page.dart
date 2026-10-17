@@ -1,5 +1,5 @@
 //SALSA
-//MINTA TOLONG SKALI JANG KORE SINI, KASE TAU SA NANTI KT YANG PERBAIKI
+//MINTA TOLONG SKALI JANG KORE SINI, KASE TAU SA NANTI KT YANG PERBAIKI. info di gc
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:image_picker/image_picker.dart';
