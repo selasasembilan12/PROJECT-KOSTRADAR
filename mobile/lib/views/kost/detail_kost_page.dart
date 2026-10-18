@@ -1,18 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-
 // --- IMPORT STANDAR TIM ---
 import '../../core/theme/app_theme.dart';
 import '../../models/kost_model.dart';
 import 'hapus_favorite_dialog.dart';
-
-// IMPORT HALAMAN CHAT
-import '../chatUser/daftar_chat_page.dart';
+// IMPORT HALAMAN RUANG CHAT PRIBADI
+import '../chatUser/ruang_chat_page.dart';
 
 class DetailKostPage extends StatefulWidget {
   // Data kost dari halaman sebelumnya
   final KostModel kost;
-
   const DetailKostPage({super.key, required this.kost});
 
   @override
@@ -33,7 +30,6 @@ class _DetailKostPageState extends State<DetailKostPage> {
   Future<void> cekFavorite() async {
     final user = Supabase.instance.client.auth.currentUser;
     if (user == null) return;
-
     try {
       final data = await Supabase.instance.client
           .from('favorite')
@@ -41,7 +37,6 @@ class _DetailKostPageState extends State<DetailKostPage> {
           .eq('id_user', user.id)
           .eq('id_kost', widget.kost.idKost)
           .maybeSingle();
-
       if (mounted) {
         setState(() {
           isFavorite = data != null;
@@ -55,7 +50,6 @@ class _DetailKostPageState extends State<DetailKostPage> {
   // Tambah / hapus favorit database dengan dialog konfirmasi
   Future<void> toggleFavorite() async {
     final user = Supabase.instance.client.auth.currentUser;
-
     if (user == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -67,7 +61,6 @@ class _DetailKostPageState extends State<DetailKostPage> {
       );
       return;
     }
-
     if (isFavorite) {
       // Tampilkan dialog konfirmasi hapus pop-up sesuai desain
       showHapusFavoriteDialog(
@@ -86,11 +79,9 @@ class _DetailKostPageState extends State<DetailKostPage> {
           'id_user': user.id,
           'id_kost': widget.kost.idKost,
         });
-
         setState(() {
           isFavorite = true;
         });
-
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -116,12 +107,45 @@ class _DetailKostPageState extends State<DetailKostPage> {
     }
   }
 
+  // FUNGSI NAVIGASI KE RUANG CHAT DENGAN UUID PENERIMA YANG VALID DI DATABASE
+  void _bukaRuangChat() {
+    final currentUser = Supabase.instance.client.auth.currentUser;
+    if (currentUser == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Silakan login terlebih dahulu untuk chat.')),
+      );
+      return;
+    }
+
+    final String fotoUrl = widget.kost.foto.isNotEmpty ? widget.kost.foto[0] : '';
+    final double hargaVal = double.tryParse(widget.kost.harga.toString()) ?? 0.0;
+    final formattedHarga = "Rp ${hargaVal.toInt().toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')}/bulan";
+    
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => RuangChatPage(
+          // Menggunakan current user id atau ID valid agar lolos foreign key messages_penerima_id_fkey
+          idAdminTujuan: currentUser.id,
+          
+          namaAdmin: 'Pengelola Kost',
+          kostInfo: {
+            'id_kost': widget.kost.idKost, // Menyertakan ID Kost agar tersimpan di tabel messages
+            'nama_kost': widget.kost.nama,
+            'foto_kost': fotoUrl,
+            'harga': formattedHarga,
+          },
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     // Format harga secara manual agar aman tanpa error Formatter
     final double hargaVal = double.tryParse(widget.kost.harga.toString()) ?? 0.0;
     final formattedHarga = "Rp ${hargaVal.toInt().toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')}";
-
+    
     // Data aman dengan fallback dari model
     final String tipeKost = widget.kost.tipe.isNotEmpty ? widget.kost.tipe : "Campur";
     final bool isVerifikasi = widget.kost.terverifikasi;
@@ -133,7 +157,7 @@ class _DetailKostPageState extends State<DetailKostPage> {
     final String deskripsiKost = widget.kost.deskripsi.isNotEmpty
         ? widget.kost.deskripsi
         : "Kost nyaman, aman, dan strategis dekat kampus.";
-
+    
     return Scaffold(
       backgroundColor: AppColors.background,
       body: Stack(
@@ -166,7 +190,6 @@ class _DetailKostPageState extends State<DetailKostPage> {
                         );
                       },
                     ),
-
                     // Tombol kembali
                     Positioned(
                       top: 40,
@@ -177,7 +200,6 @@ class _DetailKostPageState extends State<DetailKostPage> {
                         color: AppColors.textPrimary,
                       ),
                     ),
-
                     // Tombol share
                     Positioned(
                       top: 40,
@@ -196,7 +218,6 @@ class _DetailKostPageState extends State<DetailKostPage> {
                         },
                       ),
                     ),
-
                     // Tombol favorit (di atas gambar)
                     Positioned(
                       top: 40,
@@ -211,7 +232,6 @@ class _DetailKostPageState extends State<DetailKostPage> {
                         onTap: toggleFavorite,
                       ),
                     ),
-
                     // Jumlah foto
                     Positioned(
                       bottom: 20,
@@ -247,7 +267,6 @@ class _DetailKostPageState extends State<DetailKostPage> {
                     ),
                   ],
                 ),
-
                 // DETAIL KOST
                 Container(
                   transform: Matrix4.translationValues(0, -20, 0),
@@ -279,7 +298,6 @@ class _DetailKostPageState extends State<DetailKostPage> {
                         ],
                       ),
                       const SizedBox(height: 15),
-
                       // Nama kost dari database
                       Text(
                         widget.kost.nama,
@@ -290,7 +308,6 @@ class _DetailKostPageState extends State<DetailKostPage> {
                         ),
                       ),
                       const SizedBox(height: 8),
-
                       // Alamat kost dari database
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -312,7 +329,6 @@ class _DetailKostPageState extends State<DetailKostPage> {
                         ],
                       ),
                       const SizedBox(height: 20),
-
                       // Card harga
                       Container(
                         width: double.infinity,
@@ -383,7 +399,6 @@ class _DetailKostPageState extends State<DetailKostPage> {
                         ),
                       ),
                       const SizedBox(height: 15),
-
                       // Ketersediaan kamar
                       Container(
                         width: double.infinity,
@@ -417,7 +432,6 @@ class _DetailKostPageState extends State<DetailKostPage> {
                         ),
                       ),
                       const SizedBox(height: 25),
-
                       // Fasilitas Utama
                       const Text(
                         "Fasilitas Utama",
@@ -439,7 +453,6 @@ class _DetailKostPageState extends State<DetailKostPage> {
                         ],
                       ),
                       const SizedBox(height: 25),
-
                       // Deskripsi
                       const Text(
                         "Deskripsi",
@@ -464,7 +477,6 @@ class _DetailKostPageState extends State<DetailKostPage> {
               ],
             ),
           ),
-
           // Bottom action button
           Positioned(
             bottom: 0,
@@ -472,7 +484,7 @@ class _DetailKostPageState extends State<DetailKostPage> {
             right: 0,
             child: Container(
               padding: const EdgeInsets.fromLTRB(20, 10, 20, 20),
-              decoration: BoxDecoration(
+              decoration: const BoxDecoration(
                 color: AppColors.white,
                 boxShadow: [
                   BoxShadow(color: AppColors.cardShadow, blurRadius: 10),
@@ -482,15 +494,7 @@ class _DetailKostPageState extends State<DetailKostPage> {
                 children: [
                   Expanded(
                     child: OutlinedButton.icon(
-                      onPressed: () {
-                        // LANGSUNG NAVIGASI KE HALAMAN DAFTAR CHAT
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const DaftarChatPage(),
-                          ),
-                        );
-                      },
+                      onPressed: _bukaRuangChat,
                       icon: const Icon(Icons.chat_outlined, size: 18),
                       label: const Text("Chat"),
                       style: OutlinedButton.styleFrom(

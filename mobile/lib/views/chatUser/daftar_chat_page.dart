@@ -1,18 +1,84 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 // --- IMPORT STANDAR TIM ---
 import '../../core/theme/app_theme.dart';
-import '../../core/utils/formatter.dart';
-// Import file ruang chat karena bakal dibutuhin buat testing ntar
 import 'ruang_chat_page.dart'; 
 
-class DaftarChatPage extends StatelessWidget {
+class DaftarChatPage extends StatefulWidget {
   const DaftarChatPage({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    // KITA BUAT DATANYA KOSONG (Simulasi saat user baru pertama kali pakai aplikasi)
-    final List<Map<String, dynamic>> chatList = [];
+  State<DaftarChatPage> createState() => _DaftarChatPageState();
+}
 
+class _DaftarChatPageState extends State<DaftarChatPage> {
+  bool _isLoading = true;
+  List<Map<String, dynamic>> _chatConversations = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchConversations();
+  }
+
+  // Fungsi untuk mengambil daftar percakapan dari database Supabase
+  Future<void> _fetchConversations() async {
+    try {
+      final myUserId = Supabase.instance.client.auth.currentUser?.id;
+      if (myUserId == null) {
+        setState(() => _isLoading = false);
+        return;
+      }
+
+      // Mengambil semua pesan di mana user yang login menjadi pengirim atau penerima
+      final response = await Supabase.instance.client
+          .from('messages')
+          .select()
+          .or('pengirim_id.eq.$myUserId,penerima_id.eq.$myUserId')
+          .order('created_at', ascending: false);
+
+      final Map<String, Map<String, dynamic>> groupedChat = {};
+
+      for (var msg in response) {
+        final senderId = msg['pengirim_id']?.toString() ?? '';
+        final receiverId = msg['penerima_id']?.toString() ?? '';
+        
+        // Tentukan siapa ID lawan bicara
+        final String lawanId = (senderId == myUserId) ? receiverId : senderId;
+        if (lawanId.isEmpty) continue;
+
+        // Ambil pesan paling atas (karena sudah di-order descending, yang pertama masuk map adalah yang terbaru)
+        if (!groupedChat.containsKey(lawanId)) {
+          final DateTime createdAt = msg['created_at'] != null 
+              ? DateTime.parse(msg['created_at']) 
+              : DateTime.now();
+          final String timeString = '${createdAt.hour.toString().padLeft(2, '0')}:${createdAt.minute.toString().padLeft(2, '0')}';
+
+          groupedChat[lawanId] = {
+            'id_lawan': lawanId,
+            'nama_lawan': 'Pengelola Kost', // Nama default atau bisa disesuaikan
+            'pesan_terakhir': msg['isi_pesan'] ?? '',
+            'waktu': timeString,
+            'belum_dibaca': (receiverId == myUserId) && (msg['is_read'] == false),
+          };
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+          _chatConversations = groupedChat.values.toList();
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -33,7 +99,7 @@ class DaftarChatPage extends StatelessWidget {
       ),
       body: Column(
         children: [
-          // SEARCH BAR (Dibiarkan sesuai desain asli)
+          // SEARCH BAR
           Padding(
             padding: const EdgeInsets.all(16),
             child: Container(
@@ -43,11 +109,11 @@ class DaftarChatPage extends StatelessWidget {
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: AppColors.border),
               ),
-              child: Row(
+              child: const Row(
                 children: [
-                  const Icon(Icons.search, color: AppColors.textSecondary),
-                  const SizedBox(width: 12),
-                  const Expanded(
+                  Icon(Icons.search, color: AppColors.textSecondary),
+                  SizedBox(width: 12),
+                  Expanded(
                     child: Text(
                       'Cari percakapan...',
                       style: TextStyle(color: AppColors.textHint),
@@ -58,7 +124,7 @@ class DaftarChatPage extends StatelessWidget {
             ),
           ),
           
-          // FILTER TABS (Dibiarkan sesuai desain asli)
+          // FILTER TABS
           SizedBox(
             height: 40,
             child: ListView(
@@ -77,21 +143,88 @@ class DaftarChatPage extends StatelessWidget {
           
           // AREA DAFTAR CHAT
           Expanded(
-            child: chatList.isEmpty
-                ? _buildEmptyState() // Jika data kosong, tampilkan ini
-                : ListView.separated(
-                    itemCount: chatList.length,
-                    separatorBuilder: (context, index) =>
-                        const Divider(height: 0, color: AppColors.border),
-                    itemBuilder: (context, index) {
-                      // Ini ga akan dieksekusi selama chatList kosong, 
-                      // tapi tetep gw biarin strukturnya buat ntar kalau udah disambung ke DB
-                      return const SizedBox(); 
-                    },
-                  ),
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
+                : _chatConversations.isEmpty
+                    ? _buildEmptyState()
+                    : ListView.separated(
+                        itemCount: _chatConversations.length,
+                        separatorBuilder: (context, index) =>
+                            const Divider(height: 0, color: AppColors.border),
+                        itemBuilder: (context, index) {
+                          final chat = _chatConversations[index];
+                          final String namaLawan = chat['nama_lawan'] ?? 'Pengelola Kost';
+                          final String pesanTerakhir = chat['pesan_terakhir'] ?? '';
+                          final String waktuTerakhir = chat['waktu'] ?? '';
+                          final String idLawan = chat['id_lawan'] ?? '';
+                          final bool belumDibaca = chat['belum_dibaca'] ?? false;
+
+                          return ListTile(
+                            tileColor: AppColors.white,
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => RuangChatPage(
+                                    idAdminTujuan: idLawan,
+                                    namaAdmin: namaLawan,
+                                  ),
+                                ),
+                              ).then((_) => _fetchConversations());
+                            },
+                            leading: CircleAvatar(
+                              radius: 24,
+                              backgroundColor: AppColors.primary,
+                              child: Text(
+                                namaLawan.isNotEmpty ? namaLawan[0].toUpperCase() : 'P',
+                                style: const TextStyle(color: AppColors.white, fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                            title: Text(
+                              namaLawan,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.textPrimary,
+                                fontSize: 15,
+                              ),
+                            ),
+                            subtitle: Text(
+                              pesanTerakhir,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: belumDibaca ? AppColors.textPrimary : AppColors.textSecondary,
+                                fontWeight: belumDibaca ? FontWeight.bold : FontWeight.normal,
+                                fontSize: 13,
+                              ),
+                            ),
+                            trailing: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Text(
+                                  waktuTerakhir,
+                                  style: const TextStyle(fontSize: 11, color: AppColors.textHint),
+                                ),
+                                if (belumDibaca) ...[
+                                  const SizedBox(height: 4),
+                                  Container(
+                                    width: 8,
+                                    height: 8,
+                                    decoration: const BoxDecoration(
+                                      color: AppColors.primary,
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          );
+                        },
+                      ),
           ),
           
-          // TIPS KOMUNIKASI AMAN (Dibiarkan sesuai desain asli)
+          // TIPS KOMUNIKASI AMAN
           Container(
             margin: const EdgeInsets.all(16),
             padding: const EdgeInsets.all(16),
@@ -147,7 +280,6 @@ class DaftarChatPage extends StatelessWidget {
     );
   }
 
-  // WIDGET KETIKA DATA KOSONG (EMPTY STATE)
   Widget _buildEmptyState() {
     return Center(
       child: Column(

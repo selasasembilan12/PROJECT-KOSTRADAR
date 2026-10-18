@@ -1,20 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-
-// --- IMPORT STANDAR TIM ---
 import '../../core/theme/app_theme.dart';
 import '../../providers/chat_provider.dart';
 
 class RuangChatPage extends StatefulWidget {
-  // Tambahan wajib: Parameter untuk tahu ini lagi nge-chat sama siapa
   final String idAdminTujuan;
   final String namaAdmin;
-
+  final Map<String, dynamic>? kostInfo;
+  
   const RuangChatPage({
     super.key,
     required this.idAdminTujuan,
     required this.namaAdmin,
+    this.kostInfo,
   });
 
   @override
@@ -23,24 +22,66 @@ class RuangChatPage extends StatefulWidget {
 
 class _RuangChatPageState extends State<RuangChatPage> {
   final TextEditingController _messageController = TextEditingController();
+  final _supabase = Supabase.instance.client;
+  
+  Map<String, dynamic>? _resolvedKostInfo;
+  bool _isLoadingKost = true;
 
   @override
   void initState() {
     super.initState();
-    // Nyalakan mesin realtime saat halaman ini dibuka
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Provider.of<ChatProvider>(context, listen: false)
           .listenToMessages(widget.idAdminTujuan);
     });
+
+    // Jika kostInfo dikirim dari halaman detail, langsung pakai. Jika tidak, ambil dari database.
+    if (widget.kostInfo != null && widget.kostInfo!.isNotEmpty) {
+      setState(() {
+        _resolvedKostInfo = widget.kostInfo;
+        _isLoadingKost = false;
+      });
+    } else {
+      _fetchKostFromDatabase();
+    }
+  }
+
+  // Ambil data kost langsung dari Supabase berdasarkan idAdminTujuan
+  Future<void> _fetchKostFromDatabase() async {
+    try {
+      // Coba cari di tabel kost berdasarkan pemilik atau id
+      var response = await _supabase
+          .from('kost')
+          .select()
+          .eq('pemilik_id', widget.idAdminTujuan)
+          .maybeSingle();
+
+      if (response == null) {
+        response = await _supabase
+            .from('kost')
+            .select()
+            .eq('id', widget.idAdminTujuan)
+            .maybeSingle();
+      }
+
+      if (response != null && mounted) {
+        setState(() {
+          _resolvedKostInfo = response;
+          _isLoadingKost = false;
+        });
+      } else {
+        if (mounted) setState(() => _isLoadingKost = false);
+      }
+    } catch (e) {
+      debugPrint("Gagal mengambil data kost: $e");
+      if (mounted) setState(() => _isLoadingKost = false);
+    }
   }
 
   void _sendMessage() {
     if (_messageController.text.trim().isEmpty) return;
-
-    // Kirim pesan ke database Supabase
     Provider.of<ChatProvider>(context, listen: false)
         .sendNewMessage(widget.idAdminTujuan, _messageController.text.trim());
-
     _messageController.clear();
   }
 
@@ -52,8 +93,14 @@ class _RuangChatPageState extends State<RuangChatPage> {
 
   @override
   Widget build(BuildContext context) {
-    // Ambil ID kita sendiri buat ngecek bubble chat kiri/kanan
-    final myUserId = Supabase.instance.client.auth.currentUser?.id;
+    final myUserId = _supabase.auth.currentUser?.id;
+    
+    // Ambil data dari _resolvedKostInfo (hasil kiriman atau hasil fetch database)
+    final String namaKost = _resolvedKostInfo?['nama_kost'] ?? _resolvedKostInfo?['nama'] ?? _resolvedKostInfo?['title'] ?? widget.namaAdmin;
+    final String fotoKost = _resolvedKostInfo?['foto_kost'] ?? _resolvedKostInfo?['image'] ?? _resolvedKostInfo?['foto'] ?? _resolvedKostInfo?['photo'] ?? '';
+    
+    var rawHarga = _resolvedKostInfo?['harga'] ?? _resolvedKostInfo?['price'] ?? '';
+    final String hargaKost = rawHarga.toString().isNotEmpty ? rawHarga.toString() : 'Hubungi Pengelola';
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -68,7 +115,7 @@ class _RuangChatPageState extends State<RuangChatPage> {
               radius: 18,
               backgroundColor: AppColors.primary,
               child: Text(
-                widget.namaAdmin[0], // Ambil huruf pertama dari nama admin
+                widget.namaAdmin.isNotEmpty ? widget.namaAdmin[0] : 'P',
                 style: const TextStyle(color: AppColors.white, fontSize: 14),
               ),
             ),
@@ -77,7 +124,7 @@ class _RuangChatPageState extends State<RuangChatPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  widget.namaAdmin, // Pakai nama admin dinamis
+                  widget.namaAdmin,
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
@@ -92,14 +139,10 @@ class _RuangChatPageState extends State<RuangChatPage> {
             ),
           ],
         ),
-        actions: [
-          IconButton(icon: const Icon(Icons.phone_outlined), onPressed: () {}),
-          IconButton(icon: const Icon(Icons.more_vert), onPressed: () {}),
-        ],
       ),
       body: Column(
         children: [
-          // KOST INFO CARD (Tetap dipertahankan sesuai desain asli)
+          // KARTU INFORMASI KOST
           Container(
             margin: const EdgeInsets.all(12),
             padding: const EdgeInsets.all(12),
@@ -112,27 +155,24 @@ class _RuangChatPageState extends State<RuangChatPage> {
               children: [
                 ClipRRect(
                   borderRadius: BorderRadius.circular(8),
-                  child: Image.network(
-                    'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=200',
-                    width: 60,
-                    height: 60,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, _, _) => Container(
-                      width: 60,
-                      height: 60,
-                      color: AppColors.primaryLight,
-                      child: const Icon(Icons.home, color: AppColors.primary),
-                    ),
-                  ),
+                  child: fotoKost.isNotEmpty
+                      ? Image.network(
+                          fotoKost,
+                          width: 60,
+                          height: 60,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => _defaultImageContainer(),
+                        )
+                      : _defaultImageContainer(),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        'Kamar Tipe A (AC & KM Dalam)',
-                        style: TextStyle(
+                      Text(
+                        namaKost,
+                        style: const TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.bold,
                           color: AppColors.textPrimary,
@@ -144,16 +184,13 @@ class _RuangChatPageState extends State<RuangChatPage> {
                       Row(
                         children: [
                           Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 2,
-                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                             decoration: BoxDecoration(
                               color: AppColors.successLight,
                               borderRadius: BorderRadius.circular(10),
                             ),
                             child: const Text(
-                              'Sisa 3 Kamar',
+                              'Terverifikasi',
                               style: TextStyle(
                                 fontSize: 10,
                                 color: AppColors.success,
@@ -164,9 +201,9 @@ class _RuangChatPageState extends State<RuangChatPage> {
                         ],
                       ),
                       const SizedBox(height: 4),
-                      const Text(
-                        'Rp 1.200.000/bulan',
-                        style: TextStyle(
+                      Text(
+                        hargaKost.startsWith('Rp') ? hargaKost : 'Rp $hargaKost',
+                        style: const TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.bold,
                           color: AppColors.primary,
@@ -179,16 +216,14 @@ class _RuangChatPageState extends State<RuangChatPage> {
             ),
           ),
           
-          // CHAT MESSAGES (Sekarang pakai Consumer untuk tarikan data asli)
+          // DAFTAR PESAN
           Expanded(
             child: Consumer<ChatProvider>(
               builder: (context, chatProvider, child) {
                 final messages = chatProvider.messages;
-
                 if (chatProvider.isLoading) {
                   return const Center(child: CircularProgressIndicator(color: AppColors.primary));
                 }
-
                 if (messages.isEmpty) {
                   return const Center(
                     child: Text(
@@ -198,134 +233,102 @@ class _RuangChatPageState extends State<RuangChatPage> {
                     ),
                   );
                 }
-
                 return ListView.builder(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   itemCount: messages.length,
                   itemBuilder: (context, index) {
                     final msg = messages[index];
                     final isMe = msg.pengirimId == myUserId;
-                    
-                    // Format Jam (misal: 14:05)
                     final String timeString = '${msg.createdAt.hour.toString().padLeft(2, '0')}:${msg.createdAt.minute.toString().padLeft(2, '0')}';
-
-                    return Column(
-                      children: [
-                        // Date separator (Hanya untuk pesan pertama)
-                        if (index == 0)
-                          Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 4,
-                              ),
-                              decoration: BoxDecoration(
-                                color: AppColors.backgroundLight,
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: const Text(
-                                'Hari Ini',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: AppColors.textSecondary,
-                                ),
-                              ),
-                            ),
-                          ),
-                        Align(
-                          alignment: isMe
-                              ? Alignment.centerRight
-                              : Alignment.centerLeft,
-                          child: Container(
-                            margin: const EdgeInsets.symmetric(vertical: 6),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 10,
-                            ),
-                            constraints: BoxConstraints(
-                              maxWidth: MediaQuery.of(context).size.width * 0.75,
-                            ),
-                            decoration: BoxDecoration(
-                              color: isMe ? AppColors.primary : AppColors.white,
-                              borderRadius: BorderRadius.only(
-                                topLeft: const Radius.circular(16),
-                                topRight: const Radius.circular(16),
-                                bottomLeft: Radius.circular(isMe ? 16 : 4),
-                                bottomRight: Radius.circular(isMe ? 4 : 16),
-                              ),
-                              boxShadow: const [
-                                BoxShadow(
-                                  color: AppColors.cardShadow,
-                                  blurRadius: 4,
-                                  offset: Offset(0, 2),
-                                ),
-                              ],
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              children: [
-                                // Karena dari database bentuknya selalu text, desain gallery diabaikan sementara
-                                Text(
-                                  msg.message,
-                                  style: TextStyle(
-                                    color: isMe
-                                        ? AppColors.white
-                                        : AppColors.textPrimary,
-                                    fontSize: 14,
-                                    height: 1.4,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Text(
-                                      timeString,
-                                      style: TextStyle(
-                                        color: isMe
-                                            ? AppColors.white.withOpacity(0.7)
-                                            : AppColors.textHint,
-                                        fontSize: 10,
-                                      ),
+                    
+                    return Align(
+                      alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+                      child: GestureDetector(
+                        onLongPress: () {
+                          if (isMe) {
+                            showDialog(
+                              context: context,
+                              builder: (BuildContext context) {
+                                return AlertDialog(
+                                  title: const Text('Hapus Pesan'),
+                                  content: const Text('Apakah kamu yakin ingin menghapus pesan ini?'),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () => Navigator.pop(context),
+                                      child: const Text('Batal'),
                                     ),
-                                    if (isMe) ...[
-                                      const SizedBox(width: 4),
-                                      Icon(
-                                        Icons.check,
-                                        size: 12,
-                                        color: AppColors.white.withOpacity(0.7),
-                                      ),
-                                    ],
+                                    TextButton(
+                                      onPressed: () {
+                                        Navigator.pop(context);
+                                        Provider.of<ChatProvider>(context, listen: false)
+                                            .deleteMessage(msg.idMessage);
+                                      },
+                                      child: const Text('Hapus', style: TextStyle(color: Colors.red)),
+                                    ),
                                   ],
-                                ),
-                              ],
+                                );
+                              },
+                            );
+                          }
+                        },
+                        child: Container(
+                          margin: const EdgeInsets.symmetric(vertical: 6),
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                          constraints: BoxConstraints(
+                            maxWidth: MediaQuery.of(context).size.width * 0.75,
+                          ),
+                          decoration: BoxDecoration(
+                            color: isMe ? AppColors.primary : AppColors.white,
+                            borderRadius: BorderRadius.only(
+                              topLeft: const Radius.circular(16),
+                              topRight: const Radius.circular(16),
+                              bottomLeft: Radius.circular(isMe ? 16 : 4),
+                              bottomRight: Radius.circular(isMe ? 4 : 16),
                             ),
+                            boxShadow: const [
+                              BoxShadow(
+                                color: AppColors.cardShadow,
+                                blurRadius: 4,
+                                offset: Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Text(
+                                msg.message,
+                                style: TextStyle(
+                                  color: isMe ? AppColors.white : AppColors.textPrimary,
+                                  fontSize: 14,
+                                  height: 1.4,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    timeString,
+                                    style: TextStyle(
+                                      color: isMe ? AppColors.white.withOpacity(0.7) : AppColors.textHint,
+                                      fontSize: 10,
+                                    ),
+                                  ),
+                                  if (isMe) ...[
+                                    const SizedBox(width: 4),
+                                    const Icon(Icons.check, size: 12, color: Colors.white70),
+                                  ],
+                                ],
+                              ),
+                            ],
                           ),
                         ),
-                      ],
+                      ),
                     );
                   },
                 );
               },
-            ),
-          ),
-          
-          // QUICK ACTION BUTTONS (Tetap dipertahankan)
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            color: AppColors.white,
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  _buildQuickAction(Icons.calendar_today, 'Jadwal Survey'),
-                  const SizedBox(width: 8),
-                  _buildQuickAction(Icons.bolt, 'Info Token Listrik'),
-                  const SizedBox(width: 8),
-                  _buildQuickAction(Icons.location_on, 'Minta Titik Lokasi'),
-                ],
-              ),
             ),
           ),
           
@@ -335,23 +338,12 @@ class _RuangChatPageState extends State<RuangChatPage> {
             decoration: const BoxDecoration(
               color: AppColors.white,
               boxShadow: [
-                BoxShadow(
-                  color: AppColors.cardShadow,
-                  blurRadius: 10,
-                  offset: Offset(0, -2),
-                ),
+                BoxShadow(color: AppColors.cardShadow, blurRadius: 10, offset: Offset(0, -2)),
               ],
             ),
             child: SafeArea(
               child: Row(
                 children: [
-                  IconButton(
-                    icon: const Icon(
-                      Icons.add_circle_outline,
-                      color: AppColors.textSecondary,
-                    ),
-                    onPressed: () {},
-                  ),
                   Expanded(
                     child: TextField(
                       controller: _messageController,
@@ -360,10 +352,7 @@ class _RuangChatPageState extends State<RuangChatPage> {
                         hintStyle: const TextStyle(color: AppColors.textHint),
                         filled: true,
                         fillColor: AppColors.backgroundLight,
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 10,
-                        ),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(24),
                           borderSide: BorderSide.none,
@@ -375,11 +364,7 @@ class _RuangChatPageState extends State<RuangChatPage> {
                   CircleAvatar(
                     backgroundColor: AppColors.primary,
                     child: IconButton(
-                      icon: const Icon(
-                        Icons.send_rounded,
-                        color: AppColors.white,
-                        size: 18,
-                      ),
+                      icon: const Icon(Icons.send_rounded, color: AppColors.white, size: 18),
                       onPressed: _sendMessage,
                     ),
                   ),
@@ -392,25 +377,12 @@ class _RuangChatPageState extends State<RuangChatPage> {
     );
   }
 
-  Widget _buildQuickAction(IconData icon, String label) {
+  Widget _defaultImageContainer() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: AppColors.backgroundLight,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 14, color: AppColors.primary),
-          const SizedBox(width: 4),
-          Text(
-            label,
-            style: const TextStyle(fontSize: 11, color: AppColors.textPrimary),
-          ),
-        ],
-      ),
+      width: 60,
+      height: 60,
+      color: AppColors.primaryLight,
+      child: const Icon(Icons.home, color: AppColors.primary),
     );
   }
 }

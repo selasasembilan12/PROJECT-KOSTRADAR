@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-
 // --- IMPORT STANDAR TIM ---
 import '../../core/theme/app_theme.dart';
 import '../../models/kost_model.dart';
-
 // Import file pencarian & hasil
 import 'pencarian_page.dart';
 import 'hasil_pencarian.dart';
@@ -44,14 +42,12 @@ class _HomePageState extends State<HomePage> {
       final user = supabase.auth.currentUser;
       if (user != null) {
         String userName = 'Pengguna KostRadar';
-
         try {
           final data = await supabase
               .from('mahasiswa')
               .select('nama')
               .eq('id', user.id)
               .maybeSingle();
-
           if (data != null && data['nama'] != null) {
             userName = data['nama'];
           } else if (user.userMetadata != null && user.userMetadata!['nama'] != null) {
@@ -62,7 +58,6 @@ class _HomePageState extends State<HomePage> {
             userName = user.userMetadata!['nama'];
           }
         }
-
         if (mounted) {
           setState(() {
             namaUser = userName;
@@ -80,13 +75,11 @@ class _HomePageState extends State<HomePage> {
   Future<void> _loadUserFavorites() async {
     final user = supabase.auth.currentUser;
     if (user == null) return;
-
     try {
       final response = await supabase
           .from('favorite')
           .select('id_kost')
           .eq('id_user', user.id);
-
       if (mounted) {
         setState(() {
           favoriteKostIds = (response as List)
@@ -108,9 +101,8 @@ class _HomePageState extends State<HomePage> {
       );
       return;
     }
-
     final isFav = favoriteKostIds.contains(idKost);
-
+    
     // Update UI dulu secara responsif
     setState(() {
       if (isFav) {
@@ -248,6 +240,7 @@ class _HomePageState extends State<HomePage> {
         }
         final rawData = snapshot.data ?? [];
         final List<KostModel> listKost = rawData.map((e) => KostModel.fromJson(e)).toList();
+
         return ListView(
           padding: const EdgeInsets.only(bottom: 24),
           children: [
@@ -356,7 +349,6 @@ class _HomePageState extends State<HomePage> {
               ],
             ),
             const SizedBox(height: 16),
-
             // Sub-header Lokasi & Status
             Row(
               children: [
@@ -381,7 +373,6 @@ class _HomePageState extends State<HomePage> {
               ],
             ),
             const SizedBox(height: 12),
-
             // Banner Informasi Abu-Abu
             Container(
               padding: const EdgeInsets.all(12),
@@ -414,7 +405,6 @@ class _HomePageState extends State<HomePage> {
               ),
             ),
             const SizedBox(height: 16),
-
             // Daftar Kartu Favorit (Model Horizontal)
             if (listKostFavorites.isEmpty)
               const Padding(
@@ -526,7 +516,6 @@ class _HomePageState extends State<HomePage> {
               ),
             ],
           ),
-
           // INFORMASI DETAIL KOST (BAWAH)
           Padding(
             padding: const EdgeInsets.all(16),
@@ -582,7 +571,6 @@ class _HomePageState extends State<HomePage> {
                   ],
                 ),
                 const SizedBox(height: 12),
-
                 // CHIP FASILITAS
                 Wrap(
                   spacing: 8,
@@ -594,7 +582,6 @@ class _HomePageState extends State<HomePage> {
                   ],
                 ),
                 const SizedBox(height: 12),
-
                 // BARIS BAWAH: KETERSEDIAAN & BUTTON DETAIL
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -670,7 +657,6 @@ class _HomePageState extends State<HomePage> {
   // ========================================================
   Widget _buildKostCardHorizontal(KostModel kost) {
     final imageUrl = kost.foto.isNotEmpty ? kost.foto[0] : '';
-
     return GestureDetector(
       onTap: () => _openDetail(kost),
       child: Container(
@@ -726,7 +712,6 @@ class _HomePageState extends State<HomePage> {
               ],
             ),
             const SizedBox(width: 12),
-
             // Detail Teks di Kanan
             Expanded(
               child: Column(

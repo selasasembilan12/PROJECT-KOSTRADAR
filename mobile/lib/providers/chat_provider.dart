@@ -5,7 +5,7 @@ class ChatMessage {
   final String idMessage;
   final String pengirimId;
   final String penerimaId;
-  final String message;
+  final String message; // Kita tetap pakai variabel lokal 'message' di Dart biar gak usah ubah UI lain
   final DateTime createdAt;
 
   ChatMessage({
@@ -18,11 +18,13 @@ class ChatMessage {
 
   factory ChatMessage.fromMap(Map<String, dynamic> map) {
     return ChatMessage(
-      idMessage: map['id_message'] ?? '',
+      idMessage: map['id_message']?.toString() ?? map['id']?.toString() ?? '',
       pengirimId: map['pengirim_id'] ?? '',
       penerimaId: map['penerima_id'] ?? '',
-      message: map['message'] ?? '',
-      createdAt: DateTime.parse(map['created_at']),
+      message: map['isi_pesan'] ?? '', // <-- DIBAHAS DARI 'isi_pesan' DATABASE
+      createdAt: map['created_at'] != null 
+          ? DateTime.parse(map['created_at']) 
+          : DateTime.now(),
     );
   }
 }
@@ -32,7 +34,7 @@ class ChatProvider extends ChangeNotifier {
   
   List<ChatMessage> _messages = [];
   List<ChatMessage> get messages => _messages;
-
+  
   bool _isLoading = true;
   bool get isLoading => _isLoading;
 
@@ -45,9 +47,9 @@ class ChatProvider extends ChangeNotifier {
     _supabase
         .from('messages')
         .stream(primaryKey: ['id_message'])
-        .order('created_at', ascending: true) // Urutkan dari pesan terlama ke terbaru
+        .order('created_at', ascending: true)
         .listen((List<Map<String, dynamic>> data) {
-          
+      
       // Filter pesan khusus antara Mahasiswa ini dan Admin Kost tersebut
       final filteredData = data.where((msg) {
         final isMeToThem = msg['pengirim_id'] == myUserId && msg['penerima_id'] == lawanBicaraId;
@@ -57,7 +59,7 @@ class ChatProvider extends ChangeNotifier {
 
       _messages = filteredData.map((e) => ChatMessage.fromMap(e)).toList();
       _isLoading = false;
-      notifyListeners(); // Kasih tau UI (ruang_chat_page) buat update layar
+      notifyListeners();
     });
   }
 
@@ -70,11 +72,37 @@ class ChatProvider extends ChangeNotifier {
       await _supabase.from('messages').insert({
         'pengirim_id': myUserId,
         'penerima_id': lawanBicaraId,
-        'message': teksPesan.trim(),
+        'isi_pesan': teksPesan.trim(), // <-- DISAMAKAN DENGAN KOLOM 'isi_pesan' DI SUPABASE
       });
-      // Nggak perlu tambah ke _messages manual, karena .stream() di atas akan otomatis nangkep!
     } catch (e) {
       debugPrint("Gagal kirim pesan: $e");
+    }
+  }
+
+  // FUNGSI 3: MENGHAPUS PESAN
+  Future<void> deleteMessage(String messageId) async {
+    try {
+      // Coba hapus berdasarkan kolom id_message terlebih dahulu
+      await _supabase
+          .from('messages')
+          .delete()
+          .eq('id_message', messageId);
+          
+      _messages.removeWhere((msg) => msg.idMessage == messageId);
+      notifyListeners();
+    } catch (e) {
+      // Fallback: Jika tabel Supabase menggunakan primary key 'id'
+      try {
+        await _supabase
+            .from('messages')
+            .delete()
+            .eq('id', messageId);
+            
+        _messages.removeWhere((msg) => msg.idMessage == messageId);
+        notifyListeners();
+      } catch (innerError) {
+        debugPrint("Gagal menghapus pesan: $innerError");
+      }
     }
   }
 }
