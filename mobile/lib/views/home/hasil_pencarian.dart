@@ -1,107 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 // --- IMPORT STANDAR TIM ---
 import '../../core/theme/app_theme.dart';
 import '../../models/kost_model.dart';
-import '../kost/detail_kost_page.dart'; // Import halaman detail kost
+import '../kost/detail_kost_page.dart';
 
 // ==========================================
-// MODEL DATA KOST
-// ==========================================
-
-class KostResult {
-  final String name;
-  final String address;
-  final String location;
-  final int price;
-  final String image;
-  final List<String> facilities;
-  final int availableRooms;
-  final bool isVerified;
-
-  const KostResult({
-    required this.name,
-    required this.address,
-    required this.location,
-    required this.price,
-    required this.image,
-    required this.facilities,
-    required this.availableRooms,
-    this.isVerified = false,
-  });
-
-  // Method konversi ke KostModel untuk DetailKostPage
-  KostModel toKostModel() {
-    return KostModel(
-      idKost: name.replaceAll(' ', '').toLowerCase(),
-      nama: name,
-      alamat: address,
-      harga: price,
-      deskripsi: 'Deskripsi lengkap untuk $name akan segera tersedia.',
-      ketersediaanKamar: availableRooms,
-      foto: [image],
-      fasilitas: facilities,
-    );
-  }
-}
-
-// ==========================================
-// DATA KOST BERSAMA
-// ==========================================
-
-const List<KostResult> kostRadarData = [
-  KostResult(
-    name: 'Kost Adiwarna',
-    address: 'Jl. Jati No. 12',
-    location: 'Jati',
-    price: 1200000,
-    image: 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=800',
-    facilities: ['WiFi', 'AC', 'Kamar Mandi Dalam'],
-    availableRooms: 3,
-    isVerified: true,
-  ),
-  KostResult(
-    name: 'Kost Melati',
-    address: 'Jl. Jati Metro No. 45',
-    location: 'Jati Metro',
-    price: 1000000,
-    image: 'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=800',
-    facilities: ['WiFi', 'AC', 'Parkir'],
-    availableRooms: 2,
-    isVerified: true,
-  ),
-  KostResult(
-    name: 'Kost Cemara',
-    address: 'Jl. Jati Perumnas No. 8',
-    location: 'Jati Perumnas',
-    price: 950000,
-    image: 'https://images.unsplash.com/photo-1596276020587-8044fe049813?w=800',
-    facilities: ['WiFi', 'AC', 'Dapur'],
-    availableRooms: 5,
-  ),
-  KostResult(
-    name: 'Kost Anggrek',
-    address: 'Jl. Jati No. 24',
-    location: 'Jati',
-    price: 750000,
-    image: 'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?w=800',
-    facilities: ['WiFi', 'Parkir', 'Dapur'],
-    availableRooms: 1,
-    isVerified: true,
-  ),
-  KostResult(
-    name: 'Kost Permata',
-    address: 'Jl. Jati Metro No. 17',
-    location: 'Jati Metro',
-    price: 1500000,
-    image: 'https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?w=800',
-    facilities: ['WiFi', 'AC', 'Kamar Mandi Dalam', 'Parkir'],
-    availableRooms: 0,
-  ),
-];
-
-// ==========================================
-// HALAMAN HASIL PENCARIAN
+// HALAMAN HASIL PENCARIAN (TERINTEGRASI SUPABASE)
 // ==========================================
 
 class SearchResultsScreen extends StatefulWidget {
@@ -125,6 +31,8 @@ class SearchResultsScreen extends StatefulWidget {
 }
 
 class _SearchResultsScreenState extends State<SearchResultsScreen> {
+  final SupabaseClient supabase = Supabase.instance.client;
+
   late String _keyword;
   late String _priceRange;
   late String _location;
@@ -143,83 +51,87 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
     _facilities = List.from(widget.facilities);
   }
 
-  List<KostResult> get _filteredResults {
-    final results = kostRadarData.where((kost) {
-      final query = _keyword.toLowerCase().trim();
-      final matchKeyword =
-          query.isEmpty ||
-          kost.name.toLowerCase().contains(query) ||
-          kost.address.toLowerCase().contains(query);
+  // ==========================================
+  // FETCH DATA KOST DARI SUPABASE + FILTERING
+  // ==========================================
+  Future<List<KostModel>> _fetchFilteredKostFromSupabase() async {
+    // Query Dasar Supabase
+    var query = supabase.from('kost').select('*, foto_kost(*), fasilitas_kost(*)');
 
-      final matchLocation =
-          _location == 'Semua Lokasi' ||
-          _location.isEmpty ||
-          kost.location == _location;
+    // 1. Filter Keyword (Nama atau Alamat)
+    if (_keyword.trim().isNotEmpty) {
+      final q = _keyword.trim();
+      query = query.or('nama.ilike.%$q%,alamat.ilike.%$q%');
+    }
 
-      final matchFacilities = _facilities.every(
-        (facility) => kost.facilities.any(
-          (item) => item.toLowerCase() == facility.toLowerCase(),
-        ),
-      );
+    // 2. Filter Lokasi
+    if (_location != 'Semua Lokasi' && _location.isNotEmpty) {
+      query = query.ilike('alamat', '%$_location%');
+    }
 
-      bool matchPrice = true;
-      switch (_priceRange) {
-        case 'Rp 400.000 - Rp 1.000.000':
-          matchPrice = kost.price >= 400000 && kost.price <= 1000000;
-          break;
-        case 'Rp 1.000.000 - Rp 2.000.000':
-          matchPrice = kost.price >= 1000000 && kost.price <= 2000000;
-          break;
-        case 'Rp 2.000.000 - Rp 3.000.000':
-          matchPrice = kost.price >= 2000000 && kost.price <= 3000000;
-          break;
-        case '> Rp 3.000.000':
-          matchPrice = kost.price > 3000000;
-          break;
-        default:
-          matchPrice = true;
-      }
+    // 3. Filter Status Ketersediaan Kamar
+    if (_availability == 'Tersedia') {
+      query = query.gt('ketersediaan_kamar', 0);
+    } else if (_availability == 'Hampir Penuh') {
+      query = query.eq('ketersediaan_kamar', 1);
+    } else if (_availability == 'Penuh') {
+      query = query.eq('ketersediaan_kamar', 0);
+    }
 
-      bool matchAvailability = true;
-      switch (_availability) {
-        case 'Tersedia':
-          matchAvailability = kost.availableRooms > 0;
-          break;
-        case 'Hampir Penuh':
-          matchAvailability = kost.availableRooms == 1;
-          break;
-        case 'Penuh':
-          matchAvailability = kost.availableRooms == 0;
-          break;
-        default:
-          matchAvailability = true;
-      }
+    // Eksekusi data dari Supabase
+    final response = await query;
+    final List<dynamic> rawData = response as List<dynamic>;
+    List<KostModel> listKost = rawData.map((e) => KostModel.fromJson(e)).toList();
 
-      return matchKeyword &&
-          matchLocation &&
-          matchFacilities &&
-          matchPrice &&
-          matchAvailability;
-    }).toList();
+    // 4. Filter Rentang Harga (Lokal Dart)
+    if (_priceRange != 'Semua Harga' && _priceRange.isNotEmpty) {
+      listKost = listKost.where((kost) {
+        final double harga = double.tryParse(kost.harga.toString()) ?? 0.0;
+        if (_priceRange == 'Rp 400.000 - Rp 1.000.000') {
+          return harga >= 400000 && harga <= 1000000;
+        } else if (_priceRange == 'Rp 1.000.000 - Rp 2.000.000') {
+          return harga >= 1000000 && harga <= 2000000;
+        } else if (_priceRange == 'Rp 2.000.000 - Rp 3.000.000') {
+          return harga >= 2000000 && harga <= 3000000;
+        } else if (_priceRange == '> Rp 3.000.000') {
+          return harga > 3000000;
+        }
+        return true;
+      }).toList();
+    }
 
-    results.sort((a, b) {
-      return _sortAscending
-          ? a.price.compareTo(b.price)
-          : b.price.compareTo(a.price);
+    // 5. Filter Fasilitas (Lokal Dart)
+    if (_facilities.isNotEmpty) {
+      listKost = listKost.where((kost) {
+        final kostFac = kost.fasilitas.map((f) => f.toLowerCase()).toList();
+        return _facilities.every(
+          (fac) => kostFac.contains(fac.toLowerCase()),
+        );
+      }).toList();
+    }
+
+    // 6. Urutkan berdasarkan Harga
+    listKost.sort((a, b) {
+      final double hargaA = double.tryParse(a.harga.toString()) ?? 0.0;
+      final double hargaB = double.tryParse(b.harga.toString()) ?? 0.0;
+      return _sortAscending ? hargaA.compareTo(hargaB) : hargaB.compareTo(hargaA);
     });
 
-    return results;
+    return listKost;
   }
 
   List<String> get _activeFilters {
     final filters = <String>[];
     if (_keyword.isNotEmpty) filters.add(_keyword);
-    if (_priceRange != 'Semua Harga' && _priceRange.isNotEmpty)
+    if (_priceRange != 'Semua Harga' && _priceRange.isNotEmpty) {
       filters.add(_priceRange);
-    if (_location != 'Semua Lokasi' && _location.isNotEmpty)
+    }
+    if (_location != 'Semua Lokasi' && _location.isNotEmpty) {
       filters.add(_location);
-    if (_availability != 'Semua Status' && _availability.isNotEmpty)
+    }
+    if (_availability != 'Semua Status' && _availability.isNotEmpty) {
       filters.add(_availability);
+    }
     filters.addAll(_facilities);
     return filters;
   }
@@ -246,28 +158,25 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
     });
   }
 
-  String _formatRupiah(int number) {
-    return number.toString().replaceAllMapped(
+  String _formatRupiah(dynamic number) {
+    final double hargaVal = double.tryParse(number.toString()) ?? 0.0;
+    return hargaVal.toInt().toString().replaceAllMapped(
       RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
       (match) => '${match[1]}.',
     );
   }
 
-  // ==========================================
-  // FUNGSI NAVIGASI KE DETAIL KOST (PUNYA ILHAM)
-  // ==========================================
-  void _openDetail(KostResult kost) {
+  void _openDetail(KostModel kost) {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => DetailKostPage(kost: kost.toKostModel()),
+        builder: (context) => DetailKostPage(kost: kost),
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final results = _filteredResults;
     final activeFilters = _activeFilters;
 
     return Scaffold(
@@ -303,146 +212,172 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
           const SizedBox(width: 8),
         ],
       ),
-      body: Column(
-        children: [
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              children: [
-                Text(
-                  '${_location == "Semua Lokasi" ? "Semua Lokasi" : _location} • ${results.length} Kost Ditemukan',
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  _sortAscending
-                      ? 'Urutan harga: Termurah'
-                      : 'Urutan harga: Termahal',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-                const SizedBox(height: 16),
+      body: FutureBuilder<List<KostModel>>(
+        future: _fetchFilteredKostFromSupabase(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(
+              child: CircularProgressIndicator(color: AppColors.primary),
+            );
+          }
+          if (snapshot.hasError) {
+            return Center(
+              child: Text('Gagal memuat hasil: ${snapshot.error}'),
+            );
+          }
 
-                if (activeFilters.isNotEmpty) ...[
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: activeFilters.map((filter) {
-                        return Padding(
-                          padding: const EdgeInsets.only(right: 8),
-                          child: Chip(
-                            label: Text(
-                              filter,
-                              style: const TextStyle(fontSize: 12),
+          final results = snapshot.data ?? [];
+
+          return Column(
+            children: [
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                  children: [
+                    Text(
+                      '${_location == "Semua Lokasi" ? "Semua Lokasi" : _location}\n${results.length} Kost Ditemukan',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      _sortAscending
+                          ? 'Urutan harga: Termurah'
+                          : 'Urutan harga: Termahal',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    if (activeFilters.isNotEmpty) ...[
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: activeFilters.map((filter) {
+                            return Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: Chip(
+                                label: Text(
+                                  filter,
+                                  style: const TextStyle(fontSize: 12),
+                                ),
+                                deleteIcon: const Icon(Icons.close, size: 16),
+                                onDeleted: () => _removeFilter(filter),
+                                backgroundColor: AppColors.primaryLight,
+                                side: const BorderSide(color: AppColors.primary),
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                    ],
+
+                    if (results.isEmpty)
+                      Container(
+                        padding: const EdgeInsets.all(32),
+                        child: const Column(
+                          children: [
+                            Icon(
+                              Icons.search_off,
+                              size: 70,
+                              color: AppColors.textSecondary,
                             ),
-                            deleteIcon: const Icon(Icons.close, size: 16),
-                            onDeleted: () => _removeFilter(filter),
-                            backgroundColor: AppColors.primaryLight,
-                            side: const BorderSide(color: AppColors.primary),
+                            SizedBox(height: 16),
+                            Text(
+                              'Kost Tidak Ditemukan',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.textPrimary,
+                              ),
+                            ),
+                            SizedBox(height: 8),
+                            Text(
+                              'Coba ubah atau hapus beberapa filter pencarian.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(color: AppColors.textSecondary),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                    ...results.map((kost) {
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 16),
+                        child: _buildKostCard(kost),
+                      );
+                    }),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: const BoxDecoration(
+                  color: AppColors.white,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Color(0x14000000),
+                      blurRadius: 10,
+                      offset: Offset(0, -2),
+                    ),
+                  ],
+                ),
+                child: SafeArea(
+                  top: false,
+                  child: SizedBox(
+                    height: 50,
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Fitur peta interaktif belum terhubung.'),
                           ),
                         );
-                      }).toList(),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                ],
-
-                if (results.isEmpty)
-                  Container(
-                    padding: const EdgeInsets.all(32),
-                    child: const Column(
-                      children: [
-                        Icon(
-                          Icons.search_off,
-                          size: 70,
-                          color: AppColors.textSecondary,
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: AppColors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
                         ),
-                        SizedBox(height: 16),
-                        Text(
-                          'Kost Tidak Ditemukan',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.textPrimary,
-                          ),
-                        ),
-                        SizedBox(height: 8),
-                        Text(
-                          'Coba ubah atau hapus beberapa filter pencarian.',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(color: AppColors.textSecondary),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                ...results.map((kost) {
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 16),
-                    child: _buildKostCard(kost),
-                  );
-                }),
-              ],
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: const BoxDecoration(
-              color: AppColors.white,
-              boxShadow: [
-                BoxShadow(
-                  color: Color(0x14000000),
-                  blurRadius: 10,
-                  offset: Offset(0, -2),
-                ),
-              ],
-            ),
-            child: SafeArea(
-              top: false,
-              child: SizedBox(
-                height: 50,
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Fitur peta interaktif belum terhubung.'),
                       ),
-                    );
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: AppColors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      icon: const Icon(Icons.map),
+                      label: const Text(
+                        'Lihat di Peta Interaktif',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ),
-                  ),
-                  icon: const Icon(Icons.map),
-                  label: const Text(
-                    'Lihat di Peta Interaktif',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                   ),
                 ),
               ),
-            ),
-          ),
-        ],
+            ],
+          );
+        },
       ),
     );
   }
 
   // ==========================================
-  // CARD KOST YANG BISA DIKLIK
+  // CARD KOST TERINTEGRASI DENGAN KOSTMODEL
   // ==========================================
-  Widget _buildKostCard(KostResult kost) {
+  Widget _buildKostCard(KostModel kost) {
+    final imageUrl = kost.foto.isNotEmpty ? kost.foto[0] : '';
+
     return GestureDetector(
-      onTap: () => _openDetail(kost), // INI YANG BIKIN CARD BISA DIKLIK
+      onTap: () => _openDetail(kost),
       child: Container(
         decoration: BoxDecoration(
           color: AppColors.white,
@@ -466,7 +401,7 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
               child: Stack(
                 children: [
                   Image.network(
-                    kost.image,
+                    imageUrl,
                     width: 120,
                     height: 190,
                     fit: BoxFit.cover,
@@ -483,7 +418,7 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
                       );
                     },
                   ),
-                  if (kost.isVerified)
+                  if (kost.terverifikasi)
                     Positioned(
                       top: 8,
                       left: 8,
@@ -498,7 +433,10 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
                         ),
                         child: const Text(
                           '✓ Verified',
-                          style: TextStyle(color: AppColors.white, fontSize: 9),
+                          style: TextStyle(
+                            color: AppColors.white,
+                            fontSize: 9,
+                          ),
                         ),
                       ),
                     ),
@@ -512,7 +450,7 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      kost.name,
+                      kost.nama,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
@@ -523,7 +461,7 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Rp ${_formatRupiah(kost.price)}/bulan',
+                      'Rp ${_formatRupiah(kost.harga)}/bulan',
                       style: const TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.bold,
@@ -541,7 +479,7 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
                         const SizedBox(width: 4),
                         Expanded(
                           child: Text(
-                            kost.address,
+                            kost.alamat,
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
@@ -556,7 +494,7 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
                     Wrap(
                       spacing: 6,
                       runSpacing: 6,
-                      children: kost.facilities.map((facility) {
+                      children: kost.fasilitas.map((facility) {
                         return Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 8,
@@ -583,17 +521,17 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
                         vertical: 6,
                       ),
                       decoration: BoxDecoration(
-                        color: kost.availableRooms > 0
+                        color: kost.ketersediaanKamar > 0
                             ? AppColors.successLight
                             : AppColors.errorLight,
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Text(
-                        kost.availableRooms > 0
-                            ? 'Tersedia ${kost.availableRooms} kmr'
+                        kost.ketersediaanKamar > 0
+                            ? 'Tersedia ${kost.ketersediaanKamar} kmr'
                             : 'Kamar Penuh',
                         style: TextStyle(
-                          color: kost.availableRooms > 0
+                          color: kost.ketersediaanKamar > 0
                               ? AppColors.success
                               : AppColors.error,
                           fontSize: 10,

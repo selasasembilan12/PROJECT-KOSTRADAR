@@ -6,6 +6,9 @@ import '../../core/theme/app_theme.dart';
 import '../../models/kost_model.dart';
 import 'hapus_favorite_dialog.dart';
 
+// IMPORT HALAMAN CHAT
+import '../chatUser/daftar_chat_page.dart';
+
 class DetailKostPage extends StatefulWidget {
   // Data kost dari halaman sebelumnya
   final KostModel kost;
@@ -480,7 +483,13 @@ class _DetailKostPageState extends State<DetailKostPage> {
                   Expanded(
                     child: OutlinedButton.icon(
                       onPressed: () {
-                        Navigator.pushNamed(context, '/ruang-chat');
+                        // LANGSUNG NAVIGASI KE HALAMAN DAFTAR CHAT
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const DaftarChatPage(),
+                          ),
+                        );
                       },
                       icon: const Icon(Icons.chat_outlined, size: 18),
                       label: const Text("Chat"),

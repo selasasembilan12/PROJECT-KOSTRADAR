@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 // --- IMPORT STANDAR TIM ---
 import '../../core/theme/app_theme.dart';
-import 'hasil_pencarian.dart'; // Import untuk akses SearchResultsScreen
+import 'hasil_pencarian.dart'; // Import untuk akses SearchResultsScreen / HasilPencarianPage
 
 // ==========================================
 // HALAMAN PENCARIAN KOST
@@ -71,7 +71,7 @@ class _SearchScreenState extends State<SearchScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => SearchResultsScreen(
+        builder: (context) => HasilPencarianPage(
           keyword: _searchController.text.trim(),
           priceRange: _selectedPriceRange,
           location: _selectedLocation,
@@ -175,8 +175,9 @@ class _SearchScreenState extends State<SearchScreen> {
                 value: _selectedPriceRange,
                 items: _priceRanges,
                 onChanged: (value) {
-                  if (value != null)
+                  if (value != null) {
                     setState(() => _selectedPriceRange = value);
+                  }
                 },
               ),
               const SizedBox(height: 24),
@@ -230,8 +231,9 @@ class _SearchScreenState extends State<SearchScreen> {
                 value: _selectedAvailability,
                 items: _availabilityOptions,
                 onChanged: (value) {
-                  if (value != null)
+                  if (value != null) {
                     setState(() => _selectedAvailability = value);
+                  }
                 },
               ),
               const SizedBox(height: 32),
@@ -318,9 +320,8 @@ class _SearchScreenState extends State<SearchScreen> {
 }
 
 // ==========================================
-// ALIAS SESUAI NAMA FILE PROJECT
+// ALIAS KELAS (Disesuaikan agar memanggil SearchScreen)
 // ==========================================
-
 class PencarianPage extends SearchScreen {
   const PencarianPage({super.key});
 }

@@ -58,8 +58,9 @@ class _DaftarFavoritePageState extends State<DaftarFavoritePage> {
       final data = response
           .where((item) => item['kost'] != null)
           .map<KostModel>((item) {
-        return KostModel.fromJson(item['kost']);
-      }).toList();
+            return KostModel.fromJson(item['kost']);
+          })
+          .toList();
 
       if (mounted) {
         setState(() {
@@ -130,7 +131,7 @@ class _DaftarFavoritePageState extends State<DaftarFavoritePage> {
                 ],
               ),
             ),
-            
+
             // List / Konten Favorit
             Expanded(
               child: isLoading
@@ -140,120 +141,229 @@ class _DaftarFavoritePageState extends State<DaftarFavoritePage> {
                       ),
                     )
                   : daftarKost.isEmpty
-                      ? const Center(
-                          child: Text(
-                            "Belum ada kost favorit yang disimpan.",
-                            style: TextStyle(color: AppColors.textSecondary),
-                          ),
-                        )
-                      : ListView.builder(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          itemCount: daftarKost.length,
-                          itemBuilder: (context, index) {
-                            final kost = daftarKost[index];
-                            
-                            // Format harga otomatis
-                            final double hargaVal = double.tryParse(kost.harga.toString()) ?? 0.0;
-                            final hargaFormatted = hargaVal.toInt().toString().replaceAllMapped(
-                              RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), 
+                  ? const Center(
+                      child: Text(
+                        "Belum ada kost favorit yang disimpan.",
+                        style: TextStyle(color: AppColors.textSecondary),
+                      ),
+                    )
+                  : ListView.builder(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      itemCount: daftarKost.length,
+                      itemBuilder: (context, index) {
+                        final kost = daftarKost[index];
+
+                        // Format harga otomatis
+                        final double hargaVal =
+                            double.tryParse(kost.harga.toString()) ?? 0.0;
+                        final hargaFormatted = hargaVal
+                            .toInt()
+                            .toString()
+                            .replaceAllMapped(
+                              RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
                               (Match m) => '${m[1]}.',
                             );
 
-                            return GestureDetector(
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) =>
-                                        DetailKostPage(kost: kost),
-                                  ),
-                                ).then((value) {
-                                  loadFavorite();
-                                });
-                              },
-                              child: Card(
-                                margin: const EdgeInsets.only(bottom: 12),
-                                color: AppColors.white,
-                                elevation: 0,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  side: const BorderSide(color: AppColors.border),
-                                ),
-                                child: ListTile(
-                                  contentPadding: const EdgeInsets.all(8),
-                                  leading: ClipRRect(
-                                    borderRadius: BorderRadius.circular(8),
-                                    child: Image.network(
-                                      kost.foto.isNotEmpty ? kost.foto[0] : "",
-                                      width: 70,
-                                      height: 70,
-                                      fit: BoxFit.cover,
-                                      errorBuilder: (context, error, stackTrace) =>
-                                          Container(
-                                        width: 70,
-                                        height: 70,
-                                        color: AppColors.backgroundGray,
-                                        child: const Icon(
-                                          Icons.broken_image,
-                                          color: AppColors.textHint,
+                        return GestureDetector(
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    DetailKostPage(kost: kost),
+                              ),
+                            ).then((value) {
+                              loadFavorite();
+                            });
+                          },
+                          child: Container(
+                            margin: const EdgeInsets.only(bottom: 12),
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: AppColors.white,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: AppColors.border),
+                            ),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // FOTO DI KIRI DENGAN BADGE RATING DI ATASNYA
+                                Stack(
+                                  children: [
+                                    ClipRRect(
+                                      borderRadius: BorderRadius.circular(12),
+                                      child: Image.network(
+                                        kost.foto.isNotEmpty
+                                            ? kost.foto[0]
+                                            : "",
+                                        width: 100,
+                                        height: 100,
+                                        fit: BoxFit.cover,
+                                        errorBuilder:
+                                            (context, error, stackTrace) =>
+                                                Container(
+                                                  width: 100,
+                                                  height: 100,
+                                                  color:
+                                                      AppColors.backgroundGray,
+                                                  child: const Icon(
+                                                    Icons.broken_image,
+                                                    color: AppColors.textHint,
+                                                  ),
+                                                ),
+                                      ),
+                                    ),
+                                    Positioned(
+                                      bottom: 6,
+                                      left: 6,
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 6,
+                                          vertical: 2,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Colors.black.withOpacity(0.6),
+                                          borderRadius: BorderRadius.circular(
+                                            6,
+                                          ),
+                                        ),
+                                        child: const Row(
+                                          children: [
+                                            Icon(
+                                              Icons.star,
+                                              color: Colors.amber,
+                                              size: 12,
+                                            ),
+                                            SizedBox(width: 2),
+                                            Text(
+                                              "4.8",
+                                              style: TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          ],
                                         ),
                                       ),
                                     ),
-                                  ),
-                                  title: Text(
-                                    kost.nama,
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      color: AppColors.textPrimary,
-                                    ),
-                                  ),
-                                  subtitle: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                  ],
+                                ),
+                                const SizedBox(width: 12),
+
+                                // DETAIL INFORMASI DI SEBELAH KANAN FOTO
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
-                                      const SizedBox(height: 4),
+                                      Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          Expanded(
+                                            child: Text(
+                                              kost.nama,
+                                              style: const TextStyle(
+                                                fontSize: 15,
+                                                fontWeight: FontWeight.bold,
+                                                color: AppColors.textPrimary,
+                                              ),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                          GestureDetector(
+                                            onTap: () {
+                                              showHapusFavoriteDialog(
+                                                context,
+                                                idKost: kost.idKost,
+                                                onSuccess: () {
+                                                  loadFavorite();
+                                                },
+                                              );
+                                            },
+                                            child: const Icon(
+                                              Icons.favorite,
+                                              color: AppColors.error,
+                                              size: 20,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 2),
                                       Text(
                                         "Rp $hargaFormatted /bulan",
                                         style: const TextStyle(
                                           color: AppColors.primary,
-                                          fontWeight: FontWeight.w600,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 14,
                                         ),
                                       ),
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        kost.alamat,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: const TextStyle(
-                                          color: AppColors.textSecondary,
-                                          fontSize: 12,
-                                        ),
+                                      const SizedBox(height: 4),
+                                      Row(
+                                        children: [
+                                          const Icon(
+                                            Icons.location_on_outlined,
+                                            size: 13,
+                                            color: AppColors.textSecondary,
+                                          ),
+                                          const SizedBox(width: 2),
+                                          Expanded(
+                                            child: Text(
+                                              kost.alamat,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: const TextStyle(
+                                                color: AppColors.textSecondary,
+                                                fontSize: 11,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 6),
+                                      Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          const Text(
+                                            "WiFi • AC",
+                                            style: TextStyle(
+                                              color: AppColors.textSecondary,
+                                              fontSize: 11,
+                                            ),
+                                          ),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 6,
+                                              vertical: 2,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: Colors.green.shade50,
+                                              borderRadius:
+                                                  BorderRadius.circular(4),
+                                            ),
+                                            child: Text(
+                                              "Tersedia ${kost.ketersediaanKamar ?? 0} kmr",
+                                              style: const TextStyle(
+                                                color: Colors.green,
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ],
                                   ),
-                                  trailing: GestureDetector(
-                                    onTap: () {
-                                      // Memanggil dialog konfirmasi hapus sesuai mockup
-                                      showHapusFavoriteDialog(
-                                        context,
-                                        idKost: kost.idKost,
-                                        onSuccess: () {
-                                          loadFavorite(); // Refresh data setelah terhapus dari database
-                                        },
-                                      );
-                                    },
-                                    child: const Padding(
-                                      padding: EdgeInsets.all(8.0),
-                                      child: Icon(
-                                        Icons.favorite,
-                                        color: AppColors.error,
-                                      ),
-                                    ),
-                                  ),
                                 ),
-                              ),
-                            );
-                          },
-                        ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
             ),
           ],
         ),
