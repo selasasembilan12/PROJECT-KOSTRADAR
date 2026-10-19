@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -17,18 +16,11 @@ class HomeAdminPage extends StatefulWidget {
 class _HomeAdminPageState extends State<HomeAdminPage> {
   final SupabaseClient supabase = Supabase.instance.client;
 
-  // ============================================================
-  // RINGKASAN DATA KOST MILIK ADMIN YANG LOGIN
-  // ============================================================
-
   Future<Map<String, int>> _fetchRingkasanProperti() async {
     final user = supabase.auth.currentUser;
 
     if (user == null) {
-      return {
-        'totalKost': 0,
-        'totalKamarTersedia': 0,
-      };
+      return {'totalKost': 0, 'totalKamarTersedia': 0};
     }
 
     try {
@@ -38,7 +30,6 @@ class _HomeAdminPageState extends State<HomeAdminPage> {
           .eq('id_user', user.id);
 
       final data = List<Map<String, dynamic>>.from(response);
-
       int totalKamarTersedia = 0;
 
       for (final item in data) {
@@ -46,7 +37,6 @@ class _HomeAdminPageState extends State<HomeAdminPage> {
               item['ketersediaan_kamar']?.toString() ?? '0',
             ) ??
             0;
-
         totalKamarTersedia += kamar;
       }
 
@@ -56,38 +46,24 @@ class _HomeAdminPageState extends State<HomeAdminPage> {
       };
     } catch (e) {
       debugPrint('Gagal mengambil ringkasan kost: $e');
-
-      return {
-        'totalKost': 0,
-        'totalKamarTersedia': 0,
-      };
+      return {'totalKost': 0, 'totalKamarTersedia': 0};
     }
   }
-
-  // ============================================================
-  // STATISTIK CHAT ADMIN YANG LOGIN
-  // ============================================================
 
   Future<Map<String, int>> _fetchStatistikChat() async {
     final user = supabase.auth.currentUser;
 
     if (user == null) {
-      return {
-        'pesanMasuk': 0,
-        'totalChat': 0,
-      };
+      return {'pesanMasuk': 0, 'totalChat': 0};
     }
 
     try {
       final response = await supabase
           .from('messages')
           .select('id_message, pengirim_id, penerima_id, id_kost')
-          .or(
-            'pengirim_id.eq.${user.id},penerima_id.eq.${user.id}',
-          );
+          .or('pengirim_id.eq.${user.id},penerima_id.eq.${user.id}');
 
       final rows = List<Map<String, dynamic>>.from(response);
-
       int pesanMasuk = 0;
       final Set<String> percakapan = {};
 
@@ -116,24 +92,14 @@ class _HomeAdminPageState extends State<HomeAdminPage> {
       };
     } catch (e) {
       debugPrint('Gagal mengambil statistik chat: $e');
-
-      return {
-        'pesanMasuk': 0,
-        'totalChat': 0,
-      };
+      return {'pesanMasuk': 0, 'totalChat': 0};
     }
   }
-
-  // ============================================================
-  // TIGA KOST TERBARU MILIK ADMIN YANG LOGIN
-  // ============================================================
 
   Future<List<Map<String, dynamic>>> _fetchKostTerbaru() async {
     final user = supabase.auth.currentUser;
 
-    if (user == null) {
-      return [];
-    }
+    if (user == null) return [];
 
     try {
       final response = await supabase
@@ -149,10 +115,6 @@ class _HomeAdminPageState extends State<HomeAdminPage> {
       rethrow;
     }
   }
-
-  // ============================================================
-  // TAMPILAN UTAMA
-  // ============================================================
 
   @override
   Widget build(BuildContext context) {
@@ -181,57 +143,32 @@ class _HomeAdminPageState extends State<HomeAdminPage> {
     );
   }
 
-  // ============================================================
-  // HEADER
-  // ============================================================
-
+  // HEADER HOME: ikon profil tambahan dihapus.
   Widget _buildHeader() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return const Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'KOSTRADAR ADMIN',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
-                color: AppColors.textSecondary,
-                letterSpacing: 0.5,
-              ),
-            ),
-            SizedBox(height: 2),
-            Text(
-              'Home',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: AppColors.textPrimary,
-              ),
-            ),
-          ],
-        ),
-        Container(
-          width: 40,
-          height: 40,
-          decoration: const BoxDecoration(
-            color: AppColors.primary,
-            shape: BoxShape.circle,
+        Text(
+          'KOSTRADAR ADMIN',
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.bold,
+            color: AppColors.textSecondary,
+            letterSpacing: 0.5,
           ),
-          child: const Icon(
-            Icons.person,
-            color: AppColors.white,
-            size: 22,
+        ),
+        SizedBox(height: 2),
+        Text(
+          'Home',
+          style: TextStyle(
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+            color: AppColors.textPrimary,
           ),
         ),
       ],
     );
   }
-
-  // ============================================================
-  // RINGKASAN PROPERTI DAN STATISTIK CHAT
-  // ============================================================
 
   Widget _buildRingkasanProperti() {
     return FutureBuilder<Map<String, int>>(
@@ -335,10 +272,7 @@ class _HomeAdminPageState extends State<HomeAdminPage> {
                 future: _fetchStatistikChat(),
                 builder: (context, chatSnapshot) {
                   final statistik = chatSnapshot.data ??
-                      {
-                        'pesanMasuk': 0,
-                        'totalChat': 0,
-                      };
+                      {'pesanMasuk': 0, 'totalChat': 0};
 
                   final sedangMemuat =
                       chatSnapshot.connectionState ==
@@ -387,10 +321,6 @@ class _HomeAdminPageState extends State<HomeAdminPage> {
     );
   }
 
-  // ============================================================
-  // KARTU STATISTIK
-  // ============================================================
-
   Widget _buildStatCard({
     required IconData icon,
     required Color iconBg,
@@ -418,11 +348,7 @@ class _HomeAdminPageState extends State<HomeAdminPage> {
                   color: iconBg,
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Icon(
-                  icon,
-                  size: 18,
-                  color: iconColor,
-                ),
+                child: Icon(icon, size: 18, color: iconColor),
               ),
               Flexible(
                 child: Text(
@@ -457,10 +383,6 @@ class _HomeAdminPageState extends State<HomeAdminPage> {
       ),
     );
   }
-
-  // ============================================================
-  // BANNER KELOLA UNIT BARU
-  // ============================================================
 
   Widget _buildBannerKelolaUnit(BuildContext context) {
     return GestureDetector(
@@ -526,10 +448,6 @@ class _HomeAdminPageState extends State<HomeAdminPage> {
     );
   }
 
-  // ============================================================
-  // HEADER KOST TERBARU
-  // ============================================================
-
   Widget _buildSectionHeader(
     BuildContext context,
     String title,
@@ -575,10 +493,6 @@ class _HomeAdminPageState extends State<HomeAdminPage> {
       ],
     );
   }
-
-  // ============================================================
-  // DAFTAR KOST TERBARU
-  // ============================================================
 
   Widget _buildDaftarKostTerbaru() {
     return FutureBuilder<List<Map<String, dynamic>>>(
@@ -735,10 +649,6 @@ class _HomeAdminPageState extends State<HomeAdminPage> {
     );
   }
 
-  // ============================================================
-  // BOTTOM NAVIGATION
-  // ============================================================
-
   Widget _buildBottomNav(BuildContext context) {
     return Container(
       decoration: const BoxDecoration(
@@ -751,12 +661,7 @@ class _HomeAdminPageState extends State<HomeAdminPage> {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: [
-            _buildNavItem(
-              context,
-              Icons.home,
-              'Home',
-              true,
-            ),
+            _buildNavItem(context, Icons.home, 'Home', true),
             _buildNavItem(
               context,
               Icons.apartment,
@@ -780,10 +685,6 @@ class _HomeAdminPageState extends State<HomeAdminPage> {
       ),
     );
   }
-
-  // ============================================================
-  // ITEM NAVIGASI
-  // ============================================================
 
   Widget _buildNavItem(
     BuildContext context,
@@ -834,11 +735,7 @@ class _HomeAdminPageState extends State<HomeAdminPage> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              icon,
-              size: 22,
-              color: color,
-            ),
+            Icon(icon, size: 22, color: color),
             const SizedBox(height: 3),
             Text(
               label,

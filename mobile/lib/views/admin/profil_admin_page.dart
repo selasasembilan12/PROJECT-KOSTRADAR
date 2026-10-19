@@ -210,34 +210,19 @@ class _ProfilAdminPageState extends State<ProfilAdminPage> {
     );
   }
 
+  // HEADER: ikon profil tambahan sudah dihapus.
   Widget _buildHeader() {
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-      color: AppColors.white,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          const Text(
-            'Profil Admin',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: AppColors.textPrimary,
-            ),
-          ),
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: AppColors.primaryLight,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(
-              Icons.person_outline,
-              color: AppColors.primary,
-            ),
-          ),
-        ],
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      alignment: Alignment.centerLeft,
+      child: const Text(
+        'Profil Admin',
+        style: TextStyle(
+          fontSize: 24,
+          fontWeight: FontWeight.bold,
+          color: AppColors.textPrimary,
+        ),
       ),
     );
   }
