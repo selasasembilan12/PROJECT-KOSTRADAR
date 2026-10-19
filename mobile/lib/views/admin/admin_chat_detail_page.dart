@@ -1,3 +1,4 @@
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -7,7 +8,7 @@ import '../../core/theme/app_theme.dart';
 import '../../providers/chat_provider.dart';
 
 class AdminChatDetailPage extends StatefulWidget {
-  final String receiverId; 
+  final String receiverId;
   final String? idKost;
 
   const AdminChatDetailPage({
@@ -17,46 +18,122 @@ class AdminChatDetailPage extends StatefulWidget {
   });
 
   @override
-  State<AdminChatDetailPage> createState() => _AdminChatDetailPageState();
+  State<AdminChatDetailPage> createState() =>
+      _AdminChatDetailPageState();
 }
 
 class _AdminChatDetailPageState extends State<AdminChatDetailPage> {
-  final TextEditingController messageController = TextEditingController();
+  final TextEditingController messageController =
+      TextEditingController();
+
   final ScrollController scrollController = ScrollController();
 
-  // Ambil ID Admin yang lagi login
-  String? get userId => Supabase.instance.client.auth.currentUser?.id;
+  bool _isSending = false;
+
+  // Ambil ID admin yang sedang login.
+  String? get userId =>
+      Supabase.instance.client.auth.currentUser?.id;
 
   @override
   void initState() {
     super.initState();
-    // Buka jalur realtime via Provider saat admin masuk ke ruang chat ini
+
+    // Aktifkan pemantauan pesan ketika admin membuka ruang chat.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      Provider.of<ChatProvider>(context, listen: false)
-          .listenToMessages(widget.receiverId);
+      if (!mounted) return;
+
+      Provider.of<ChatProvider>(
+        context,
+        listen: false,
+      ).listenToMessages(widget.receiverId);
     });
   }
 
-  void sendMessage() {
+  // Mengirim balasan admin ke mahasiswa.
+  Future<void> sendMessage() async {
     final text = messageController.text.trim();
-    if (text.isEmpty) return;
 
-    // Kirim pesan ke Supabase
-    Provider.of<ChatProvider>(context, listen: false)
-        .sendNewMessage(widget.receiverId, text);
+    if (text.isEmpty || _isSending) return;
 
-    messageController.clear();
-    
-    // Auto-scroll ke bawah saat ngirim pesan
-    Future.delayed(const Duration(milliseconds: 300), () {
-      if (scrollController.hasClients) {
+    final currentUserId = userId;
+
+    if (currentUserId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Silakan login terlebih dahulu.'),
+        ),
+      );
+      return;
+    }
+
+    if (widget.receiverId.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('ID penerima tidak valid.'),
+        ),
+      );
+      return;
+    }
+
+    if (currentUserId == widget.receiverId) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'ID pengirim dan penerima tidak boleh sama.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _isSending = true;
+    });
+
+    try {
+      await Provider.of<ChatProvider>(
+        context,
+        listen: false,
+      ).sendNewMessage(
+        widget.receiverId,
+        text,
+        idKost: widget.idKost,
+      );
+
+      if (!mounted) return;
+
+      // Kosongkan input hanya setelah Supabase menerima pesan.
+      messageController.clear();
+
+      // Auto-scroll ke bawah setelah mengirim pesan.
+      Future.delayed(const Duration(milliseconds: 300), () {
+        if (!mounted || !scrollController.hasClients) return;
+
         scrollController.animateTo(
           scrollController.position.maxScrollExtent + 100,
           duration: const Duration(milliseconds: 300),
           curve: Curves.easeOut,
         );
+      });
+    } catch (e, stackTrace) {
+      debugPrint('Gagal mengirim balasan admin: $e');
+      debugPrintStack(stackTrace: stackTrace);
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Gagal mengirim balasan: $e'),
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSending = false;
+        });
       }
-    });
+    }
   }
 
   @override
@@ -73,7 +150,9 @@ class _AdminChatDetailPageState extends State<AdminChatDetailPage> {
       appBar: AppBar(
         backgroundColor: AppColors.white,
         elevation: 0.5,
-        iconTheme: const IconThemeData(color: AppColors.textPrimary),
+        iconTheme: const IconThemeData(
+          color: AppColors.textPrimary,
+        ),
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -112,10 +191,13 @@ class _AdminChatDetailPageState extends State<AdminChatDetailPage> {
         final messages = chatProvider.messages;
 
         if (chatProvider.isLoading) {
-          return const Center(child: CircularProgressIndicator(color: AppColors.primary));
+          return const Center(
+            child: CircularProgressIndicator(
+              color: AppColors.primary,
+            ),
+          );
         }
 
-        // INI KONDISI DEFAULT KOSONG SAAT BELUM ADA CHAT
         if (messages.isEmpty) {
           return const Center(
             child: Padding(
@@ -123,16 +205,20 @@ class _AdminChatDetailPageState extends State<AdminChatDetailPage> {
               child: Text(
                 'Belum ada pesan.\nMulai percakapan dengan mengirim pesan.',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: AppColors.textSecondary),
+                style: TextStyle(
+                  color: AppColors.textSecondary,
+                ),
               ),
             ),
           );
         }
 
-        // Delay sedikit biar scroll otomatis ke paling bawah pas buka chat
+        // Arahkan tampilan ke pesan paling bawah.
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (scrollController.hasClients) {
-            scrollController.jumpTo(scrollController.position.maxScrollExtent);
+          if (mounted && scrollController.hasClients) {
+            scrollController.jumpTo(
+              scrollController.position.maxScrollExtent,
+            );
           }
         });
 
@@ -145,27 +231,43 @@ class _AdminChatDetailPageState extends State<AdminChatDetailPage> {
             final isAdmin = msg.pengirimId == userId;
 
             return Align(
-              alignment: isAdmin ? Alignment.centerRight : Alignment.centerLeft,
+              alignment: isAdmin
+                  ? Alignment.centerRight
+                  : Alignment.centerLeft,
               child: Container(
                 constraints: BoxConstraints(
-                  maxWidth: MediaQuery.of(context).size.width * 0.78,
+                  maxWidth:
+                      MediaQuery.of(context).size.width * 0.78,
                 ),
                 margin: const EdgeInsets.only(bottom: 10),
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 11,
+                ),
                 decoration: BoxDecoration(
-                  color: isAdmin ? AppColors.primary : AppColors.white,
-                  border: isAdmin ? null : Border.all(color: AppColors.border),
+                  color: isAdmin
+                      ? AppColors.primary
+                      : AppColors.white,
+                  border: isAdmin
+                      ? null
+                      : Border.all(color: AppColors.border),
                   borderRadius: BorderRadius.only(
                     topLeft: const Radius.circular(16),
                     topRight: const Radius.circular(16),
-                    bottomLeft: Radius.circular(isAdmin ? 16 : 4),
-                    bottomRight: Radius.circular(isAdmin ? 4 : 16),
+                    bottomLeft: Radius.circular(
+                      isAdmin ? 16 : 4,
+                    ),
+                    bottomRight: Radius.circular(
+                      isAdmin ? 4 : 16,
+                    ),
                   ),
                 ),
                 child: Text(
                   msg.message,
                   style: TextStyle(
-                    color: isAdmin ? AppColors.white : AppColors.textPrimary,
+                    color: isAdmin
+                        ? AppColors.white
+                        : AppColors.textPrimary,
                     fontSize: 14,
                   ),
                 ),
@@ -182,7 +284,9 @@ class _AdminChatDetailPageState extends State<AdminChatDetailPage> {
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
       decoration: const BoxDecoration(
         color: AppColors.white,
-        border: Border(top: BorderSide(color: AppColors.border)),
+        border: Border(
+          top: BorderSide(color: AppColors.border),
+        ),
       ),
       child: SafeArea(
         top: false,
@@ -192,15 +296,22 @@ class _AdminChatDetailPageState extends State<AdminChatDetailPage> {
             Expanded(
               child: TextField(
                 controller: messageController,
+                enabled: !_isSending,
                 minLines: 1,
                 maxLines: 4,
                 textCapitalization: TextCapitalization.sentences,
+                onSubmitted: (_) => sendMessage(),
                 decoration: InputDecoration(
                   hintText: 'Tulis pesan...',
-                  hintStyle: const TextStyle(color: AppColors.textHint),
+                  hintStyle: const TextStyle(
+                    color: AppColors.textHint,
+                  ),
                   filled: true,
                   fillColor: AppColors.inputBackground,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(24),
                     borderSide: BorderSide.none,
@@ -213,8 +324,20 @@ class _AdminChatDetailPageState extends State<AdminChatDetailPage> {
               radius: 24,
               backgroundColor: AppColors.primary,
               child: IconButton(
-                icon: const Icon(Icons.send_rounded, color: AppColors.white),
-                onPressed: sendMessage,
+                icon: _isSending
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: AppColors.white,
+                        ),
+                      )
+                    : const Icon(
+                        Icons.send_rounded,
+                        color: AppColors.white,
+                      ),
+                onPressed: _isSending ? null : sendMessage,
               ),
             ),
           ],

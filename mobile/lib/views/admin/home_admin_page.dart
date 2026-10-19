@@ -1,3 +1,4 @@
+
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -50,6 +51,7 @@ class _HomeAdminPageState extends State<HomeAdminPage> {
     }
   }
 
+  // PERBAIKAN: Statistik chat berdasarkan ID admin yang login.
   Future<Map<String, int>> _fetchStatistikChat() async {
     final user = supabase.auth.currentUser;
 
@@ -60,29 +62,54 @@ class _HomeAdminPageState extends State<HomeAdminPage> {
     try {
       final response = await supabase
           .from('messages')
-          .select('id_message, pengirim_id, penerima_id, id_kost')
-          .or('pengirim_id.eq.${user.id},penerima_id.eq.${user.id}');
+          .select('id_message, pengirim_id, penerima_id')
+          .or(
+            'pengirim_id.eq.${user.id},penerima_id.eq.${user.id}',
+          );
 
       final rows = List<Map<String, dynamic>>.from(response);
+
       int pesanMasuk = 0;
+
+      // Satu pengguna dihitung sebagai satu percakapan,
+      // sesuai pengelompokan di daftar chat admin.
       final Set<String> percakapan = {};
 
       for (final row in rows) {
         final pengirimId = row['pengirim_id']?.toString();
         final penerimaId = row['penerima_id']?.toString();
-        final idKost = row['id_kost']?.toString() ?? '';
 
+        // Abaikan pesan yang tidak memiliki ID pengirim/penerima.
+        if (pengirimId == null ||
+            penerimaId == null ||
+            pengirimId.isEmpty ||
+            penerimaId.isEmpty) {
+          continue;
+        }
+
+        // Abaikan pesan yang dikirim ke akun sendiri.
+        if (pengirimId == penerimaId) {
+          continue;
+        }
+
+        // Pesan masuk adalah pesan yang penerimanya admin login.
         if (penerimaId == user.id) {
           pesanMasuk++;
         }
 
-        if (pengirimId == user.id || penerimaId == user.id) {
-          final lawanBicara =
-              pengirimId == user.id ? penerimaId : pengirimId;
+        // Tentukan lawan bicara dari sudut pandang admin.
+        String? lawanBicara;
 
-          if (lawanBicara != null && lawanBicara.isNotEmpty) {
-            percakapan.add('$lawanBicara|$idKost');
-          }
+        if (pengirimId == user.id) {
+          lawanBicara = penerimaId;
+        } else if (penerimaId == user.id) {
+          lawanBicara = pengirimId;
+        }
+
+        if (lawanBicara != null &&
+            lawanBicara.isNotEmpty &&
+            lawanBicara != user.id) {
+          percakapan.add(lawanBicara);
         }
       }
 
@@ -90,8 +117,10 @@ class _HomeAdminPageState extends State<HomeAdminPage> {
         'pesanMasuk': pesanMasuk,
         'totalChat': percakapan.length,
       };
-    } catch (e) {
+    } catch (e, stackTrace) {
       debugPrint('Gagal mengambil statistik chat: $e');
+      debugPrintStack(stackTrace: stackTrace);
+
       return {'pesanMasuk': 0, 'totalChat': 0};
     }
   }

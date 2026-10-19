@@ -1,6 +1,8 @@
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
 import '../../core/theme/app_theme.dart';
 import '../../providers/chat_provider.dart';
 
@@ -8,7 +10,7 @@ class RuangChatPage extends StatefulWidget {
   final String idAdminTujuan;
   final String namaAdmin;
   final Map<String, dynamic>? kostInfo;
-  
+
   const RuangChatPage({
     super.key,
     required this.idAdminTujuan,
@@ -21,68 +23,147 @@ class RuangChatPage extends StatefulWidget {
 }
 
 class _RuangChatPageState extends State<RuangChatPage> {
-  final TextEditingController _messageController = TextEditingController();
-  final _supabase = Supabase.instance.client;
-  
+  final TextEditingController _messageController =
+      TextEditingController();
+
+  final SupabaseClient _supabase = Supabase.instance.client;
+
   Map<String, dynamic>? _resolvedKostInfo;
   bool _isLoadingKost = true;
+  bool _isSending = false;
 
   @override
   void initState() {
     super.initState();
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      Provider.of<ChatProvider>(context, listen: false)
-          .listenToMessages(widget.idAdminTujuan);
+      if (!mounted) return;
+
+      Provider.of<ChatProvider>(
+        context,
+        listen: false,
+      ).listenToMessages(widget.idAdminTujuan);
     });
 
-    // Jika kostInfo dikirim dari halaman detail, langsung pakai. Jika tidak, ambil dari database.
     if (widget.kostInfo != null && widget.kostInfo!.isNotEmpty) {
-      setState(() {
-        _resolvedKostInfo = widget.kostInfo;
-        _isLoadingKost = false;
-      });
+      _resolvedKostInfo = widget.kostInfo;
+      _isLoadingKost = false;
     } else {
       _fetchKostFromDatabase();
     }
   }
 
-  // Ambil data kost langsung dari Supabase berdasarkan idAdminTujuan
   Future<void> _fetchKostFromDatabase() async {
     try {
-      // Coba cari di tabel kost berdasarkan pemilik atau id
+      // Cari kost berdasarkan ID pemilik.
+      // Jika tidak ditemukan, coba berdasarkan ID kost.
       var response = await _supabase
           .from('kost')
           .select()
-          .eq('pemilik_id', widget.idAdminTujuan)
+          .eq('id_user', widget.idAdminTujuan)
           .maybeSingle();
 
       if (response == null) {
         response = await _supabase
             .from('kost')
             .select()
-            .eq('id', widget.idAdminTujuan)
+            .eq('id_kost', widget.idAdminTujuan)
             .maybeSingle();
       }
 
-      if (response != null && mounted) {
-        setState(() {
-          _resolvedKostInfo = response;
-          _isLoadingKost = false;
-        });
-      } else {
-        if (mounted) setState(() => _isLoadingKost = false);
-      }
+      if (!mounted) return;
+
+      setState(() {
+        _resolvedKostInfo = response;
+        _isLoadingKost = false;
+      });
     } catch (e) {
-      debugPrint("Gagal mengambil data kost: $e");
-      if (mounted) setState(() => _isLoadingKost = false);
+      debugPrint('Gagal mengambil data kost: $e');
+
+      if (!mounted) return;
+
+      setState(() {
+        _isLoadingKost = false;
+      });
     }
   }
 
-  void _sendMessage() {
-    if (_messageController.text.trim().isEmpty) return;
-    Provider.of<ChatProvider>(context, listen: false)
-        .sendNewMessage(widget.idAdminTujuan, _messageController.text.trim());
-    _messageController.clear();
+  // Mengirim pesan dan menunggu hasil operasi Supabase.
+  Future<void> _sendMessage() async {
+    final text = _messageController.text.trim();
+
+    if (text.isEmpty || _isSending) return;
+
+    final currentUser = _supabase.auth.currentUser;
+
+    if (currentUser == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Silakan login terlebih dahulu.'),
+        ),
+      );
+      return;
+    }
+
+    if (widget.idAdminTujuan.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('ID tujuan chat tidak valid.'),
+        ),
+      );
+      return;
+    }
+
+    if (currentUser.id == widget.idAdminTujuan) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'ID pengirim dan penerima tidak boleh sama.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _isSending = true;
+    });
+
+    try {
+      final idKost = _resolvedKostInfo?['id_kost']?.toString();
+
+      await Provider.of<ChatProvider>(
+        context,
+        listen: false,
+      ).sendNewMessage(
+        widget.idAdminTujuan,
+        text,
+        idKost: idKost,
+      );
+
+      if (!mounted) return;
+
+      // Kosongkan input hanya setelah pengiriman berhasil.
+      _messageController.clear();
+    } catch (e, stackTrace) {
+      debugPrint('Gagal mengirim pesan: $e');
+      debugPrintStack(stackTrace: stackTrace);
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Pesan gagal dikirim: $e'),
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSending = false;
+        });
+      }
+    }
   }
 
   @override
@@ -94,13 +175,28 @@ class _RuangChatPageState extends State<RuangChatPage> {
   @override
   Widget build(BuildContext context) {
     final myUserId = _supabase.auth.currentUser?.id;
-    
-    // Ambil data dari _resolvedKostInfo (hasil kiriman atau hasil fetch database)
-    final String namaKost = _resolvedKostInfo?['nama_kost'] ?? _resolvedKostInfo?['nama'] ?? _resolvedKostInfo?['title'] ?? widget.namaAdmin;
-    final String fotoKost = _resolvedKostInfo?['foto_kost'] ?? _resolvedKostInfo?['image'] ?? _resolvedKostInfo?['foto'] ?? _resolvedKostInfo?['photo'] ?? '';
-    
-    var rawHarga = _resolvedKostInfo?['harga'] ?? _resolvedKostInfo?['price'] ?? '';
-    final String hargaKost = rawHarga.toString().isNotEmpty ? rawHarga.toString() : 'Hubungi Pengelola';
+
+    final String namaKost =
+        _resolvedKostInfo?['nama_kost'] ??
+        _resolvedKostInfo?['nama'] ??
+        _resolvedKostInfo?['title'] ??
+        widget.namaAdmin;
+
+    final String fotoKost =
+        _resolvedKostInfo?['foto_kost'] ??
+        _resolvedKostInfo?['image'] ??
+        _resolvedKostInfo?['foto'] ??
+        _resolvedKostInfo?['photo'] ??
+        '';
+
+    final rawHarga =
+        _resolvedKostInfo?['harga'] ??
+        _resolvedKostInfo?['price'] ??
+        '';
+
+    final String hargaKost = rawHarga.toString().isNotEmpty
+        ? rawHarga.toString()
+        : 'Hubungi Pengelola';
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -115,8 +211,13 @@ class _RuangChatPageState extends State<RuangChatPage> {
               radius: 18,
               backgroundColor: AppColors.primary,
               child: Text(
-                widget.namaAdmin.isNotEmpty ? widget.namaAdmin[0] : 'P',
-                style: const TextStyle(color: AppColors.white, fontSize: 14),
+                widget.namaAdmin.isNotEmpty
+                    ? widget.namaAdmin[0].toUpperCase()
+                    : 'P',
+                style: const TextStyle(
+                  color: AppColors.white,
+                  fontSize: 14,
+                ),
               ),
             ),
             const SizedBox(width: 10),
@@ -133,7 +234,10 @@ class _RuangChatPageState extends State<RuangChatPage> {
                 ),
                 const Text(
                   'Online',
-                  style: TextStyle(fontSize: 12, color: AppColors.success),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppColors.success,
+                  ),
                 ),
               ],
             ),
@@ -142,7 +246,7 @@ class _RuangChatPageState extends State<RuangChatPage> {
       ),
       body: Column(
         children: [
-          // KARTU INFORMASI KOST
+          // Informasi kost.
           Container(
             margin: const EdgeInsets.all(12),
             padding: const EdgeInsets.all(12),
@@ -161,7 +265,8 @@ class _RuangChatPageState extends State<RuangChatPage> {
                           width: 60,
                           height: 60,
                           fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => _defaultImageContainer(),
+                          errorBuilder: (_, __, ___) =>
+                              _defaultImageContainer(),
                         )
                       : _defaultImageContainer(),
                 ),
@@ -172,19 +277,22 @@ class _RuangChatPageState extends State<RuangChatPage> {
                     children: [
                       Text(
                         namaKost,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.bold,
                           color: AppColors.textPrimary,
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 4),
                       Row(
                         children: [
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
                             decoration: BoxDecoration(
                               color: AppColors.successLight,
                               borderRadius: BorderRadius.circular(10),
@@ -202,7 +310,9 @@ class _RuangChatPageState extends State<RuangChatPage> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        hargaKost.startsWith('Rp') ? hargaKost : 'Rp $hargaKost',
+                        hargaKost.startsWith('Rp')
+                            ? hargaKost
+                            : 'Rp $hargaKost',
                         style: const TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.bold,
@@ -215,75 +325,125 @@ class _RuangChatPageState extends State<RuangChatPage> {
               ],
             ),
           ),
-          
-          // DAFTAR PESAN
+
+          // Daftar pesan.
           Expanded(
             child: Consumer<ChatProvider>(
               builder: (context, chatProvider, child) {
                 final messages = chatProvider.messages;
+
                 if (chatProvider.isLoading) {
-                  return const Center(child: CircularProgressIndicator(color: AppColors.primary));
+                  return const Center(
+                    child: CircularProgressIndicator(
+                      color: AppColors.primary,
+                    ),
+                  );
                 }
+
                 if (messages.isEmpty) {
                   return const Center(
                     child: Text(
                       'Belum ada percakapan.\nKirim pesan untuk mulai!',
                       textAlign: TextAlign.center,
-                      style: TextStyle(color: AppColors.textSecondary),
+                      style: TextStyle(
+                        color: AppColors.textSecondary,
+                      ),
                     ),
                   );
                 }
+
                 return ListView.builder(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
                   itemCount: messages.length,
                   itemBuilder: (context, index) {
                     final msg = messages[index];
                     final isMe = msg.pengirimId == myUserId;
-                    final String timeString = '${msg.createdAt.hour.toString().padLeft(2, '0')}:${msg.createdAt.minute.toString().padLeft(2, '0')}';
-                    
+
+                    final String timeString =
+                        '${msg.createdAt.hour.toString().padLeft(2, '0')}:'
+                        '${msg.createdAt.minute.toString().padLeft(2, '0')}';
+
                     return Align(
-                      alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+                      alignment: isMe
+                          ? Alignment.centerRight
+                          : Alignment.centerLeft,
                       child: GestureDetector(
                         onLongPress: () {
-                          if (isMe) {
-                            showDialog(
-                              context: context,
-                              builder: (BuildContext context) {
-                                return AlertDialog(
-                                  title: const Text('Hapus Pesan'),
-                                  content: const Text('Apakah kamu yakin ingin menghapus pesan ini?'),
-                                  actions: [
-                                    TextButton(
-                                      onPressed: () => Navigator.pop(context),
-                                      child: const Text('Batal'),
+                          if (!isMe) return;
+
+                          showDialog<void>(
+                            context: context,
+                            builder: (dialogContext) {
+                              return AlertDialog(
+                                title: const Text('Hapus Pesan'),
+                                content: const Text(
+                                  'Apakah kamu yakin ingin menghapus pesan ini?',
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () {
+                                      Navigator.pop(dialogContext);
+                                    },
+                                    child: const Text('Batal'),
+                                  ),
+                                  TextButton(
+                                    onPressed: () async {
+                                      Navigator.pop(dialogContext);
+
+                                      try {
+                                        await Provider.of<ChatProvider>(
+                                          context,
+                                          listen: false,
+                                        ).deleteMessage(msg.idMessage);
+                                      } catch (e) {
+                                        if (!context.mounted) return;
+
+                                        ScaffoldMessenger.of(context)
+                                            .showSnackBar(
+                                          SnackBar(
+                                            content: Text(
+                                              'Gagal menghapus pesan: $e',
+                                            ),
+                                          ),
+                                        );
+                                      }
+                                    },
+                                    child: const Text(
+                                      'Hapus',
+                                      style: TextStyle(
+                                        color: Colors.red,
+                                      ),
                                     ),
-                                    TextButton(
-                                      onPressed: () {
-                                        Navigator.pop(context);
-                                        Provider.of<ChatProvider>(context, listen: false)
-                                            .deleteMessage(msg.idMessage);
-                                      },
-                                      child: const Text('Hapus', style: TextStyle(color: Colors.red)),
-                                    ),
-                                  ],
-                                );
-                              },
-                            );
-                          }
+                                  ),
+                                ],
+                              );
+                            },
+                          );
                         },
                         child: Container(
                           margin: const EdgeInsets.symmetric(vertical: 6),
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 10,
+                          ),
                           constraints: BoxConstraints(
-                            maxWidth: MediaQuery.of(context).size.width * 0.75,
+                            maxWidth:
+                                MediaQuery.of(context).size.width * 0.75,
                           ),
                           decoration: BoxDecoration(
-                            color: isMe ? AppColors.primary : AppColors.white,
+                            color: isMe
+                                ? AppColors.primary
+                                : AppColors.white,
                             borderRadius: BorderRadius.only(
                               topLeft: const Radius.circular(16),
                               topRight: const Radius.circular(16),
-                              bottomLeft: Radius.circular(isMe ? 16 : 4),
-                              bottomRight: Radius.circular(isMe ? 4 : 16),
+                              bottomLeft:
+                                  Radius.circular(isMe ? 16 : 4),
+                              bottomRight:
+                                  Radius.circular(isMe ? 4 : 16),
                             ),
                             boxShadow: const [
                               BoxShadow(
@@ -299,7 +459,9 @@ class _RuangChatPageState extends State<RuangChatPage> {
                               Text(
                                 msg.message,
                                 style: TextStyle(
-                                  color: isMe ? AppColors.white : AppColors.textPrimary,
+                                  color: isMe
+                                      ? AppColors.white
+                                      : AppColors.textPrimary,
                                   fontSize: 14,
                                   height: 1.4,
                                 ),
@@ -311,13 +473,19 @@ class _RuangChatPageState extends State<RuangChatPage> {
                                   Text(
                                     timeString,
                                     style: TextStyle(
-                                      color: isMe ? AppColors.white.withOpacity(0.7) : AppColors.textHint,
+                                      color: isMe
+                                          ? AppColors.white.withOpacity(0.7)
+                                          : AppColors.textHint,
                                       fontSize: 10,
                                     ),
                                   ),
                                   if (isMe) ...[
                                     const SizedBox(width: 4),
-                                    const Icon(Icons.check, size: 12, color: Colors.white70),
+                                    const Icon(
+                                      Icons.check,
+                                      size: 12,
+                                      color: Colors.white70,
+                                    ),
                                   ],
                                 ],
                               ),
@@ -331,14 +499,21 @@ class _RuangChatPageState extends State<RuangChatPage> {
               },
             ),
           ),
-          
-          // INPUT FIELD
+
+          // Kolom input pesan.
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 12,
+              vertical: 8,
+            ),
             decoration: const BoxDecoration(
               color: AppColors.white,
               boxShadow: [
-                BoxShadow(color: AppColors.cardShadow, blurRadius: 10, offset: Offset(0, -2)),
+                BoxShadow(
+                  color: AppColors.cardShadow,
+                  blurRadius: 10,
+                  offset: Offset(0, -2),
+                ),
               ],
             ),
             child: SafeArea(
@@ -347,12 +522,19 @@ class _RuangChatPageState extends State<RuangChatPage> {
                   Expanded(
                     child: TextField(
                       controller: _messageController,
+                      enabled: !_isSending,
+                      onSubmitted: (_) => _sendMessage(),
                       decoration: InputDecoration(
                         hintText: 'Ketik pesan...',
-                        hintStyle: const TextStyle(color: AppColors.textHint),
+                        hintStyle: const TextStyle(
+                          color: AppColors.textHint,
+                        ),
                         filled: true,
                         fillColor: AppColors.backgroundLight,
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 10,
+                        ),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(24),
                           borderSide: BorderSide.none,
@@ -364,8 +546,21 @@ class _RuangChatPageState extends State<RuangChatPage> {
                   CircleAvatar(
                     backgroundColor: AppColors.primary,
                     child: IconButton(
-                      icon: const Icon(Icons.send_rounded, color: AppColors.white, size: 18),
-                      onPressed: _sendMessage,
+                      onPressed: _isSending ? null : _sendMessage,
+                      icon: _isSending
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: AppColors.white,
+                              ),
+                            )
+                          : const Icon(
+                              Icons.send_rounded,
+                              color: AppColors.white,
+                              size: 18,
+                            ),
                     ),
                   ),
                 ],
@@ -382,7 +577,10 @@ class _RuangChatPageState extends State<RuangChatPage> {
       width: 60,
       height: 60,
       color: AppColors.primaryLight,
-      child: const Icon(Icons.home, color: AppColors.primary),
+      child: const Icon(
+        Icons.home,
+        color: AppColors.primary,
+      ),
     );
   }
 }
