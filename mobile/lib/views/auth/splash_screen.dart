@@ -1,11 +1,69 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/formatter.dart';
 import 'login_screen.dart';
+import 'update_password_screen.dart';
 
-class SplashScreen extends StatelessWidget {
+class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
+
+  @override
+  State<SplashScreen> createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends State<SplashScreen> {
+  @override
+  void initState() {
+    super.initState();
+    _checkRecoverySession();
+  }
+
+  Future<void> _checkRecoverySession() async {
+    // Tunggu sebentar agar splash screen terlihat
+    await Future.delayed(const Duration(milliseconds: 500));
+    if (!mounted) return;
+
+    // CEK URL HASH untuk recovery token (Flutter Web menyimpan token di hash URL)
+    final uri = Uri.base;
+    final hashParams = Uri.splitQueryString(uri.fragment);
+    final type = hashParams['type'];
+    final accessToken = hashParams['access_token'];
+
+    // Jika ada recovery token di URL
+    if (type == 'recovery' && accessToken != null) {
+      print('[DEBUG] Recovery token terdeteksi di URL');
+      try {
+        // Recover session dari token di URL
+        await Supabase.instance.client.auth.recoverSession(
+          '${uri.origin}#${uri.fragment}',
+        );
+        print('[DEBUG] Session recovery berhasil');
+
+        if (mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const UpdatePasswordScreen(),
+            ),
+          );
+        }
+        return;
+      } catch (e) {
+        print('[DEBUG] Recovery gagal: $e');
+      }
+    }
+
+    // Fallback: Cek session normal (jika user sudah login)
+    final session = Supabase.instance.client.auth.currentSession;
+    if (session != null && mounted) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const UpdatePasswordScreen()),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {

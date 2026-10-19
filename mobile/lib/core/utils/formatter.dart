@@ -3,7 +3,7 @@ class AppTexts {
   static const String appSlogan = "Temukan Kost Impianmu dengan Lebih Mudah";
   static const String appDescription =
       "Jelajahi hunian nyaman, aman, dan dekat kampus dengan informasi transparan dan akurat.";
-  static const String badgeText = "1.200+ Kost Siap Huni";
+  static const String badgeText = "Kost Siap Huni";
 
   // Home Screen
   static const String welcomeText = "Selamat Datang 👋";

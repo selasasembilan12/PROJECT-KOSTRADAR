@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart'; // ✅ TAMBAHKAN INI
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/formatter.dart';
@@ -49,10 +49,11 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
     try {
       // 2. PANGGIL SUPABASE UNTUK KIRIM EMAIL RESET
+      // PERBAIKAN: Gunakan 'http://localhost' tanpa port spesifik.
+      // Ini mencegah error "invalid code" saat port Flutter berubah-ubah setiap kali run.
       await Supabase.instance.client.auth.resetPasswordForEmail(
         email,
-        // Opsional: Jika di Web, pastikan redirect_to mengarah ke port aplikasi lu
-        // redirectTo: 'http://localhost:61664',
+        redirectTo: 'http://localhost:59035', // ✅ PORT FIXED!
       );
 
       if (mounted) {
