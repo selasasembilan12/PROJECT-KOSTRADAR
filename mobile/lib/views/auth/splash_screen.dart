@@ -17,6 +17,7 @@ class SplashScreen extends StatefulWidget {
 
 class _SplashScreenState extends State<SplashScreen> {
   StreamSubscription? _authSubscription;
+  bool _isHandlingRecovery = false; // 🛡️ FLAG PENGAMAN LUPA PASSWORD
 
   @override
   void initState() {
@@ -26,15 +27,15 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   void _setupAuthListener() {
-    // LISTENER RESMI SUPABASE UNTUK DETEKSI PASSWORD RECOVERY
+    // LAPISAN 1: LISTENER RESMI SUPABASE (JANGAN DIUBAH!)
     _authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen((
       data,
     ) {
       print('[DEBUG] Auth Event: ${data.event}');
 
-      // EVENT PASSWORD RECOVERY TERDETEKSI!
       if (data.event == AuthChangeEvent.passwordRecovery) {
-        print('[DEBUG] PASSWORD RECOVERY DETECTED!');
+        print('[DEBUG] 🚨 PASSWORD RECOVERY DETECTED BY LISTENER!');
+        _isHandlingRecovery = true;
         if (mounted) {
           Navigator.pushReplacement(
             context,
@@ -48,18 +49,45 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> _checkInitialSession() async {
-    await Future.delayed(const Duration(milliseconds: 800));
+    await Future.delayed(const Duration(milliseconds: 500));
     if (!mounted) return;
 
-    // Cek session awal (untuk user yang sudah login)
-    final session = Supabase.instance.client.auth.currentSession;
-    if (session != null) {
-      print('[DEBUG] User already logged in');
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const LoginScreen()),
-      );
+    // ️ CEK PENGAMAN: Jika listener sudah menangani recovery, STOP!
+    if (_isHandlingRecovery) {
+      print('[DEBUG] Recovery sudah ditangani listener, skip.');
+      return;
     }
+
+    // LAPISAN 2: BACKUP MANUAL CEK URL (Jika listener terlambat)
+    final uri = Uri.base;
+    final hasRecoveryCode =
+        uri.queryParameters['code'] != null ||
+        uri.queryParameters['type'] == 'recovery';
+
+    if (hasRecoveryCode) {
+      print(
+        '[DEBUG] 🚨 Recovery link terdeteksi di URL, memaksa proses recovery...',
+      );
+      try {
+        await Supabase.instance.client.auth.recoverSession(uri.toString());
+        if (mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const UpdatePasswordScreen(),
+            ),
+          );
+        }
+        return; // Stop di sini, jangan lanjut
+      } catch (e) {
+        print('[DEBUG] Manual recovery gagal: $e');
+      }
+    }
+
+    // FLOW NORMAL: BIARKAN TETAP DI SPLASH SCREEN
+    // Kita HAPUS logika auto-login ke HomePage.
+    // Biar user yang manual klik "Masuk" atau "Mulai Sekarang" setelah restart.
+    print('[DEBUG] Normal restart. Tetap di SplashScreen.');
   }
 
   @override
