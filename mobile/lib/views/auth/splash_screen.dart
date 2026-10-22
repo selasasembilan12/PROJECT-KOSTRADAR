@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -14,33 +16,25 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> {
+  StreamSubscription? _authSubscription;
+
   @override
   void initState() {
     super.initState();
-    _checkRecoverySession();
+    _setupAuthListener();
+    _checkInitialSession();
   }
 
-  Future<void> _checkRecoverySession() async {
-    // Tunggu sebentar agar splash screen terlihat
-    await Future.delayed(const Duration(milliseconds: 500));
-    if (!mounted) return;
+  void _setupAuthListener() {
+    // LISTENER RESMI SUPABASE UNTUK DETEKSI PASSWORD RECOVERY
+    _authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen((
+      data,
+    ) {
+      print('[DEBUG] Auth Event: ${data.event}');
 
-    // CEK URL HASH untuk recovery token (Flutter Web menyimpan token di hash URL)
-    final uri = Uri.base;
-    final hashParams = Uri.splitQueryString(uri.fragment);
-    final type = hashParams['type'];
-    final accessToken = hashParams['access_token'];
-
-    // Jika ada recovery token di URL
-    if (type == 'recovery' && accessToken != null) {
-      print('[DEBUG] Recovery token terdeteksi di URL');
-      try {
-        // Recover session dari token di URL
-        await Supabase.instance.client.auth.recoverSession(
-          '${uri.origin}#${uri.fragment}',
-        );
-        print('[DEBUG] Session recovery berhasil');
-
+      // EVENT PASSWORD RECOVERY TERDETEKSI!
+      if (data.event == AuthChangeEvent.passwordRecovery) {
+        print('[DEBUG] PASSWORD RECOVERY DETECTED!');
         if (mounted) {
           Navigator.pushReplacement(
             context,
@@ -49,20 +43,29 @@ class _SplashScreenState extends State<SplashScreen> {
             ),
           );
         }
-        return;
-      } catch (e) {
-        print('[DEBUG] Recovery gagal: $e');
       }
-    }
+    });
+  }
 
-    // Fallback: Cek session normal (jika user sudah login)
+  Future<void> _checkInitialSession() async {
+    await Future.delayed(const Duration(milliseconds: 800));
+    if (!mounted) return;
+
+    // Cek session awal (untuk user yang sudah login)
     final session = Supabase.instance.client.auth.currentSession;
-    if (session != null && mounted) {
+    if (session != null) {
+      print('[DEBUG] User already logged in');
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (context) => const UpdatePasswordScreen()),
+        MaterialPageRoute(builder: (context) => const LoginScreen()),
       );
     }
+  }
+
+  @override
+  void dispose() {
+    _authSubscription?.cancel();
+    super.dispose();
   }
 
   @override

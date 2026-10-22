@@ -49,11 +49,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
     try {
       // 2. PANGGIL SUPABASE UNTUK KIRIM EMAIL RESET
-      // PERBAIKAN: Gunakan 'http://localhost' tanpa port spesifik.
-      // Ini mencegah error "invalid code" saat port Flutter berubah-ubah setiap kali run.
+      // PORT DI-FIX KE 59035 AGAR COCOK DENGAN PERINTAH RUN DI TERMINAL
       await Supabase.instance.client.auth.resetPasswordForEmail(
         email,
-        redirectTo: 'http://localhost:59035', // ✅ PORT FIXED!
+        redirectTo: 'http://localhost:59035',
       );
 
       if (mounted) {
@@ -72,7 +71,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         });
       }
     } on AuthException catch (e) {
-      // Handle error dari Supabase (misal: email tidak ditemukan)
       if (mounted) {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -84,7 +82,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         );
       }
     } catch (e) {
-      // Handle error umum
       if (mounted) {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
