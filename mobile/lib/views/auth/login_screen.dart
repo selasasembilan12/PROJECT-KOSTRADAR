@@ -97,7 +97,7 @@ class _LoginScreenState extends State<LoginScreen> {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(
-                  'Akun ini terdaftar sebagai ${userRoleFromDb.toUpperCase()}, bukan ${_selectedRole}. Silakan pilih role yang benar!',
+                  'Akun ini terdaftar sebagai ${userRoleFromDb.toUpperCase()}, bukan $_selectedRole. Silakan pilih role yang benar!',
                 ),
                 backgroundColor: AppColors.error,
                 duration: const Duration(seconds: 4),
@@ -319,7 +319,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    disabledBackgroundColor: AppColors.primary.withOpacity(0.6),
+                    disabledBackgroundColor: AppColors.primary.withValues(alpha: 0.6),
                   ),
                   child: _isLoading
                       ? const SizedBox(

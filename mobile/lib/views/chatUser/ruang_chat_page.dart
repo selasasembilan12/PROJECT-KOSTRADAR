@@ -63,13 +63,11 @@ class _RuangChatPageState extends State<RuangChatPage> {
           .eq('id_user', widget.idAdminTujuan)
           .maybeSingle();
 
-      if (response == null) {
-        response = await _supabase
+      response ??= await _supabase
             .from('kost')
             .select()
             .eq('id_kost', widget.idAdminTujuan)
             .maybeSingle();
-      }
 
       if (!mounted) return;
 
@@ -265,7 +263,7 @@ class _RuangChatPageState extends State<RuangChatPage> {
                           width: 60,
                           height: 60,
                           fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) =>
+                          errorBuilder: (_, _, _) =>
                               _defaultImageContainer(),
                         )
                       : _defaultImageContainer(),
@@ -474,7 +472,7 @@ class _RuangChatPageState extends State<RuangChatPage> {
                                     timeString,
                                     style: TextStyle(
                                       color: isMe
-                                          ? AppColors.white.withOpacity(0.7)
+                                          ? AppColors.white.withValues(alpha: 0.7)
                                           : AppColors.textHint,
                                       fontSize: 10,
                                     ),

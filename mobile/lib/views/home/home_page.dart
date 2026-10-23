@@ -26,7 +26,8 @@ class _HomePageState extends State<HomePage> {
   final SupabaseClient supabase = Supabase.instance.client;
   int _selectedIndex = 0;
   
-  String namaUser = "Memuat..."; 
+  String namaUser = "Memuat...";
+  String? fotoUser;
   Set<String> favoriteKostIds = {}; // Menyimpan ID kost yang di-favoritkan oleh user
 
   @override
@@ -36,38 +37,72 @@ class _HomePageState extends State<HomePage> {
     _loadUserFavorites(); // Load data favorit user pas awal buka
   }
 
-  // LOGIKA NARIK NAMA LANGSUNG DARI TABEL 'mahasiswa'
+  // Memuat nama dan foto dari tabel 'users', sama seperti halaman ProfilPage.
   Future<void> _loadNamaUser() async {
     try {
       final user = supabase.auth.currentUser;
-      if (user != null) {
-        String userName = 'Pengguna KostRadar';
-        try {
-          final data = await supabase
-              .from('mahasiswa')
-              .select('nama')
-              .eq('id', user.id)
-              .maybeSingle();
-          if (data != null && data['nama'] != null) {
-            userName = data['nama'];
-          } else if (user.userMetadata != null && user.userMetadata!['nama'] != null) {
-            userName = user.userMetadata!['nama'];
-          }
-        } catch (dbError) {
-          if (user.userMetadata != null && user.userMetadata!['nama'] != null) {
-            userName = user.userMetadata!['nama'];
-          }
-        }
+
+      if (user == null) {
         if (mounted) {
           setState(() {
-            namaUser = userName;
+            namaUser = 'Pengguna KostRadar';
+            fotoUser = null;
           });
         }
-      } else {
-        if (mounted) setState(() => namaUser = 'Pengguna KostRadar');
+        return;
+      }
+
+      String userName = 'Pengguna KostRadar';
+      String? userFoto;
+
+      try {
+        final data = await supabase
+            .from('users')
+            .select('username, foto')
+            .eq('id_user', user.id)
+            .maybeSingle();
+
+        if (data != null) {
+          final username = data['username']?.toString().trim();
+          final foto = data['foto']?.toString().trim();
+
+          if (username != null && username.isNotEmpty) {
+            userName = username;
+          }
+
+          if (foto != null && foto.isNotEmpty) {
+            userFoto = foto;
+          }
+        }
+      } catch (dbError) {
+        debugPrint('Gagal mengambil profil pengguna: $dbError');
+      }
+
+      // Gunakan metadata akun sebagai cadangan jika nama belum tersedia.
+      if (userName == 'Pengguna KostRadar') {
+        final metadata = user.userMetadata;
+        final metadataName = metadata?['username'] ?? metadata?['nama'];
+
+        if (metadataName != null &&
+            metadataName.toString().trim().isNotEmpty) {
+          userName = metadataName.toString().trim();
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+          namaUser = userName;
+          fotoUser = userFoto;
+        });
       }
     } catch (e) {
-      if (mounted) setState(() => namaUser = 'Pengguna KostRadar');
+      debugPrint('Gagal memuat profil pengguna: $e');
+
+      if (mounted) {
+        setState(() {
+          namaUser = 'Pengguna KostRadar';
+        });
+      }
     }
   }
 
@@ -197,6 +232,12 @@ class _HomePageState extends State<HomePage> {
         unselectedItemColor: AppColors.textSecondary,
         onTap: (index) {
           setState(() => _selectedIndex = index);
+
+          // Muat ulang profil saat pengguna kembali ke Beranda.
+          if (index == 0) {
+            _loadNamaUser();
+          }
+
           if (index == 1) {
             _loadUserFavorites();
           }
@@ -457,7 +498,7 @@ class _HomePageState extends State<HomePage> {
                   height: 180,
                   width: double.infinity,
                   fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => Container(
+                  errorBuilder: (_, _, _) => Container(
                     height: 180,
                     color: AppColors.primaryLight,
                     child: const Center(
@@ -665,7 +706,7 @@ class _HomePageState extends State<HomePage> {
         decoration: BoxDecoration(
           color: AppColors.white,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.border.withOpacity(0.6)),
+          border: Border.all(color: AppColors.border.withValues(alpha: 0.6)),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -680,7 +721,7 @@ class _HomePageState extends State<HomePage> {
                     width: 95,
                     height: 95,
                     fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => Container(
+                    errorBuilder: (_, _, _) => Container(
                       width: 95,
                       height: 95,
                       color: AppColors.primaryLight,
@@ -694,7 +735,7 @@ class _HomePageState extends State<HomePage> {
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.9),
+                      color: Colors.white.withValues(alpha: 0.9),
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: const Row(
@@ -798,10 +839,18 @@ class _HomePageState extends State<HomePage> {
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Row(
         children: [
-          const CircleAvatar(
+          CircleAvatar(
             radius: 22,
             backgroundColor: AppColors.primaryLight,
-            child: Icon(Icons.person, color: AppColors.primary),
+            backgroundImage: fotoUser != null && fotoUser!.isNotEmpty
+                ? NetworkImage(fotoUser!)
+                : null,
+            child: fotoUser == null || fotoUser!.isEmpty
+                ? const Icon(
+                    Icons.person,
+                    color: AppColors.primary,
+                  )
+                : null,
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -847,7 +896,7 @@ class _HomePageState extends State<HomePage> {
                 decoration: BoxDecoration(
                   color: AppColors.white,
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: AppColors.border.withOpacity(0.5)),
+                  border: Border.all(color: AppColors.border.withValues(alpha: 0.5)),
                 ),
                 child: const Row(
                   children: [
@@ -867,7 +916,7 @@ class _HomePageState extends State<HomePage> {
               decoration: BoxDecoration(
                 color: AppColors.white,
                 shape: BoxShape.circle,
-                border: Border.all(color: AppColors.border.withOpacity(0.5)),
+                border: Border.all(color: AppColors.border.withValues(alpha: 0.5)),
               ),
               child: const Icon(Icons.tune, color: AppColors.textPrimary, size: 20),
             ),
@@ -899,7 +948,7 @@ class _HomePageState extends State<HomePage> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
+                    color: Colors.white.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: const Row(

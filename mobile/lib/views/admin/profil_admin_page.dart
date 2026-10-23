@@ -344,7 +344,7 @@ class _ProfilAdminPageState extends State<ProfilAdminPage> {
                       width: size,
                       height: size,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Icon(
+                      errorBuilder: (_, _, _) => Icon(
                         Icons.person,
                         size: size * 0.5,
                         color: AppColors.primary,
@@ -593,7 +593,7 @@ class _ProfilAdminPageState extends State<ProfilAdminPage> {
               width: 42,
               height: 42,
               decoration: BoxDecoration(
-                color: iconColor.withOpacity(0.1),
+                color: iconColor.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Icon(icon, color: iconColor, size: 22),

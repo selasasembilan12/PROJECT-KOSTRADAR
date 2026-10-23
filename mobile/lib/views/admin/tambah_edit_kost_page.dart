@@ -361,7 +361,7 @@ class _TambahEditKostPageState extends State<TambahEditKostPage> {
           ),
           Switch(
             value: value,
-            activeColor: AppColors.primary,
+            activeThumbColor: AppColors.primary,
             onChanged: onChanged,
           ),
         ],

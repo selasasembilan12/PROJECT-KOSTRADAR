@@ -402,7 +402,7 @@ class _DataKostPageState extends State<DataKostPage> {
                   ? Image.network(
                       foto,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => _photoPlaceholder(),
+                      errorBuilder: (_, _, _) => _photoPlaceholder(),
                     )
                   : _photoPlaceholder(),
             ),

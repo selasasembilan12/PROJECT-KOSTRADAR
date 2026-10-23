@@ -288,7 +288,7 @@ class _DaftarChatPageState extends State<DaftarChatPage> {
           Icon(
             Icons.chat_bubble_outline_rounded,
             size: 64,
-            color: AppColors.textHint.withOpacity(0.5),
+            color: AppColors.textHint.withValues(alpha: 0.5),
           ),
           const SizedBox(height: 16),
           const Text(

@@ -22,7 +22,6 @@ import 'views/kost/daftar_favorite_page.dart';
 // hapus_favorite_dialog.dart itu dialog, jadi tr masuk routes
 // CHAT USER - 3 file Salsa
 import 'views/chatUser/daftar_chat_page.dart';
-import 'views/chatUser/ruang_chat_page.dart';
 import 'views/chatUser/profil_page.dart';
 // ADMIN - 5 file Dina & Riana
 import 'views/admin/home_admin_page.dart'; //dina

@@ -193,7 +193,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    disabledBackgroundColor: AppColors.primary.withOpacity(0.6),
+                    disabledBackgroundColor: AppColors.primary.withValues(alpha: 0.6),
                   ),
                   child: _isLoading
                       ? const SizedBox(

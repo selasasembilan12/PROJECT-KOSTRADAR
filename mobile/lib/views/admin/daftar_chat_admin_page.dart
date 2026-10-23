@@ -316,7 +316,7 @@ class _DaftarChatAdminPageState
                 ),
                 scrollDirection: Axis.horizontal,
                 itemCount: filterOptions.length,
-                separatorBuilder: (_, __) =>
+                separatorBuilder: (_, _) =>
                     const SizedBox(width: 8),
                 itemBuilder: (context, index) {
                   final selected = selectedFilter == index;
@@ -439,7 +439,7 @@ class _DaftarChatAdminPageState
       child: ListView.separated(
         padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
         itemCount: data.length,
-        separatorBuilder: (_, __) =>
+        separatorBuilder: (_, _) =>
             const SizedBox(height: 10),
         itemBuilder: (context, index) {
           final chat = data[index];
