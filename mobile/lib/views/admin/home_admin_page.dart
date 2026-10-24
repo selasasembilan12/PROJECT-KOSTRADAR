@@ -145,6 +145,35 @@ class _HomeAdminPageState extends State<HomeAdminPage> {
     }
   }
 
+  // Transisi natural: hanya bergeser tipis, tanpa zoom atau perubahan skala.
+  void _navigateSmoothly(Widget page) {
+    Navigator.of(context).pushReplacement(
+      PageRouteBuilder<void>(
+        pageBuilder: (context, animation, secondaryAnimation) => page,
+        transitionDuration: const Duration(milliseconds: 320),
+        reverseTransitionDuration: const Duration(milliseconds: 280),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          final slideAnimation = Tween<Offset>(
+            begin: const Offset(0.045, 0),
+            end: Offset.zero,
+          ).animate(
+            CurvedAnimation(
+              parent: animation,
+              curve: Curves.easeOutCubic,
+              reverseCurve: Curves.easeInCubic,
+            ),
+          );
+
+          // SlideTransition saja agar halaman tidak terlihat membesar/mengecil.
+          return SlideTransition(
+            position: slideAnimation,
+            child: child,
+          );
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -416,12 +445,7 @@ class _HomeAdminPageState extends State<HomeAdminPage> {
   Widget _buildBannerKelolaUnit(BuildContext context) {
     return GestureDetector(
       onTap: () {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => const DataKostPage(),
-          ),
-        );
+        _navigateSmoothly(const DataKostPage());
       },
       child: Container(
         padding: const EdgeInsets.all(16),
@@ -494,12 +518,7 @@ class _HomeAdminPageState extends State<HomeAdminPage> {
         ),
         GestureDetector(
           onTap: () {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const DataKostPage(),
-              ),
-            );
+            _navigateSmoothly(const DataKostPage());
           },
           child: const Row(
             children: [
@@ -731,31 +750,17 @@ class _HomeAdminPageState extends State<HomeAdminPage> {
             break;
 
           case 'Data Kost':
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const DataKostPage(),
-              ),
-            );
+            _navigateSmoothly(const DataKostPage());
             break;
 
           case 'Chat':
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(
-                builder: (context) =>
-                    const DaftarChatAdminPage(chatData: {}),
-              ),
+            _navigateSmoothly(
+              const DaftarChatAdminPage(chatData: {}),
             );
             break;
 
           case 'Profil':
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const ProfilAdminPage(),
-              ),
-            );
+            _navigateSmoothly(const ProfilAdminPage());
             break;
         }
       },
