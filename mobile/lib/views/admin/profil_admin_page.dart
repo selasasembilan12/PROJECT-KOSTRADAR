@@ -40,17 +40,46 @@ class _ProfilAdminPageState extends State<ProfilAdminPage> {
     try {
       final user = supabase.auth.currentUser;
 
-      if (user != null) {
+      if (user == null) {
+        throw Exception('Admin belum login');
+      }
+
+      // Ambil profil utama dari tabel public.users.
+      final profile = await supabase
+          .from('users')
+          .select('id_user, username, email, foto_profile')
+          .eq('id_user', user.id)
+          .maybeSingle();
+
+      final metadata = user.userMetadata ?? {};
+
+      if (profile != null) {
         adminData = {
-          'username': user.userMetadata?['username'] ??
+          'username': profile['username'] ??
+              metadata['username'] ??
+              user.email?.split('@').first ??
+              'Admin',
+          'email': profile['email'] ?? user.email ?? '',
+          'foto_profile': profile['foto_profile'] ??
+              metadata['foto_profile'] ??
+              '',
+        };
+      } else {
+        // Fallback agar halaman tetap bisa dibuka jika baris users
+        // belum tersedia. Penyimpanan tetap akan memberi pesan error.
+        adminData = {
+          'username': metadata['username'] ??
               user.email?.split('@').first ??
               'Admin',
           'email': user.email ?? '',
-          'foto_profile': user.userMetadata?['foto_profile'] ?? '',
+          'foto_profile': metadata['foto_profile'] ?? '',
         };
+        debugPrint(
+          'Baris public.users tidak ditemukan untuk UUID ${user.id}',
+        );
       }
     } catch (e) {
-      debugPrint('Gagal mengambil profil: $e');
+      debugPrint('Gagal mengambil profil admin: $e');
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -103,11 +132,34 @@ class _ProfilAdminPageState extends State<ProfilAdminPage> {
 
       setState(() => _isUploadingPhoto = true);
 
+      final user = supabase.auth.currentUser;
+      if (user == null) {
+        throw Exception('Admin belum login');
+      }
+
       final imageUrl = await _uploadProfilePhoto(image);
 
+      // Simpan foto ke tabel public.users terlebih dahulu.
+      final updatedRows = await supabase
+          .from('users')
+          .update({'foto_profile': imageUrl})
+          .eq('id_user', user.id)
+          .select('id_user');
+
+      if (updatedRows.isEmpty) {
+        throw Exception(
+          'Baris admin tidak ditemukan di public.users. '
+          'Pastikan id_user sama dengan UUID akun Supabase Auth.',
+        );
+      }
+
+      // Sinkronkan juga metadata Auth.
       await supabase.auth.updateUser(
         UserAttributes(
-          data: {'foto_profile': imageUrl},
+          data: {
+            'username': adminData['username'],
+            'foto_profile': imageUrl,
+          },
         ),
       );
 
@@ -118,12 +170,14 @@ class _ProfilAdminPageState extends State<ProfilAdminPage> {
         _isUploadingPhoto = false;
       });
 
-      _showMessage('Foto profil berhasil diperbarui');
+      _showMessage('Foto profil berhasil disimpan ke database');
     } catch (e) {
+      debugPrint('Gagal menyimpan foto profil: $e');
+
       if (!mounted) return;
 
       setState(() => _isUploadingPhoto = false);
-      _showMessage('Gagal mengunggah foto: $e');
+      _showMessage('Gagal menyimpan foto profil: $e');
     }
   }
 
@@ -510,6 +564,32 @@ class _ProfilAdminPageState extends State<ProfilAdminPage> {
 
                             final emailBerubah = email != user.email;
 
+                            debugPrint('UUID Auth: ${user.id}');
+                            debugPrint('Username yang akan disimpan: $nama');
+
+                            // Simpan nama dan foto ke database aplikasi.
+                            // Email ikut diperbarui pada tabel users agar
+                            // konsisten dengan data profil yang ditampilkan.
+                            final updatedRows = await supabase
+                                .from('users')
+                                .update({
+                                  'username': nama,
+                                  'foto_profile': fotoUrl,
+                                  'email': email,
+                                })
+                                .eq('id_user', user.id)
+                                .select('id_user, username, foto_profile');
+
+                            debugPrint('Hasil update database: $updatedRows');
+
+                            if (updatedRows.isEmpty) {
+                              throw Exception(
+                                'Profil admin tidak ditemukan di public.users. '
+                                'Pastikan id_user sama dengan UUID akun Auth.',
+                              );
+                            }
+
+                            // Sinkronkan metadata Supabase Auth.
                             await supabase.auth.updateUser(
                               UserAttributes(
                                 data: {

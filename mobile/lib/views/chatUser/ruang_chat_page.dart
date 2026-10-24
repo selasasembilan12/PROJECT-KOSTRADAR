@@ -64,95 +64,104 @@ class _RuangChatPageState extends State<RuangChatPage> {
   }
 
 
-  // Ambil profil lawan bicara dari tabel profil yang digunakan aplikasi.
-  // Admin/pengelola disimpan pada users, sedangkan mahasiswa pada mahasiswa.
+  // Mengambil nama dan foto lawan bicara dari public.users.
+  // idAdminTujuan harus berisi UUID akun pemilik kost (users.id_user),
+  // bukan UUID kost (kost.id_kost).
   Future<void> _fetchChatPartnerProfile() async {
     final targetId = widget.idAdminTujuan.trim();
-    if (targetId.isEmpty) return;
 
-    Map<String, dynamic>? profile;
+    if (targetId.isEmpty) {
+      debugPrint('ID tujuan room chat kosong.');
+      return;
+    }
+
     try {
-      profile = await _supabase
+      debugPrint('Memuat profil room chat dari users, ID: $targetId');
+
+      final profile = await _supabase
           .from('users')
-          .select()
+          .select('id_user, username, foto_profile, role')
           .eq('id_user', targetId)
           .maybeSingle();
-    } catch (e) {
-      debugPrint('Profil users tidak dapat dibaca: $e');
-    }
 
-    if (profile == null) {
-      try {
-        profile = await _supabase
-            .from('mahasiswa')
-            .select()
-            .eq('id', targetId)
-            .maybeSingle();
-      } catch (e) {
-        debugPrint('Profil mahasiswa tidak dapat dibaca: $e');
+      if (!mounted) return;
+
+      if (profile == null) {
+        debugPrint(
+          'Profil tidak ditemukan di public.users untuk id_user=$targetId. '
+          'Pastikan ID yang dikirim saat membuka room adalah UUID pemilik kost.',
+        );
+        return;
       }
-    }
 
-    if (profile == null) {
-      // Fallback untuk skema mahasiswa yang memakai id_user.
-      try {
-        profile = await _supabase
-            .from('mahasiswa')
-            .select()
-            .eq('id_user', targetId)
-            .maybeSingle();
-      } catch (e) {
-        debugPrint('Profil mahasiswa dengan id_user tidak ditemukan: $e');
-      }
-    }
+      final username = profile['username']?.toString().trim();
+      final photo = profile['foto_profile']?.toString().trim();
+      final role = profile['role']?.toString().trim();
 
-    if (!mounted || profile == null) return;
+      debugPrint(
+        'Profil room chat berhasil dibaca: '
+        'username=$username, role=$role, foto=$photo',
+      );
 
-    String? firstValue(List<String> keys) {
-      for (final key in keys) {
-        final value = profile?[key]?.toString().trim();
-        if (value != null && value.isNotEmpty && value != 'null') {
-          return value;
+      setState(() {
+        if (username != null &&
+            username.isNotEmpty &&
+            username != 'null') {
+          _chatPartnerName = username;
         }
-      }
-      return null;
+
+        _chatPartnerPhoto =
+            photo != null &&
+                    photo.isNotEmpty &&
+                    photo != 'null'
+                ? photo
+                : null;
+      });
+    } catch (e, stackTrace) {
+      debugPrint('Gagal mengambil profil room chat: $e');
+      debugPrintStack(stackTrace: stackTrace);
     }
-
-    final name = firstValue([
-      'username', 'nama', 'nama_lengkap', 'nama_mahasiswa', 'full_name',
-      'display_name', 'name',
-    ]);
-    final photo = firstValue([
-      'foto', 'foto_profil', 'foto_url', 'avatar_url', 'profile_photo_url',
-      'photo', 'image',
-    ]);
-
-    setState(() {
-      if (name != null) _chatPartnerName = name;
-      _chatPartnerPhoto = photo;
-    });
   }
 
   Widget _buildPartnerAvatar({double radius = 18}) {
-    final photo = _chatPartnerPhoto;
-    if (photo != null && photo.startsWith('http')) {
+    final photo = _chatPartnerPhoto?.trim() ?? '';
+    final name = _chatPartnerName.trim();
+
+    Widget fallbackAvatar() {
       return CircleAvatar(
         radius: radius,
-        backgroundColor: AppColors.primaryLight,
-        backgroundImage: NetworkImage(photo),
-        onBackgroundImageError: (_, __) {},
+        backgroundColor: AppColors.primary,
+        child: Text(
+          name.isNotEmpty ? name[0].toUpperCase() : 'P',
+          style: const TextStyle(
+            color: AppColors.white,
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
       );
     }
-    final name = _chatPartnerName.trim();
+
+    if (photo.isEmpty ||
+        !(photo.startsWith('https://') ||
+            photo.startsWith('http://'))) {
+      return fallbackAvatar();
+    }
+
     return CircleAvatar(
       radius: radius,
-      backgroundColor: AppColors.primary,
-      child: Text(
-        name.isNotEmpty ? name[0].toUpperCase() : 'P',
-        style: const TextStyle(
-          color: AppColors.white,
-          fontSize: 14,
-          fontWeight: FontWeight.w600,
+      backgroundColor: AppColors.primaryLight,
+      child: ClipOval(
+        child: Image.network(
+          photo,
+          key: ValueKey(photo),
+          width: radius * 2,
+          height: radius * 2,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) {
+            debugPrint('Foto profil room chat gagal dimuat: $error');
+            return fallbackAvatar();
+          },
         ),
       ),
     );
@@ -545,74 +554,88 @@ class _RuangChatPageState extends State<RuangChatPage> {
                             },
                           );
                         },
-                        child: Container(
-                          margin: const EdgeInsets.symmetric(vertical: 6),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 10,
-                          ),
-                          constraints: BoxConstraints(
-                            maxWidth:
-                                MediaQuery.of(context).size.width * 0.75,
-                          ),
-                          decoration: BoxDecoration(
-                            color: isMe
-                                ? AppColors.primary
-                                : AppColors.white,
-                            borderRadius: BorderRadius.only(
-                              topLeft: const Radius.circular(16),
-                              topRight: const Radius.circular(16),
-                              bottomLeft:
-                                  Radius.circular(isMe ? 16 : 4),
-                              bottomRight:
-                                  Radius.circular(isMe ? 4 : 16),
-                            ),
-                            boxShadow: const [
-                              BoxShadow(
-                                color: AppColors.cardShadow,
-                                blurRadius: 4,
-                                offset: Offset(0, 2),
-                              ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            if (!isMe) ...[
+                              _buildPartnerAvatar(radius: 14),
+                              const SizedBox(width: 6),
                             ],
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              Text(
-                                msg.message,
-                                style: TextStyle(
-                                  color: isMe
-                                      ? AppColors.white
-                                      : AppColors.textPrimary,
-                                  fontSize: 14,
-                                  height: 1.4,
+                            Flexible(
+                              child: Container(
+                                margin: const EdgeInsets.symmetric(vertical: 6),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 14,
+                                  vertical: 10,
                                 ),
-                              ),
-                              const SizedBox(height: 4),
-                              Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(
-                                    timeString,
-                                    style: TextStyle(
-                                      color: isMe
-                                          ? AppColors.white.withValues(alpha: 0.7)
-                                          : AppColors.textHint,
-                                      fontSize: 10,
-                                    ),
+                                constraints: BoxConstraints(
+                                  maxWidth:
+                                      MediaQuery.of(context).size.width * 0.70,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: isMe
+                                      ? AppColors.primary
+                                      : AppColors.white,
+                                  borderRadius: BorderRadius.only(
+                                    topLeft: const Radius.circular(16),
+                                    topRight: const Radius.circular(16),
+                                    bottomLeft:
+                                        Radius.circular(isMe ? 16 : 4),
+                                    bottomRight:
+                                        Radius.circular(isMe ? 4 : 16),
                                   ),
-                                  if (isMe) ...[
-                                    const SizedBox(width: 4),
-                                    const Icon(
-                                      Icons.check,
-                                      size: 12,
-                                      color: Colors.white70,
+                                  boxShadow: const [
+                                    BoxShadow(
+                                      color: AppColors.cardShadow,
+                                      blurRadius: 4,
+                                      offset: Offset(0, 2),
                                     ),
                                   ],
-                                ],
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  children: [
+                                    Text(
+                                      msg.message,
+                                      style: TextStyle(
+                                        color: isMe
+                                            ? AppColors.white
+                                            : AppColors.textPrimary,
+                                        fontSize: 14,
+                                        height: 1.4,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(
+                                          timeString,
+                                          style: TextStyle(
+                                            color: isMe
+                                                ? AppColors.white.withValues(
+                                                    alpha: 0.7,
+                                                  )
+                                                : AppColors.textHint,
+                                            fontSize: 10,
+                                          ),
+                                        ),
+                                        if (isMe) ...[
+                                          const SizedBox(width: 4),
+                                          const Icon(
+                                            Icons.check,
+                                            size: 12,
+                                            color: Colors.white70,
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                  ],
+                                ),
                               ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
                       ),
                     );
