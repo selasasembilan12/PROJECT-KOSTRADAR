@@ -29,6 +29,9 @@ class _AdminChatDetailPageState extends State<AdminChatDetailPage> {
   final ScrollController scrollController = ScrollController();
 
   bool _isSending = false;
+  String _receiverName = 'Mahasiswa';
+  String? _receiverPhoto;
+  int _lastMessageCount = -1;
 
   // Ambil ID admin yang sedang login.
   String? get userId =>
@@ -37,6 +40,7 @@ class _AdminChatDetailPageState extends State<AdminChatDetailPage> {
   @override
   void initState() {
     super.initState();
+    _fetchReceiverProfile();
 
     // Aktifkan pemantauan pesan ketika admin membuka ruang chat.
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -46,6 +50,111 @@ class _AdminChatDetailPageState extends State<AdminChatDetailPage> {
         context,
         listen: false,
       ).listenToMessages(widget.receiverId);
+    });
+  }
+
+
+  // Memuat profil mahasiswa yang sedang diajak bicara.
+  Future<void> _fetchReceiverProfile() async {
+    Map<String, dynamic>? profile;
+    try {
+      profile = await Supabase.instance.client
+          .from('mahasiswa')
+          .select()
+          .eq('id', widget.receiverId)
+          .maybeSingle();
+    } catch (e) {
+      debugPrint('Profil mahasiswa tidak ditemukan lewat id: $e');
+    }
+
+    if (profile == null) {
+      try {
+        profile = await Supabase.instance.client
+            .from('mahasiswa')
+            .select()
+            .eq('id_user', widget.receiverId)
+            .maybeSingle();
+      } catch (e) {
+        debugPrint('Profil mahasiswa tidak ditemukan lewat id_user: $e');
+      }
+    }
+
+    if (profile == null) {
+      try {
+        profile = await Supabase.instance.client
+            .from('users')
+            .select()
+            .eq('id_user', widget.receiverId)
+            .maybeSingle();
+      } catch (e) {
+        debugPrint('Profil fallback users tidak ditemukan: $e');
+      }
+    }
+
+    if (!mounted || profile == null) return;
+
+    String? pick(List<String> keys) {
+      for (final key in keys) {
+        final value = profile?[key]?.toString().trim();
+        if (value != null && value.isNotEmpty && value != 'null') {
+          return value;
+        }
+      }
+      return null;
+    }
+
+    final name = pick([
+      'nama', 'nama_mahasiswa', 'nama_lengkap', 'username', 'full_name',
+      'display_name', 'name',
+    ]);
+    final photo = pick([
+      'foto', 'foto_profil', 'foto_url', 'avatar_url', 'profile_photo_url',
+      'photo', 'image',
+    ]);
+
+    setState(() {
+      if (name != null) _receiverName = name;
+      _receiverPhoto = photo;
+    });
+  }
+
+  Widget _receiverAvatar() {
+    final photo = _receiverPhoto;
+    if (photo != null && photo.startsWith('http')) {
+      return CircleAvatar(
+        radius: 18,
+        backgroundColor: AppColors.primaryLight,
+        backgroundImage: NetworkImage(photo),
+        onBackgroundImageError: (_, __) {},
+      );
+    }
+    final name = _receiverName.trim();
+    return CircleAvatar(
+      radius: 18,
+      backgroundColor: AppColors.primaryLight,
+      child: Text(
+        name.isNotEmpty ? name[0].toUpperCase() : 'M',
+        style: const TextStyle(
+          color: AppColors.primary,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
+
+  void _scrollToLatest({bool animate = true}) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !scrollController.hasClients) return;
+      final target = scrollController.position.maxScrollExtent;
+      if (!animate) {
+        scrollController.jumpTo(target);
+      } else {
+        scrollController.animateTo(
+          target,
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOutCubic,
+        );
+      }
     });
   }
 
@@ -105,16 +214,7 @@ class _AdminChatDetailPageState extends State<AdminChatDetailPage> {
       // Kosongkan input hanya setelah Supabase menerima pesan.
       messageController.clear();
 
-      // Auto-scroll ke bawah setelah mengirim pesan.
-      Future.delayed(const Duration(milliseconds: 300), () {
-        if (!mounted || !scrollController.hasClients) return;
-
-        scrollController.animateTo(
-          scrollController.position.maxScrollExtent + 100,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-        );
-      });
+      _scrollToLatest();
     } catch (e, stackTrace) {
       debugPrint('Gagal mengirim balasan admin: $e');
       debugPrintStack(stackTrace: stackTrace);
@@ -153,34 +253,47 @@ class _AdminChatDetailPageState extends State<AdminChatDetailPage> {
         iconTheme: const IconThemeData(
           color: AppColors.textPrimary,
         ),
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        title: Row(
           children: [
-            const Text(
-              'Percakapan',
-              style: TextStyle(
-                color: AppColors.textPrimary,
-                fontWeight: FontWeight.bold,
-                fontSize: 17,
-              ),
-            ),
-            Text(
-              widget.receiverId.length > 16
-                  ? '${widget.receiverId.substring(0, 16)}...'
-                  : widget.receiverId,
-              style: const TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 11,
+            _receiverAvatar(),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    _receiverName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                  const Text(
+                    'Mahasiswa',
+                    style: TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
         ),
       ),
-      body: Column(
+      resizeToAvoidBottomInset: true,
+      body: SafeArea(
+        top: false,
+        child: Column(
         children: [
           Expanded(child: _buildMessages()),
           _buildComposer(),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -213,16 +326,13 @@ class _AdminChatDetailPageState extends State<AdminChatDetailPage> {
           );
         }
 
-        // Arahkan tampilan ke pesan paling bawah.
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted && scrollController.hasClients) {
-            scrollController.jumpTo(
-              scrollController.position.maxScrollExtent,
-            );
-          }
-        });
+        if (_lastMessageCount != messages.length) {
+          _lastMessageCount = messages.length;
+          _scrollToLatest(animate: messages.isNotEmpty);
+        }
 
         return ListView.builder(
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           controller: scrollController,
           padding: const EdgeInsets.all(16),
           itemCount: messages.length,
@@ -262,14 +372,31 @@ class _AdminChatDetailPageState extends State<AdminChatDetailPage> {
                     ),
                   ),
                 ),
-                child: Text(
-                  msg.message,
-                  style: TextStyle(
-                    color: isAdmin
-                        ? AppColors.white
-                        : AppColors.textPrimary,
-                    fontSize: 14,
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      msg.message,
+                      style: TextStyle(
+                        color: isAdmin
+                            ? AppColors.white
+                            : AppColors.textPrimary,
+                        fontSize: 14,
+                        height: 1.35,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${msg.createdAt.toLocal().hour.toString().padLeft(2, '0')}:${msg.createdAt.toLocal().minute.toString().padLeft(2, '0')}',
+                      style: TextStyle(
+                        color: isAdmin
+                            ? AppColors.white.withValues(alpha: 0.72)
+                            : AppColors.textHint,
+                        fontSize: 10,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             );

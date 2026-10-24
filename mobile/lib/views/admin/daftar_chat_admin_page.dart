@@ -158,10 +158,21 @@ class _DaftarChatAdminPageState
         }
       }
 
+      // Ambil profil lawan bicara agar daftar tidak menampilkan UUID.
+      // Prioritas tabel users (akun umum/admin), lalu mahasiswa.
+      final groupedChats = grouped.values.toList();
+      for (final chat in groupedChats) {
+        final profile = await _fetchChatProfile(
+          chat['user_id']?.toString() ?? '',
+        );
+        chat['profile_name'] = profile['name'];
+        chat['profile_photo'] = profile['photo'];
+      }
+
       if (!mounted) return;
 
       setState(() {
-        chats = grouped.values.toList();
+        chats = groupedChats;
         loading = false;
         error = null;
       });
@@ -178,6 +189,68 @@ class _DaftarChatAdminPageState
     }
   }
 
+  Future<Map<String, String?>> _fetchChatProfile(String id) async {
+    if (id.isEmpty) return {'name': null, 'photo': null};
+
+    // Membaca seluruh kolom supaya tetap kompatibel dengan variasi nama
+    // kolom profil yang digunakan pada tabel users/mahasiswa.
+    final List<Future<Map<String, dynamic>?>> lookups = [
+      _lookupProfileRow('users', 'id_user', id),
+      _lookupProfileRow('mahasiswa', 'id', id),
+    ];
+
+    for (final lookup in lookups) {
+      try {
+        final row = await lookup;
+        if (row == null) continue;
+
+        String? firstValue(List<String> keys) {
+          for (final key in keys) {
+            final value = row[key]?.toString().trim();
+            if (value != null && value.isNotEmpty && value != 'null') {
+              return value;
+            }
+          }
+          return null;
+        }
+
+        final name = firstValue([
+          'username', 'nama', 'nama_lengkap', 'full_name', 'name',
+        ]);
+        final photo = firstValue([
+          'foto', 'foto_profil', 'foto_url', 'avatar_url', 'profile_photo',
+        ]);
+
+        if (name != null || photo != null) {
+          return {'name': name, 'photo': photo};
+        }
+      } catch (e) {
+        // Jika tabel/kolom tidak dapat diakses, lanjutkan ke sumber profil lain.
+        debugPrint('Profil chat $id tidak ditemukan pada salah satu sumber: $e');
+      }
+    }
+
+    return {'name': null, 'photo': null};
+  }
+
+  Future<Map<String, dynamic>?> _lookupProfileRow(
+    String table,
+    String idColumn,
+    String id,
+  ) async {
+    try {
+      final dynamic result = await supabase
+          .from(table)
+          .select()
+          .eq(idColumn, id)
+          .maybeSingle();
+      if (result == null) return null;
+      return Map<String, dynamic>.from(result as Map);
+    } catch (_) {
+      return null;
+    }
+  }
+
   List<Map<String, dynamic>> get filteredChats {
     final keyword = searchController.text.trim().toLowerCase();
 
@@ -187,9 +260,11 @@ class _DaftarChatAdminPageState
 
       final message =
           chat['message']?.toString().toLowerCase() ?? '';
+      final name =
+          chat['profile_name']?.toString().toLowerCase() ?? '';
 
       final matchesSearch =
-          id.contains(keyword) || message.contains(keyword);
+          id.contains(keyword) || name.contains(keyword) || message.contains(keyword);
 
       final hasIncoming = chat['has_incoming'] == true;
       final hasOutgoing = chat['has_outgoing'] == true;
@@ -474,16 +549,22 @@ class _DaftarChatAdminPageState
                     CircleAvatar(
                       radius: 25,
                       backgroundColor: AppColors.primaryLight,
-                      child: Text(
-                        id.isNotEmpty
-                            ? id[0].toUpperCase()
-                            : '?',
-                        style: const TextStyle(
-                          color: AppColors.primary,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 18,
-                        ),
-                      ),
+                      backgroundImage: (chat['profile_photo']?.toString().trim().isNotEmpty == true)
+                          ? NetworkImage(chat['profile_photo'].toString())
+                          : null,
+                      child: (chat['profile_photo']?.toString().trim().isNotEmpty == true)
+                          ? null
+                          : Text(
+                              ((chat['profile_name']?.toString().trim().isNotEmpty == true)
+                                      ? chat['profile_name'].toString().trim()[0]
+                                      : (id.isNotEmpty ? id[0] : '?'))
+                                  .toUpperCase(),
+                              style: const TextStyle(
+                                color: AppColors.primary,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 18,
+                              ),
+                            ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -491,7 +572,9 @@ class _DaftarChatAdminPageState
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Pengguna $shortId',
+                            (chat['profile_name']?.toString().trim().isNotEmpty == true)
+                                ? chat['profile_name'].toString().trim()
+                                : 'Pengguna $shortId',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(

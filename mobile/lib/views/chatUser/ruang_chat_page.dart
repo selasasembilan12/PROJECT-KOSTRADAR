@@ -1,4 +1,6 @@
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -25,16 +27,24 @@ class RuangChatPage extends StatefulWidget {
 class _RuangChatPageState extends State<RuangChatPage> {
   final TextEditingController _messageController =
       TextEditingController();
+  final ScrollController _scrollController = ScrollController();
 
   final SupabaseClient _supabase = Supabase.instance.client;
 
   Map<String, dynamic>? _resolvedKostInfo;
+  String _chatPartnerName = '';
+  String? _chatPartnerPhoto;
+  int _lastMessageCount = -1;
   bool _isLoadingKost = true;
   bool _isSending = false;
 
   @override
   void initState() {
     super.initState();
+    _chatPartnerName = widget.namaAdmin.trim().isNotEmpty
+        ? widget.namaAdmin.trim()
+        : 'Pengelola Kost';
+    _fetchChatPartnerProfile();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -53,6 +63,117 @@ class _RuangChatPageState extends State<RuangChatPage> {
     }
   }
 
+
+  // Ambil profil lawan bicara dari tabel profil yang digunakan aplikasi.
+  // Admin/pengelola disimpan pada users, sedangkan mahasiswa pada mahasiswa.
+  Future<void> _fetchChatPartnerProfile() async {
+    final targetId = widget.idAdminTujuan.trim();
+    if (targetId.isEmpty) return;
+
+    Map<String, dynamic>? profile;
+    try {
+      profile = await _supabase
+          .from('users')
+          .select()
+          .eq('id_user', targetId)
+          .maybeSingle();
+    } catch (e) {
+      debugPrint('Profil users tidak dapat dibaca: $e');
+    }
+
+    if (profile == null) {
+      try {
+        profile = await _supabase
+            .from('mahasiswa')
+            .select()
+            .eq('id', targetId)
+            .maybeSingle();
+      } catch (e) {
+        debugPrint('Profil mahasiswa tidak dapat dibaca: $e');
+      }
+    }
+
+    if (profile == null) {
+      // Fallback untuk skema mahasiswa yang memakai id_user.
+      try {
+        profile = await _supabase
+            .from('mahasiswa')
+            .select()
+            .eq('id_user', targetId)
+            .maybeSingle();
+      } catch (e) {
+        debugPrint('Profil mahasiswa dengan id_user tidak ditemukan: $e');
+      }
+    }
+
+    if (!mounted || profile == null) return;
+
+    String? firstValue(List<String> keys) {
+      for (final key in keys) {
+        final value = profile?[key]?.toString().trim();
+        if (value != null && value.isNotEmpty && value != 'null') {
+          return value;
+        }
+      }
+      return null;
+    }
+
+    final name = firstValue([
+      'username', 'nama', 'nama_lengkap', 'nama_mahasiswa', 'full_name',
+      'display_name', 'name',
+    ]);
+    final photo = firstValue([
+      'foto', 'foto_profil', 'foto_url', 'avatar_url', 'profile_photo_url',
+      'photo', 'image',
+    ]);
+
+    setState(() {
+      if (name != null) _chatPartnerName = name;
+      _chatPartnerPhoto = photo;
+    });
+  }
+
+  Widget _buildPartnerAvatar({double radius = 18}) {
+    final photo = _chatPartnerPhoto;
+    if (photo != null && photo.startsWith('http')) {
+      return CircleAvatar(
+        radius: radius,
+        backgroundColor: AppColors.primaryLight,
+        backgroundImage: NetworkImage(photo),
+        onBackgroundImageError: (_, __) {},
+      );
+    }
+    final name = _chatPartnerName.trim();
+    return CircleAvatar(
+      radius: radius,
+      backgroundColor: AppColors.primary,
+      child: Text(
+        name.isNotEmpty ? name[0].toUpperCase() : 'P',
+        style: const TextStyle(
+          color: AppColors.white,
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+
+  void _scrollToLatest({bool animate = true}) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_scrollController.hasClients) return;
+      final target = _scrollController.position.maxScrollExtent;
+      if (!animate) {
+        _scrollController.jumpTo(target);
+        return;
+      }
+      _scrollController.animateTo(
+        target,
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
+      );
+    });
+  }
+
   Future<void> _fetchKostFromDatabase() async {
     try {
       // Cari kost berdasarkan ID pemilik.
@@ -61,6 +182,7 @@ class _RuangChatPageState extends State<RuangChatPage> {
           .from('kost')
           .select()
           .eq('id_user', widget.idAdminTujuan)
+          .limit(1)
           .maybeSingle();
 
       response ??= await _supabase
@@ -143,6 +265,7 @@ class _RuangChatPageState extends State<RuangChatPage> {
 
       // Kosongkan input hanya setelah pengiriman berhasil.
       _messageController.clear();
+      _scrollToLatest();
     } catch (e, stackTrace) {
       debugPrint('Gagal mengirim pesan: $e');
       debugPrintStack(stackTrace: stackTrace);
@@ -167,6 +290,7 @@ class _RuangChatPageState extends State<RuangChatPage> {
   @override
   void dispose() {
     _messageController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -205,25 +329,15 @@ class _RuangChatPageState extends State<RuangChatPage> {
         titleSpacing: 0,
         title: Row(
           children: [
-            CircleAvatar(
-              radius: 18,
-              backgroundColor: AppColors.primary,
-              child: Text(
-                widget.namaAdmin.isNotEmpty
-                    ? widget.namaAdmin[0].toUpperCase()
-                    : 'P',
-                style: const TextStyle(
-                  color: AppColors.white,
-                  fontSize: 14,
-                ),
-              ),
-            ),
+            _buildPartnerAvatar(radius: 18),
             const SizedBox(width: 10),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  widget.namaAdmin,
+                  _chatPartnerName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
@@ -242,7 +356,10 @@ class _RuangChatPageState extends State<RuangChatPage> {
           ],
         ),
       ),
-      body: Column(
+      resizeToAvoidBottomInset: true,
+      body: SafeArea(
+        top: false,
+        child: Column(
         children: [
           // Informasi kost.
           Container(
@@ -329,6 +446,10 @@ class _RuangChatPageState extends State<RuangChatPage> {
             child: Consumer<ChatProvider>(
               builder: (context, chatProvider, child) {
                 final messages = chatProvider.messages;
+                if (_lastMessageCount != messages.length) {
+                  _lastMessageCount = messages.length;
+                  _scrollToLatest(animate: messages.length > 0);
+                }
 
                 if (chatProvider.isLoading) {
                   return const Center(
@@ -351,6 +472,8 @@ class _RuangChatPageState extends State<RuangChatPage> {
                 }
 
                 return ListView.builder(
+                  controller: _scrollController,
+                  keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                   padding: const EdgeInsets.symmetric(
                     horizontal: 16,
                     vertical: 8,
@@ -360,9 +483,10 @@ class _RuangChatPageState extends State<RuangChatPage> {
                     final msg = messages[index];
                     final isMe = msg.pengirimId == myUserId;
 
+                    final localCreatedAt = msg.createdAt.toLocal();
                     final String timeString =
-                        '${msg.createdAt.hour.toString().padLeft(2, '0')}:'
-                        '${msg.createdAt.minute.toString().padLeft(2, '0')}';
+                        '${localCreatedAt.hour.toString().padLeft(2, '0')}:'
+                        '${localCreatedAt.minute.toString().padLeft(2, '0')}';
 
                     return Align(
                       alignment: isMe
@@ -566,6 +690,7 @@ class _RuangChatPageState extends State<RuangChatPage> {
             ),
           ),
         ],
+      ),
       ),
     );
   }
