@@ -10,14 +10,10 @@ import '../chatUser/ruang_chat_page.dart';
 class DetailKostPage extends StatefulWidget {
   final KostModel kost;
 
-<<<<<<< HEAD
   const DetailKostPage({
     super.key,
     required this.kost,
   });
-=======
-  const DetailKostPage({super.key, required this.kost});
->>>>>>> origin/fitur-apk
 
   @override
   State<DetailKostPage> createState() => _DetailKostPageState();
@@ -133,12 +129,8 @@ class _DetailKostPageState extends State<DetailKostPage> {
   Future<void> _bagikanKost() async {
     final kost = widget.kost;
     final hargaFormatted = _formatRupiah(kost.harga);
-<<<<<<< HEAD
     final fotoUrl =
         kost.foto.isNotEmpty ? kost.foto.first.trim() : '';
-=======
-    final fotoUrl = kost.foto.isNotEmpty ? kost.foto.first.trim() : '';
->>>>>>> origin/fitur-apk
 
     final pesan = StringBuffer()
       ..writeln('INFORMASI KOST - KOSTRADAR')
@@ -146,13 +138,9 @@ class _DetailKostPageState extends State<DetailKostPage> {
       ..writeln('Nama Kost: ${kost.nama}')
       ..writeln('Alamat: ${kost.alamat}')
       ..writeln('Harga: Rp $hargaFormatted/bulan')
-<<<<<<< HEAD
       ..writeln(
         'Tipe Kost: ${kost.tipe.isNotEmpty ? kost.tipe : 'Campur'}',
       )
-=======
-      ..writeln('Tipe Kost: ${kost.tipe.isNotEmpty ? kost.tipe : 'Campur'}')
->>>>>>> origin/fitur-apk
       ..writeln('Kamar tersedia: ${kost.ketersediaanKamar}')
       ..writeln()
       ..writeln('Deskripsi:')
@@ -162,12 +150,8 @@ class _DetailKostPageState extends State<DetailKostPage> {
             : 'Kost nyaman, aman, dan strategis dekat kampus.',
       );
 
-<<<<<<< HEAD
     if (fotoUrl.startsWith('https://') ||
         fotoUrl.startsWith('http://')) {
-=======
-    if (fotoUrl.startsWith('https://') || fotoUrl.startsWith('http://')) {
->>>>>>> origin/fitur-apk
       pesan
         ..writeln()
         ..writeln('Foto kost: $fotoUrl');
@@ -191,13 +175,9 @@ class _DetailKostPageState extends State<DetailKostPage> {
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-<<<<<<< HEAD
         const SnackBar(
           content: Text('Informasi kost gagal dibagikan.'),
         ),
-=======
-        const SnackBar(content: Text('Informasi kost gagal dibagikan.')),
->>>>>>> origin/fitur-apk
       );
     }
   }
@@ -210,7 +190,9 @@ class _DetailKostPageState extends State<DetailKostPage> {
     if (currentUser == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Silakan login terlebih dahulu untuk chat.'),
+          content: Text(
+            'Silakan login terlebih dahulu untuk chat.',
+          ),
         ),
       );
       return;
@@ -227,7 +209,9 @@ class _DetailKostPageState extends State<DetailKostPage> {
 
       if (kostData == null) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Data kost tidak ditemukan.')),
+          const SnackBar(
+            content: Text('Data kost tidak ditemukan.'),
+          ),
         );
         return;
       }
@@ -236,13 +220,9 @@ class _DetailKostPageState extends State<DetailKostPage> {
 
       if (idPemilik == null || idPemilik.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
-<<<<<<< HEAD
           const SnackBar(
             content: Text('ID pemilik kost tidak ditemukan.'),
           ),
-=======
-          const SnackBar(content: Text('ID pemilik kost tidak ditemukan.')),
->>>>>>> origin/fitur-apk
         );
         return;
       }
@@ -250,25 +230,20 @@ class _DetailKostPageState extends State<DetailKostPage> {
       if (idPemilik == currentUser.id) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Kamu sedang melihat kost milik akunmu sendiri.'),
+            content: Text(
+              'Kamu sedang melihat kost milik akunmu sendiri.',
+            ),
           ),
         );
         return;
       }
 
-<<<<<<< HEAD
       final fotoUrl =
           widget.kost.foto.isNotEmpty ? widget.kost.foto.first : '';
 
       final formattedHarga =
           'Rp ${_formatRupiah(widget.kost.harga)}/bulan';
 
-=======
-      final fotoUrl = widget.kost.foto.isNotEmpty ? widget.kost.foto.first : '';
-
-      final formattedHarga = 'Rp ${_formatRupiah(widget.kost.harga)}/bulan';
-
->>>>>>> origin/fitur-apk
       await Navigator.push(
         context,
         MaterialPageRoute(
@@ -280,12 +255,8 @@ class _DetailKostPageState extends State<DetailKostPage> {
               'nama_kost': widget.kost.nama,
               'foto_kost': fotoUrl,
               'harga': formattedHarga,
-<<<<<<< HEAD
               'ketersediaan_kamar':
                   widget.kost.ketersediaanKamar,
-=======
-              'ketersediaan_kamar': widget.kost.ketersediaanKamar,
->>>>>>> origin/fitur-apk
             },
           ),
         ),
@@ -309,25 +280,15 @@ class _DetailKostPageState extends State<DetailKostPage> {
   Widget build(BuildContext context) {
     final formattedHarga = _formatRupiah(widget.kost.harga);
 
-<<<<<<< HEAD
     final tipeKost = widget.kost.tipe.isNotEmpty
         ? widget.kost.tipe
         : 'Campur';
-=======
-    final tipeKost = widget.kost.tipe.isNotEmpty ? widget.kost.tipe : 'Campur';
->>>>>>> origin/fitur-apk
 
     final isVerifikasi = widget.kost.terverifikasi;
     final termasukListrik = widget.kost.termasukListrik;
 
-<<<<<<< HEAD
     final fasilitasStr =
         widget.kost.fasilitas.map((e) => e.toLowerCase()).join(', ');
-=======
-    final fasilitasStr = widget.kost.fasilitas
-        .map((e) => e.toLowerCase())
-        .join(', ');
->>>>>>> origin/fitur-apk
 
     final deskripsiKost = widget.kost.deskripsi.isNotEmpty
         ? widget.kost.deskripsi
@@ -368,7 +329,8 @@ class _DetailKostPageState extends State<DetailKostPage> {
                                 });
                               },
                               itemBuilder: (context, index) {
-                                final fotoUrl = widget.kost.foto[index].trim();
+                                final fotoUrl =
+                                    widget.kost.foto[index].trim();
 
                                 if (fotoUrl.isEmpty) {
                                   return Container(
@@ -388,12 +350,8 @@ class _DetailKostPageState extends State<DetailKostPage> {
                                   width: double.infinity,
                                   height: 330,
                                   fit: BoxFit.cover,
-<<<<<<< HEAD
                                   loadingBuilder:
                                       (context, child, progress) {
-=======
-                                  loadingBuilder: (context, child, progress) {
->>>>>>> origin/fitur-apk
                                     if (progress == null) return child;
 
                                     return Container(
@@ -599,7 +557,8 @@ class _DetailKostPageState extends State<DetailKostPage> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              mainAxisAlignment:
+                                  MainAxisAlignment.spaceBetween,
                               children: [
                                 const Text(
                                   'Harga Sewa Bulanan',
@@ -678,13 +637,9 @@ class _DetailKostPageState extends State<DetailKostPage> {
                             const Expanded(
                               child: Text(
                                 'Ketersediaan Kamar',
-<<<<<<< HEAD
                                 style: TextStyle(
                                   color: AppColors.textPrimary,
                                 ),
-=======
-                                style: TextStyle(color: AppColors.textPrimary),
->>>>>>> origin/fitur-apk
                               ),
                             ),
                             Text(
@@ -787,7 +742,10 @@ class _DetailKostPageState extends State<DetailKostPage> {
               decoration: const BoxDecoration(
                 color: AppColors.white,
                 boxShadow: [
-                  BoxShadow(color: AppColors.cardShadow, blurRadius: 10),
+                  BoxShadow(
+                    color: AppColors.cardShadow,
+                    blurRadius: 10,
+                  ),
                 ],
               ),
               child: Row(
@@ -795,18 +753,16 @@ class _DetailKostPageState extends State<DetailKostPage> {
                   Expanded(
                     child: OutlinedButton.icon(
                       onPressed: _bukaRuangChat,
-<<<<<<< HEAD
                       icon: const Icon(
                         Icons.chat_outlined,
                         size: 18,
                       ),
-=======
-                      icon: const Icon(Icons.chat_outlined, size: 18),
->>>>>>> origin/fitur-apk
                       label: const Text('Chat'),
                       style: OutlinedButton.styleFrom(
                         minimumSize: const Size(0, 48),
-                        side: const BorderSide(color: AppColors.primary),
+                        side: const BorderSide(
+                          color: AppColors.primary,
+                        ),
                         foregroundColor: AppColors.primary,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
@@ -820,17 +776,15 @@ class _DetailKostPageState extends State<DetailKostPage> {
                     child: ElevatedButton.icon(
                       onPressed: toggleFavorite,
                       icon: Icon(
-                        isFavorite ? Icons.favorite : Icons.favorite_border,
+                        isFavorite
+                            ? Icons.favorite
+                            : Icons.favorite_border,
                         size: 18,
                       ),
                       label: Text(
-<<<<<<< HEAD
                         isFavorite
                             ? 'Sudah Favorit'
                             : 'Tambah Favorit',
-=======
-                        isFavorite ? 'Sudah Favorit' : 'Tambah Favorit',
->>>>>>> origin/fitur-apk
                       ),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: isFavorite
@@ -867,14 +821,21 @@ class _DetailKostPageState extends State<DetailKostPage> {
           color: AppColors.white,
           shape: BoxShape.circle,
         ),
-        child: Icon(icon, color: color, size: 20),
+        child: Icon(
+          icon,
+          color: color,
+          size: 20,
+        ),
       ),
     );
   }
 
   Widget badge(String text, Color bg, Color textColor) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      padding: const EdgeInsets.symmetric(
+        horizontal: 10,
+        vertical: 5,
+      ),
       decoration: BoxDecoration(
         color: bg,
         borderRadius: BorderRadius.circular(20),
@@ -890,7 +851,11 @@ class _DetailKostPageState extends State<DetailKostPage> {
     );
   }
 
-  Widget facility(IconData icon, String title, bool isAvailable) {
+  Widget facility(
+    IconData icon,
+    String title,
+    bool isAvailable,
+  ) {
     return Opacity(
       opacity: isAvailable ? 1.0 : 0.4,
       child: Column(
@@ -899,12 +864,16 @@ class _DetailKostPageState extends State<DetailKostPage> {
             width: 45,
             height: 45,
             decoration: BoxDecoration(
-              color: isAvailable ? AppColors.primaryLight : AppColors.border,
+              color: isAvailable
+                  ? AppColors.primaryLight
+                  : AppColors.border,
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(
               icon,
-              color: isAvailable ? AppColors.primary : AppColors.textSecondary,
+              color: isAvailable
+                  ? AppColors.primary
+                  : AppColors.textSecondary,
               size: 22,
             ),
           ),
