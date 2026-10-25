@@ -49,39 +49,72 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> _checkInitialSession() async {
-    await Future.delayed(const Duration(milliseconds: 500));
-    if (!mounted) return;
-
-    // ️ CEK PENGAMAN: Jika listener sudah menangani recovery, STOP!
-    if (_isHandlingRecovery) {
-      print('[DEBUG] Recovery sudah ditangani listener, skip.');
-      return;
-    }
-
-    // LAPISAN 2: BACKUP MANUAL CEK URL (Jika listener terlambat)
+    // 1. CEK URL TERLEBIH DAHULU SEBELUM DELAY (PENTING!)
     final uri = Uri.base;
+    print('[DEBUG] Full URI: ${uri.toString()}');
+    print('[DEBUG] Query: ${uri.query}');
+    print('[DEBUG] Fragment: ${uri.fragment}');
+
+    // Ambil parameter dari Query (?code=...) DAN Fragment (#access_token=...)
+    final queryParams = uri.queryParameters;
+    final fragmentParams = Uri.splitQueryString(uri.fragment);
+
+    final code = queryParams['code'] ?? fragmentParams['code'];
+    final type = queryParams['type'] ?? fragmentParams['type'];
+    final accessToken =
+        queryParams['access_token'] ?? fragmentParams['access_token'];
+
+    // Fallback: cek manual string jika parsing URL gagal karena format #/splash
+    final urlString = uri.toString();
+    final hasRecoveryInString =
+        urlString.contains('code=') ||
+        urlString.contains('type=recovery') ||
+        urlString.contains('access_token=');
+
     final hasRecoveryCode =
-        uri.queryParameters['code'] != null ||
-        uri.queryParameters['type'] == 'recovery';
+        code != null ||
+        type == 'recovery' ||
+        accessToken != null ||
+        hasRecoveryInString;
 
     if (hasRecoveryCode) {
       print(
-        '[DEBUG] 🚨 Recovery link terdeteksi di URL, memaksa proses recovery...',
+        '[DEBUG] 🚨 RECOVERY LINK DETECTED! Type: $type, Has Code: ${code != null}',
       );
+      _isHandlingRecovery = true;
+
       try {
-        await Supabase.instance.client.auth.recoverSession(uri.toString());
-        if (mounted) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (context) => const UpdatePasswordScreen(),
-            ),
-          );
-        }
-        return; // Stop di sini, jangan lanjut
+        // Coba recover session dengan format yang paling kompatibel untuk Web
+        final recoveryUrl = uri.hasFragment && !uri.hasQuery
+            ? '${uri.origin}#${uri.fragment}'
+            : uri.toString();
+
+        print('[DEBUG] Attempting recoverSession with: $recoveryUrl');
+        await Supabase.instance.client.auth.recoverSession(recoveryUrl);
+        print('[DEBUG] Recover session SUCCESS');
       } catch (e) {
-        print('[DEBUG] Manual recovery gagal: $e');
+        print(
+          '[DEBUG] Recover session failed: $e. (Tetap lanjut ke halaman update password)',
+        );
       }
+
+      if (mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const UpdatePasswordScreen()),
+        );
+      }
+      return; // STOP DI SINI, jangan lanjut ke normal flow
+    }
+
+    // 2. JIKA BUKAN LINK RECOVERY, BARU PAKAI DELAY UNTUK NORMAL FLOW
+    await Future.delayed(const Duration(milliseconds: 500));
+    if (!mounted) return;
+
+    // CEK PENGAMAN: Jika listener sudah menangani recovery, STOP!
+    if (_isHandlingRecovery) {
+      print('[DEBUG] Recovery sudah ditangani listener, skip.');
+      return;
     }
 
     // FLOW NORMAL: BIARKAN TETAP DI SPLASH SCREEN
