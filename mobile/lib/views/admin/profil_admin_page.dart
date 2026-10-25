@@ -1,10 +1,8 @@
-import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../../core/theme/app_theme.dart';
 import 'home_admin_page.dart';
 import 'data_kost_page.dart';
 import 'daftar_chat_admin_page.dart';
@@ -21,107 +19,150 @@ class _ProfilAdminPageState extends State<ProfilAdminPage> {
   final ImagePicker _picker = ImagePicker();
 
   bool _isLoading = true;
-  bool _isSaving = false;
   bool _isUploadingPhoto = false;
 
-  Map<String, dynamic> adminData = {
-    'username': 'Admin',
-    'email': '',
-    'foto_profile': '',
-  };
+  String _username = 'Admin';
+  String _email = '';
+  String _fotoProfile = '';
+
+  int _jumlahKost = 0;
+  int _jumlahKamar = 0;
+
+  static const Color _background = Color(0xFFF4F6FA);
+  static const Color _primary = Color(0xFF1765D8);
+  static const Color _textDark = Color(0xFF172033);
+  static const Color _textMuted = Color(0xFF778399);
+  static const Color _border = Color(0xFFE5EAF1);
+  static const Color _danger = Color(0xFFDC3636);
 
   @override
   void initState() {
     super.initState();
-    _fetchAdminProfile();
+    _loadProfile();
   }
 
-  Future<void> _fetchAdminProfile() async {
+  // =========================================================
+  // MEMUAT PROFIL ADMIN DAN STATISTIK KOST
+  // =========================================================
+
+  Future<void> _loadProfile() async {
+    if (mounted) {
+      setState(() => _isLoading = true);
+    }
+
+    final user = supabase.auth.currentUser;
+
+    if (user == null) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      return;
+    }
+
+    final metadata = user.userMetadata ?? {};
+
+    _username = metadata['username']?.toString() ??
+        metadata['nama']?.toString() ??
+        user.email?.split('@').first ??
+        'Admin';
+
+    _email = user.email ?? '';
+    _fotoProfile = metadata['foto_profile']?.toString() ?? '';
+
     try {
-      final user = supabase.auth.currentUser;
-
-      if (user == null) {
-        throw Exception('Admin belum login');
-      }
-
-      // Ambil profil utama dari tabel public.users.
       final profile = await supabase
           .from('users')
           .select('id_user, username, email, foto_profile')
           .eq('id_user', user.id)
           .maybeSingle();
 
-      final metadata = user.userMetadata ?? {};
-
       if (profile != null) {
-        adminData = {
-          'username': profile['username'] ??
-              metadata['username'] ??
-              user.email?.split('@').first ??
-              'Admin',
-          'email': profile['email'] ?? user.email ?? '',
-          'foto_profile': profile['foto_profile'] ??
-              metadata['foto_profile'] ??
-              '',
-        };
-      } else {
-        // Fallback agar halaman tetap bisa dibuka jika baris users
-        // belum tersedia. Penyimpanan tetap akan memberi pesan error.
-        adminData = {
-          'username': metadata['username'] ??
-              user.email?.split('@').first ??
-              'Admin',
-          'email': user.email ?? '',
-          'foto_profile': metadata['foto_profile'] ?? '',
-        };
-        debugPrint(
-          'Baris public.users tidak ditemukan untuk UUID ${user.id}',
-        );
+        _username =
+            profile['username']?.toString().trim().isNotEmpty == true
+                ? profile['username'].toString()
+                : _username;
+
+        _email = profile['email']?.toString() ?? _email;
+
+        _fotoProfile =
+            profile['foto_profile']?.toString().isNotEmpty == true
+                ? profile['foto_profile'].toString()
+                : _fotoProfile;
       }
     } catch (e) {
-      debugPrint('Gagal mengambil profil admin: $e');
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      debugPrint('Gagal memuat profil admin: $e');
     }
+
+    try {
+      final kostList = await supabase
+          .from('kost')
+          .select('ketersediaan_kamar')
+          .eq('id_user', user.id);
+
+      _jumlahKost = kostList.length;
+      _jumlahKamar = 0;
+
+      for (final kost in kostList) {
+        _jumlahKamar +=
+            int.tryParse(
+              (kost['ketersediaan_kamar'] ?? 0).toString(),
+            ) ??
+            0;
+      }
+    } catch (e) {
+      debugPrint('Gagal memuat statistik kost: $e');
+    }
+
+    if (!mounted) return;
+
+    setState(() => _isLoading = false);
   }
 
   void _showMessage(String message) {
     if (!mounted) return;
 
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
+      SnackBar(
+        content: Text(message),
+        behavior: SnackBarBehavior.floating,
+      ),
     );
   }
+
+  // =========================================================
+  // FOTO PROFIL
+  // =========================================================
 
   Future<String> _uploadProfilePhoto(XFile image) async {
     final user = supabase.auth.currentUser;
 
     if (user == null) {
-      throw Exception('Admin belum login');
+      throw Exception('Admin belum login.');
     }
 
     final bytes = await image.readAsBytes();
-    final ext = image.name.split('.').last.toLowerCase();
+    final extension = image.name.split('.').last.toLowerCase();
+
+    final contentType =
+        extension == 'jpg' || extension == 'jpeg'
+            ? 'image/jpeg'
+            : 'image/$extension';
 
     final path =
-        'profile_admin/${user.id}/foto_${DateTime.now().millisecondsSinceEpoch}.$ext';
+        'profile_admin/${user.id}/foto_${DateTime.now().millisecondsSinceEpoch}.$extension';
 
     await supabase.storage.from('kost-images').uploadBinary(
       path,
       bytes,
       fileOptions: FileOptions(
-        contentType: ext == 'jpg' || ext == 'jpeg'
-            ? 'image/jpeg'
-            : 'image/$ext',
+        contentType: contentType,
+        upsert: true,
       ),
     );
 
     return supabase.storage.from('kost-images').getPublicUrl(path);
   }
 
-  Future<void> _pickAndUploadPhoto() async {
+  Future<void> _changeProfilePhoto() async {
     try {
       final image = await _picker.pickImage(
         source: ImageSource.gallery,
@@ -133,13 +174,13 @@ class _ProfilAdminPageState extends State<ProfilAdminPage> {
       setState(() => _isUploadingPhoto = true);
 
       final user = supabase.auth.currentUser;
+
       if (user == null) {
-        throw Exception('Admin belum login');
+        throw Exception('Admin belum login.');
       }
 
       final imageUrl = await _uploadProfilePhoto(image);
 
-      // Simpan foto ke tabel public.users terlebih dahulu.
       final updatedRows = await supabase
           .from('users')
           .update({'foto_profile': imageUrl})
@@ -148,16 +189,14 @@ class _ProfilAdminPageState extends State<ProfilAdminPage> {
 
       if (updatedRows.isEmpty) {
         throw Exception(
-          'Baris admin tidak ditemukan di public.users. '
-          'Pastikan id_user sama dengan UUID akun Supabase Auth.',
+          'Data admin tidak ditemukan pada tabel users.',
         );
       }
 
-      // Sinkronkan juga metadata Auth.
       await supabase.auth.updateUser(
         UserAttributes(
           data: {
-            'username': adminData['username'],
+            'username': _username,
             'foto_profile': imageUrl,
           },
         ),
@@ -166,472 +205,159 @@ class _ProfilAdminPageState extends State<ProfilAdminPage> {
       if (!mounted) return;
 
       setState(() {
-        adminData['foto_profile'] = imageUrl;
+        _fotoProfile = imageUrl;
         _isUploadingPhoto = false;
       });
 
-      _showMessage('Foto profil berhasil disimpan ke database');
+      _showMessage('Foto profil berhasil diperbarui.');
     } catch (e) {
-      debugPrint('Gagal menyimpan foto profil: $e');
+      debugPrint('Gagal mengganti foto profil: $e');
 
       if (!mounted) return;
 
       setState(() => _isUploadingPhoto = false);
-      _showMessage('Gagal menyimpan foto profil: $e');
+      _showMessage('Gagal memperbarui foto: $e');
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final username = adminData['username'] as String? ?? 'Admin';
-    final email = adminData['email'] as String? ?? '';
-    final fotoProfile = adminData['foto_profile'] as String? ?? '';
-
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: SafeArea(
-        child: _isLoading
-            ? const Center(
-                child: CircularProgressIndicator(
-                  color: AppColors.primary,
-                ),
-              )
-            : Column(
-                children: [
-                  _buildHeader(),
-                  Expanded(
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.fromLTRB(20, 20, 20, 30),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Profil',
-                            style: TextStyle(
-                              fontSize: 28,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.textPrimary,
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          const Text(
-                            'Kelola informasi akun admin Anda',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: AppColors.textSecondary,
-                            ),
-                          ),
-                          const SizedBox(height: 24),
-                          _buildProfileCard(
-                            username,
-                            email,
-                            fotoProfile,
-                          ),
-                          const SizedBox(height: 24),
-                          const Text(
-                            'Pengaturan Akun',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.textPrimary,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          _buildSettingItem(
-                            icon: Icons.lock_outline,
-                            title: 'Ubah Password',
-                            subtitle: 'Perbarui password akun admin',
-                            onTap: _showChangePassword,
-                          ),
-                          const SizedBox(height: 10),
-                          _buildSettingItem(
-                            icon: Icons.logout_outlined,
-                            title: 'Logout',
-                            subtitle: 'Keluar dari akun admin',
-                            iconColor: AppColors.error,
-                            titleColor: AppColors.error,
-                            onTap: _showLogoutConfirmation,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-      ),
-      bottomNavigationBar: _buildBottomNav(),
-    );
-  }
-
-  // HEADER: ikon profil tambahan sudah dihapus.
-  Widget _buildHeader() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      alignment: Alignment.centerLeft,
-      child: const Text(
-        'Profil Admin',
-        style: TextStyle(
-          fontSize: 24,
-          fontWeight: FontWeight.bold,
-          color: AppColors.textPrimary,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildProfileCard(
-    String username,
-    String email,
-    String fotoProfile,
-  ) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Column(
-        children: [
-          Stack(
-            children: [
-              _buildAvatar(fotoProfile, 90),
-              Positioned(
-                right: 0,
-                bottom: 0,
-                child: GestureDetector(
-                  onTap: _isUploadingPhoto ? null : _pickAndUploadPhoto,
-                  child: Container(
-                    width: 30,
-                    height: 30,
-                    decoration: const BoxDecoration(
-                      color: AppColors.primary,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.camera_alt,
-                      size: 15,
-                      color: AppColors.white,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Flexible(
-                child: Text(
-                  username,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              GestureDetector(
-                onTap: _editProfile,
-                child: const Icon(
-                  Icons.edit,
-                  size: 18,
-                  color: AppColors.primary,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          _buildInfoRow(
-            Icons.email_outlined,
-            email.isEmpty ? '-' : email,
-          ),
-          const SizedBox(height: 14),
-          Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 14,
-              vertical: 6,
-            ),
-            decoration: BoxDecoration(
-              color: AppColors.primaryLight,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: const Text(
-              'ADMIN',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
-                color: AppColors.primary,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAvatar(String fotoProfile, double size) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: const BoxDecoration(
-        shape: BoxShape.circle,
-        color: AppColors.primaryLight,
-      ),
-      child: _isUploadingPhoto
-          ? const Center(
-              child: CircularProgressIndicator(
-                color: AppColors.primary,
-                strokeWidth: 2,
-              ),
-            )
-          : ClipOval(
-              child: fotoProfile.isNotEmpty
-                  ? Image.network(
-                      fotoProfile,
-                      width: size,
-                      height: size,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, _, _) => Icon(
-                        Icons.person,
-                        size: size * 0.5,
-                        color: AppColors.primary,
-                      ),
-                    )
-                  : Icon(
-                      Icons.person,
-                      size: size * 0.5,
-                      color: AppColors.primary,
-                    ),
-            ),
-    );
-  }
-
-  Widget _buildInfoRow(IconData icon, String value) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Icon(
-          icon,
-          size: 16,
-          color: AppColors.textSecondary,
-        ),
-        const SizedBox(width: 8),
-        Flexible(
-          child: Text(
-            value,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontSize: 13,
-              color: AppColors.textSecondary,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
+  // =========================================================
+  // EDIT PROFIL
+  // =========================================================
 
   Future<void> _editProfile() async {
-    final nameController = TextEditingController(
-      text: adminData['username'] as String? ?? '',
-    );
-
-    final emailController = TextEditingController(
-      text: adminData['email'] as String? ?? '',
-    );
-
-    XFile? fotoBaru;
-    bool savingInDialog = false;
+    final nameController = TextEditingController(text: _username);
+    final formKey = GlobalKey<FormState>();
 
     await showDialog<void>(
       context: context,
       builder: (dialogContext) {
+        bool saving = false;
+
         return StatefulBuilder(
-          builder: (contextDialog, setDialogState) {
+          builder: (context, setDialogState) {
             return AlertDialog(
               title: const Text('Edit Profil Admin'),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    GestureDetector(
-                      onTap: savingInDialog
-                          ? null
-                          : () async {
-                              final image = await _picker.pickImage(
-                                source: ImageSource.gallery,
-                                imageQuality: 80,
-                              );
-
-                              if (image != null) {
-                                setDialogState(() => fotoBaru = image);
-                              }
-                            },
-                      child: CircleAvatar(
-                        radius: 42,
-                        backgroundColor: AppColors.primaryLight,
-                        backgroundImage: fotoBaru != null
-                            ? FileImage(File(fotoBaru!.path))
-                            : ((adminData['foto_profile'] as String?)
-                                            ?.isNotEmpty ??
-                                        false)
-                                ? NetworkImage(
-                                    adminData['foto_profile'] as String,
-                                  )
-                                : null,
-                        child: fotoBaru == null &&
-                                ((adminData['foto_profile'] as String?)
-                                        ?.isNotEmpty !=
-                                    true)
-                            ? const Icon(
-                                Icons.camera_alt,
-                                size: 30,
-                                color: AppColors.primary,
-                              )
-                            : null,
+              content: Form(
+                key: formKey,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      GestureDetector(
+                        onTap: _changeProfilePhoto,
+                        child: Stack(
+                          children: [
+                            _avatar(radius: 35),
+                            Positioned(
+                              right: 0,
+                              bottom: 0,
+                              child: CircleAvatar(
+                                radius: 13,
+                                backgroundColor: _primary,
+                                child: const Icon(
+                                  Icons.camera_alt,
+                                  size: 13,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    const Text('Ketuk foto untuk mengganti'),
-                    const SizedBox(height: 18),
-                    TextField(
-                      controller: nameController,
-                      decoration: const InputDecoration(
-                        labelText: 'Nama Admin',
-                        prefixIcon: Icon(Icons.person_outline),
-                        border: OutlineInputBorder(),
+                      const SizedBox(height: 18),
+                      TextFormField(
+                        controller: nameController,
+                        decoration: const InputDecoration(
+                          labelText: 'Nama Admin',
+                          prefixIcon: Icon(Icons.person_outline),
+                          border: OutlineInputBorder(),
+                        ),
+                        validator: (value) {
+                          if (value == null ||
+                              value.trim().isEmpty) {
+                            return 'Nama wajib diisi.';
+                          }
+                          return null;
+                        },
                       ),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: emailController,
-                      keyboardType: TextInputType.emailAddress,
-                      decoration: const InputDecoration(
-                        labelText: 'Email',
-                        prefixIcon: Icon(Icons.email_outlined),
-                        border: OutlineInputBorder(),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        initialValue: _email,
+                        readOnly: true,
+                        decoration: const InputDecoration(
+                          labelText: 'Email akun',
+                          prefixIcon: Icon(Icons.email_outlined),
+                          border: OutlineInputBorder(),
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
               actions: [
                 TextButton(
-                  onPressed: savingInDialog
+                  onPressed: saving
                       ? null
                       : () => Navigator.pop(dialogContext),
                   child: const Text('Batal'),
                 ),
-                ElevatedButton(
-                  onPressed: savingInDialog
+                FilledButton(
+                  onPressed: saving
                       ? null
                       : () async {
-                          final nama = nameController.text.trim();
-                          final email = emailController.text.trim();
-
-                          if (nama.isEmpty || email.isEmpty) {
-                            _showMessage('Nama dan email wajib diisi');
+                          if (!formKey.currentState!.validate()) {
                             return;
                           }
 
-                          if (!email.contains('@')) {
-                            _showMessage('Format email tidak valid');
-                            return;
-                          }
-
-                          setDialogState(() => savingInDialog = true);
-                          setState(() => _isSaving = true);
+                          setDialogState(() => saving = true);
 
                           try {
                             final user = supabase.auth.currentUser;
 
                             if (user == null) {
-                              throw Exception('Admin belum login');
+                              throw Exception('Admin belum login.');
                             }
 
-                            String fotoUrl =
-                                adminData['foto_profile'] as String? ?? '';
+                            final nama = nameController.text.trim();
 
-                            if (fotoBaru != null) {
-                              fotoUrl =
-                                  await _uploadProfilePhoto(fotoBaru!);
-                            }
-
-                            final emailBerubah = email != user.email;
-
-                            debugPrint('UUID Auth: ${user.id}');
-                            debugPrint('Username yang akan disimpan: $nama');
-
-                            // Simpan nama dan foto ke database aplikasi.
-                            // Email ikut diperbarui pada tabel users agar
-                            // konsisten dengan data profil yang ditampilkan.
-                            final updatedRows = await supabase
+                            final rows = await supabase
                                 .from('users')
-                                .update({
-                                  'username': nama,
-                                  'foto_profile': fotoUrl,
-                                  'email': email,
-                                })
+                                .update({'username': nama})
                                 .eq('id_user', user.id)
-                                .select('id_user, username, foto_profile');
+                                .select('id_user');
 
-                            debugPrint('Hasil update database: $updatedRows');
-
-                            if (updatedRows.isEmpty) {
+                            if (rows.isEmpty) {
                               throw Exception(
-                                'Profil admin tidak ditemukan di public.users. '
-                                'Pastikan id_user sama dengan UUID akun Auth.',
+                                'Data admin tidak ditemukan pada tabel users.',
                               );
                             }
 
-                            // Sinkronkan metadata Supabase Auth.
                             await supabase.auth.updateUser(
                               UserAttributes(
                                 data: {
                                   'username': nama,
-                                  'foto_profile': fotoUrl,
+                                  'foto_profile': _fotoProfile,
                                 },
-                                email: emailBerubah ? email : null,
                               ),
                             );
 
                             if (!mounted) return;
 
-                            setState(() {
-                              adminData['username'] = nama;
-                              adminData['email'] = email;
-                              adminData['foto_profile'] = fotoUrl;
-                            });
+                            setState(() => _username = nama);
 
                             Navigator.pop(dialogContext);
-
-                            _showMessage(
-                              emailBerubah
-                                  ? 'Profil tersimpan. Perubahan email mungkin memerlukan konfirmasi.'
-                                  : 'Profil berhasil diperbarui',
-                            );
+                            _showMessage('Profil berhasil diperbarui.');
                           } catch (e) {
                             _showMessage(
-                              'Gagal memperbarui profil: $e',
+                              'Gagal menyimpan profil: $e',
                             );
-                            setDialogState(
-                              () => savingInDialog = false,
-                            );
-                          } finally {
-                            if (mounted) {
-                              setState(() => _isSaving = false);
-                            }
+                            setDialogState(() => saving = false);
                           }
                         },
-                  child: _isSaving
+                  child: saving
                       ? const SizedBox(
-                          width: 18,
                           height: 18,
+                          width: 18,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
                           ),
@@ -646,157 +372,72 @@ class _ProfilAdminPageState extends State<ProfilAdminPage> {
     );
 
     nameController.dispose();
-    emailController.dispose();
   }
 
-  Widget _buildSettingItem({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required VoidCallback onTap,
-    Color iconColor = AppColors.primary,
-    Color titleColor = AppColors.textPrimary,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: AppColors.white,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppColors.border),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 42,
-              height: 42,
-              decoration: BoxDecoration(
-                color: iconColor.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(icon, color: iconColor, size: 22),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: titleColor,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    subtitle,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const Icon(
-              Icons.arrow_forward_ios,
-              size: 15,
-              color: AppColors.textSecondary,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  // =========================================================
+  // UBAH PASSWORD
+  // =========================================================
 
-  Future<void> _showChangePassword() async {
-    final passwordController = TextEditingController();
-    bool saving = false;
+  Future<void> _changePassword() async {
+    final controller = TextEditingController();
 
-    await showDialog<void>(
-      context: context,
-      builder: (dialogContext) {
-        return StatefulBuilder(
-          builder: (contextDialog, setDialogState) {
-            return AlertDialog(
-              title: const Text('Ubah Password'),
-              content: TextField(
-                controller: passwordController,
-                obscureText: true,
-                decoration: const InputDecoration(
-                  hintText: 'Password baru (minimal 6 karakter)',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: saving
-                      ? null
-                      : () => Navigator.pop(dialogContext),
-                  child: const Text('Batal'),
-                ),
-                ElevatedButton(
-                  onPressed: saving
-                      ? null
-                      : () async {
-                          final password =
-                              passwordController.text.trim();
-
-                          if (password.length < 6) {
-                            _showMessage(
-                              'Password minimal 6 karakter',
-                            );
-                            return;
-                          }
-
-                          setDialogState(() => saving = true);
-
-                          try {
-                            await supabase.auth.updateUser(
-                              UserAttributes(password: password),
-                            );
-
-                            if (!mounted) return;
-
-                            Navigator.pop(dialogContext);
-                            _showMessage('Password berhasil diperbarui');
-                          } catch (e) {
-                            _showMessage(
-                              'Gagal mengubah password: $e',
-                            );
-                            setDialogState(() => saving = false);
-                          }
-                        },
-                  child: saving
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                          ),
-                        )
-                      : const Text('Simpan'),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-
-    passwordController.dispose();
-  }
-
-  // LOGOUT: mengakhiri sesi Supabase dan menghapus
-  // seluruh halaman admin dari navigation stack.
-  Future<void> _showLogoutConfirmation() async {
-    final confirmed = await showDialog<bool>(
+    final password = await showDialog<String>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Logout'),
+        title: const Text('Ubah Password'),
+        content: TextField(
+          controller: controller,
+          obscureText: true,
+          decoration: const InputDecoration(
+            labelText: 'Password baru',
+            helperText: 'Minimal 6 karakter',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Batal'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(dialogContext, controller.text);
+            },
+            child: const Text('Simpan'),
+          ),
+        ],
+      ),
+    );
+
+    controller.dispose();
+
+    if (password == null) return;
+
+    if (password.trim().length < 6) {
+      _showMessage('Password minimal 6 karakter.');
+      return;
+    }
+
+    try {
+      await supabase.auth.updateUser(
+        UserAttributes(password: password.trim()),
+      );
+
+      _showMessage('Password berhasil diperbarui.');
+    } catch (e) {
+      _showMessage('Gagal mengubah password: $e');
+    }
+  }
+
+  // =========================================================
+  // LOGOUT
+  // =========================================================
+
+  Future<void> _logout() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Keluar dari akun?'),
         content: const Text(
           'Apakah Anda yakin ingin keluar dari akun admin?',
         ),
@@ -805,26 +446,24 @@ class _ProfilAdminPageState extends State<ProfilAdminPage> {
             onPressed: () => Navigator.pop(dialogContext, false),
             child: const Text('Batal'),
           ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.error,
-              foregroundColor: AppColors.white,
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: _danger,
             ),
+            onPressed: () => Navigator.pop(dialogContext, true),
             child: const Text('Logout'),
           ),
         ],
       ),
     );
 
-    if (confirmed != true || !mounted) return;
+    if (confirm != true) return;
 
     try {
       await supabase.auth.signOut();
 
       if (!mounted) return;
 
-      // Rute login harus sudah terdaftar di aplikasi.
       Navigator.of(context).pushNamedAndRemoveUntil(
         '/login',
         (route) => false,
@@ -834,89 +473,486 @@ class _ProfilAdminPageState extends State<ProfilAdminPage> {
     }
   }
 
-  Widget _buildBottomNav() {
-    return Container(
-      decoration: const BoxDecoration(
-        color: AppColors.white,
-        border: Border(
-          top: BorderSide(color: AppColors.border),
+  // =========================================================
+  // KOMPONEN UI
+  // =========================================================
+
+  Widget _avatar({double radius = 38}) {
+    final hasPhoto = _fotoProfile.startsWith('http');
+
+    return CircleAvatar(
+      radius: radius,
+      backgroundColor: const Color(0xFFE5EEFF),
+      backgroundImage:
+          hasPhoto ? NetworkImage(_fotoProfile) : null,
+      child: _isUploadingPhoto
+          ? const CircularProgressIndicator(
+              color: _primary,
+              strokeWidth: 2,
+            )
+          : !hasPhoto
+              ? Icon(
+                  Icons.person,
+                  size: radius,
+                  color: _primary,
+                )
+              : null,
+    );
+  }
+
+  Widget _sectionTitle(String title) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 11),
+      child: Text(
+        title,
+        style: const TextStyle(
+          color: _textDark,
+          fontSize: 15,
+          fontWeight: FontWeight.bold,
         ),
       ),
-      child: SafeArea(
+    );
+  }
+
+  Widget _panel({
+    required Widget child,
+    EdgeInsets padding = const EdgeInsets.all(16),
+  }) {
+    return Container(
+      padding: padding,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(17),
+        border: Border.all(color: _border),
+      ),
+      child: child,
+    );
+  }
+
+  Widget _statistic({
+    required String value,
+    required String label,
+    required IconData icon,
+  }) {
+    return Expanded(
+      child: Column(
+        children: [
+          Icon(icon, color: _primary, size: 21),
+          const SizedBox(height: 7),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 23,
+              fontWeight: FontWeight.bold,
+              color: _textDark,
+            ),
+          ),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 11,
+              color: _textMuted,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _settingItem({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+    bool danger = false,
+  }) {
+    final color = danger ? _danger : _primary;
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(13),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: 13,
+          vertical: 13,
+        ),
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: [
-            _buildNavItem(Icons.home_outlined, 'Home', false),
-            _buildNavItem(Icons.apartment_outlined, 'Data Kost', false),
-            _buildNavItem(Icons.chat_bubble_outline, 'Chat', false),
-            _buildNavItem(Icons.person, 'Profil', true),
+            Container(
+              width: 41,
+              height: 41,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.09),
+                borderRadius: BorderRadius.circular(11),
+              ),
+              child: Icon(icon, color: color, size: 21),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      color: danger ? _danger : _textDark,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      color: _textMuted,
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(
+              Icons.chevron_right,
+              color: _textMuted,
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildNavItem(
-    IconData icon,
-    String label,
-    bool active,
-  ) {
-    final color =
-        active ? AppColors.primary : AppColors.textSecondary;
+  // =========================================================
+  // TAMPILAN PROFIL ADMIN
+  // =========================================================
 
-    return GestureDetector(
-      onTap: () {
-        switch (label) {
-          case 'Home':
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(
-                builder: (_) => const HomeAdminPage(),
-              ),
-            );
-            break;
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: _background,
+      body: SafeArea(
+        child: _isLoading
+            ? const Center(
+                child: CircularProgressIndicator(
+                  color: _primary,
+                ),
+              )
+            : RefreshIndicator(
+                onRefresh: _loadProfile,
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(
+                    18,
+                    12,
+                    18,
+                    24,
+                  ),
+                  children: [
+                    // HEADER TANPA TOMBOL REFRESH
+                    Row(
+                      children: [
+                        Container(
+                          width: 39,
+                          height: 39,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(
+                            Icons.home_work_outlined,
+                            color: _primary,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment:
+                                CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'KOSTRADAR ADMIN',
+                                style: TextStyle(
+                                  color: _primary,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 1,
+                                ),
+                              ),
+                              Text(
+                                'Profil',
+                                style: TextStyle(
+                                  color: _textDark,
+                                  fontSize: 23,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
 
-          case 'Data Kost':
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(
-                builder: (_) => const DataKostPage(),
-              ),
-            );
-            break;
+                    // KARTU PROFIL
+                    _panel(
+                      child: Column(
+                        children: [
+                          Stack(
+                            children: [
+                              _avatar(radius: 42),
+                              Positioned(
+                                right: 0,
+                                bottom: 0,
+                                child: InkWell(
+                                  onTap: _isUploadingPhoto
+                                      ? null
+                                      : _changeProfilePhoto,
+                                  child: Container(
+                                    width: 27,
+                                    height: 27,
+                                    decoration: const BoxDecoration(
+                                      color: _primary,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(
+                                      Icons.camera_alt,
+                                      color: Colors.white,
+                                      size: 14,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  _username,
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    color: _textDark,
+                                    fontSize: 17,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                              IconButton(
+                                tooltip: 'Edit profil',
+                                onPressed: _editProfile,
+                                icon: const Icon(
+                                  Icons.edit_outlined,
+                                  color: _primary,
+                                  size: 18,
+                                ),
+                              ),
+                            ],
+                          ),
+                          Text(
+                            _email,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: _textMuted,
+                              fontSize: 11,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 13,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE5EEFF),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: const Text(
+                              'ADMIN',
+                              style: TextStyle(
+                                color: _primary,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 19),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 15,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF7F9FC),
+                              borderRadius: BorderRadius.circular(13),
+                            ),
+                            child: Row(
+                              children: [
+                                _statistic(
+                                  value: '$_jumlahKost',
+                                  label: 'Unit Kost',
+                                  icon: Icons.apartment_rounded,
+                                ),
+                                Container(
+                                  height: 48,
+                                  width: 1,
+                                  color: _border,
+                                ),
+                                _statistic(
+                                  value: '$_jumlahKamar',
+                                  label: 'Kamar Tersedia',
+                                  icon: Icons.bed_outlined,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 23),
 
-          case 'Chat':
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(
-                builder: (_) => const DaftarChatAdminPage(
-                  chatData: {},
+                    // PENGATURAN AKUN
+                    _sectionTitle('Pengaturan Akun & Bisnis'),
+                    _panel(
+                      padding: EdgeInsets.zero,
+                      child: Column(
+                        children: [
+                          _settingItem(
+                            icon: Icons.manage_accounts_outlined,
+                            title: 'Edit Profil',
+                            subtitle: 'Informasi nama dan foto',
+                            onTap: _editProfile,
+                          ),
+                          const Divider(
+                            height: 1,
+                            indent: 65,
+                            endIndent: 12,
+                            color: _border,
+                          ),
+                          _settingItem(
+                            icon: Icons.lock_outline_rounded,
+                            title: 'Ubah Password',
+                            subtitle: 'Keamanan autentikasi akun',
+                            onTap: _changePassword,
+                          ),
+                          const Divider(
+                            height: 1,
+                            indent: 65,
+                            endIndent: 12,
+                            color: _border,
+                          ),
+                          _settingItem(
+                            icon: Icons.logout_rounded,
+                            title: 'Keluar / Logout',
+                            subtitle: 'Keluar dari akun admin',
+                            danger: true,
+                            onTap: _logout,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            );
-            break;
+      ),
+      bottomNavigationBar: _buildBottomNavigation(),
+    );
+  }
 
-          case 'Profil':
-            break;
-        }
-      },
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+  // =========================================================
+  // NAVIGASI BAWAH
+  // =========================================================
+
+  Widget _buildBottomNavigation() {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(
+          top: BorderSide(color: _border),
+        ),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Row(
           children: [
-            Icon(icon, size: 22, color: color),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 10,
-                fontWeight:
-                    active ? FontWeight.w600 : FontWeight.normal,
-                color: color,
-              ),
+            _navItem(
+              icon: Icons.home_outlined,
+              label: 'Home',
+              onTap: () {
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const HomeAdminPage(),
+                  ),
+                );
+              },
+            ),
+            _navItem(
+              icon: Icons.apartment_outlined,
+              label: 'Data Kost',
+              onTap: () {
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const DataKostPage(),
+                  ),
+                );
+              },
+            ),
+            _navItem(
+              icon: Icons.chat_bubble_outline_rounded,
+              label: 'Chat',
+              onTap: () {
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const DaftarChatAdminPage(
+                      chatData: {},
+                    ),
+                  ),
+                );
+              },
+            ),
+            _navItem(
+              icon: Icons.person_outline_rounded,
+              label: 'Profil',
+              selected: true,
+              onTap: () {},
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _navItem({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+    bool selected = false,
+  }) {
+    final color = selected ? _primary : _textMuted;
+
+    return Expanded(
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, color: color, size: 23),
+              const SizedBox(height: 4),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 10,
+                  color: color,
+                  fontWeight: selected
+                      ? FontWeight.w600
+                      : FontWeight.normal,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
