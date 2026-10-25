@@ -55,34 +55,35 @@ class KostRadarApp extends StatefulWidget {
 }
 
 class _KostRadarAppState extends State<KostRadarApp> {
-  // Navigator global untuk menampilkan panggilan
-  // dari halaman mana pun.
+  // Navigator global agar dialog dapat dibuka dari halaman mana pun.
   final GlobalKey<NavigatorState> navigatorKey =
       GlobalKey<NavigatorState>();
 
-  // Listener Supabase
+  // Listener panggilan dan autentikasi.
   StreamSubscription<List<Map<String, dynamic>>>?
       callsSubscription;
 
   StreamSubscription<AuthState>? authSubscription;
 
-  // ID akun yang sedang dipantau
+  // Akun yang sedang dipantau.
   String? listeningUserId;
 
-  // Mencegah dialog panggilan yang sama muncul berulang
-  final Set<String> seenCalls = {};
+  // ID panggilan yang sudah diterima listener.
+  final Set<String> seenCalls = <String>{};
 
-  // Mencegah beberapa dialog tampil bersamaan
+  // Antrean panggilan masuk.
+  final List<Map<String, dynamic>> pendingIncomingCalls =
+      <Map<String, dynamic>>[];
+
+  bool isProcessingIncomingCalls = false;
   bool isIncomingDialogOpen = false;
 
   @override
   void initState() {
     super.initState();
 
-    // Mulai memantau panggilan masuk
     _listenIncomingCalls();
 
-    // Memperbarui listener ketika akun login/logout
     authSubscription = Supabase.instance.client.auth
         .onAuthStateChange
         .listen((authState) {
@@ -96,110 +97,255 @@ class _KostRadarAppState extends State<KostRadarApp> {
 
   void _listenIncomingCalls() {
     final supabase = Supabase.instance.client;
-
     final currentUserId = supabase.auth.currentUser?.id;
 
-    // Jangan membuat listener ganda
+    // Listener akun yang sama tidak perlu dibuat ulang.
     if (currentUserId == listeningUserId) {
       return;
     }
 
-    // Hentikan listener akun sebelumnya
     callsSubscription?.cancel();
     callsSubscription = null;
 
     listeningUserId = currentUserId;
 
     seenCalls.clear();
+    pendingIncomingCalls.clear();
 
     if (currentUserId == null) {
+      debugPrint('CALL: tidak ada akun yang login.');
       return;
     }
 
-    // Pantau tabel voice_calls untuk akun penerima
+    debugPrint(
+      'CALL: listener aktif untuk $currentUserId',
+    );
+
     callsSubscription = supabase
         .from('voice_calls')
         .stream(primaryKey: ['id'])
         .eq('receiver_id', currentUserId)
         .listen(
       (rows) {
+        // Pastikan akun belum berubah sejak listener dibuat.
+        final activeUserId =
+            Supabase.instance.client.auth.currentUser?.id;
+
+        if (activeUserId != currentUserId) {
+          return;
+        }
+
+        debugPrint(
+          'CALL: menerima snapshot ${rows.length} baris.',
+        );
+
         for (final call in rows) {
-          if (call['status'] != 'ringing') {
+          if (call['status']?.toString() != 'ringing') {
             continue;
           }
 
-          final callId = call['id'] as String;
+          final callId = call['id']?.toString();
+          final callerId = call['caller_id']?.toString();
+          final receiverId = call['receiver_id']?.toString();
 
-          // Jangan memproses panggilan yang sama
-          if (!seenCalls.add(callId)) {
+          if (callId == null ||
+              callerId == null ||
+              receiverId != currentUserId ||
+              callerId == currentUserId) {
             continue;
           }
 
+          // Periksa timestamp panggilan.
           final createdAt = DateTime.tryParse(
             call['created_at']?.toString() ?? '',
           );
 
           if (createdAt == null) {
+            debugPrint(
+              'CALL: created_at tidak valid untuk $callId',
+            );
             continue;
           }
 
-          // Abaikan panggilan lama
-          final callAge = DateTime.now()
-              .toUtc()
-              .difference(createdAt.toUtc());
+          final age = DateTime.now().toUtc().difference(
+                createdAt.toUtc(),
+              );
 
-          if (callAge.isNegative ||
-              callAge > const Duration(seconds: 45)) {
+          // Panggilan lama tidak ditampilkan.
+          if (age.isNegative ||
+              age > const Duration(seconds: 45)) {
+            debugPrint('CALL: panggilan kedaluwarsa $callId');
+            seenCalls.add(callId);
             continue;
           }
 
-          // Tampilkan dialog panggilan masuk
-          _showIncomingCall(call);
+          // Jangan memasukkan ID yang sama berkali-kali.
+          if (seenCalls.contains(callId)) {
+            continue;
+          }
+
+          // Tandai setelah panggilan masuk ke antrean,
+          // bukan sebelum dialog siap ditampilkan.
+          pendingIncomingCalls.add(
+            Map<String, dynamic>.from(call),
+          );
+          seenCalls.add(callId);
+
+          debugPrint('CALL: panggilan masuk $callId');
         }
+
+        _processIncomingCallQueue();
       },
-      onError: (error) {
-        debugPrint(
-          'Gagal mendeteksi panggilan: $error',
-        );
+      onError: (Object error, StackTrace stackTrace) {
+        debugPrint('CALL LISTENER ERROR: $error');
+        debugPrint('$stackTrace');
       },
     );
+  }
+
+  // =====================================================
+  // ANTREAN PANGGILAN MASUK
+  // =====================================================
+
+  Future<void> _processIncomingCallQueue() async {
+    if (!mounted ||
+        isProcessingIncomingCalls ||
+        isIncomingDialogOpen ||
+        pendingIncomingCalls.isEmpty) {
+      return;
+    }
+
+    if (navigatorKey.currentContext == null) {
+      debugPrint(
+        'CALL: Navigator belum siap; panggilan tetap di antrean.',
+      );
+
+      // Coba lagi setelah frame berikutnya.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _processIncomingCallQueue();
+        }
+      });
+
+      return;
+    }
+
+    isProcessingIncomingCalls = true;
+
+    try {
+      while (mounted &&
+          pendingIncomingCalls.isNotEmpty) {
+        if (isIncomingDialogOpen) {
+          break;
+        }
+
+        if (navigatorKey.currentContext == null) {
+          break;
+        }
+
+        final call = pendingIncomingCalls.first;
+
+        final handled = await _showIncomingCall(call);
+
+        if (!handled) {
+          // Jangan membuang panggilan jika belum berhasil
+          // ditampilkan atau ditangani.
+          break;
+        }
+
+        // Hapus hanya setelah panggilan selesai ditangani.
+        if (pendingIncomingCalls.isNotEmpty &&
+            pendingIncomingCalls.first['id']?.toString() ==
+                call['id']?.toString()) {
+          pendingIncomingCalls.removeAt(0);
+        } else {
+          pendingIncomingCalls.removeWhere(
+            (item) =>
+                item['id']?.toString() ==
+                call['id']?.toString(),
+          );
+        }
+      }
+    } catch (error, stackTrace) {
+      debugPrint('CALL QUEUE ERROR: $error');
+      debugPrint('$stackTrace');
+    } finally {
+      isProcessingIncomingCalls = false;
+    }
   }
 
   // =====================================================
   // DIALOG PANGGILAN MASUK
   // =====================================================
 
-  Future<void> _showIncomingCall(
+  Future<bool> _showIncomingCall(
     Map<String, dynamic> call,
   ) async {
-    if (isIncomingDialogOpen || !mounted) {
-      return;
+    if (!mounted || isIncomingDialogOpen) {
+      return false;
     }
 
-    final callId = call['id'] as String;
-    final callerId = call['caller_id'] as String;
+    final callId = call['id']?.toString();
+    final callerId = call['caller_id']?.toString();
 
     final currentUserId =
         Supabase.instance.client.auth.currentUser?.id;
 
-    if (currentUserId == null) {
-      return;
+    if (callId == null ||
+        callerId == null ||
+        currentUserId == null) {
+      debugPrint('CALL: data panggilan tidak lengkap.');
+      return false;
     }
 
-    // Jangan menerima panggilan sendiri
     if (callerId == currentUserId) {
-      return;
+      return true;
     }
 
     final context = navigatorKey.currentContext;
 
     if (context == null) {
-      return;
+      return false;
     }
 
     isIncomingDialogOpen = true;
 
     try {
+      // Periksa status terbaru sebelum menampilkan dialog.
+      final latestCall = await Supabase.instance.client
+          .from('voice_calls')
+          .select('id, caller_id, receiver_id, status, created_at')
+          .eq('id', callId)
+          .maybeSingle();
+
+      if (!mounted) {
+        return false;
+      }
+
+      if (latestCall == null ||
+          latestCall['status']?.toString() != 'ringing' ||
+          latestCall['receiver_id']?.toString() !=
+              currentUserId) {
+        return true;
+      }
+
+      final latestCreatedAt = DateTime.tryParse(
+        latestCall['created_at']?.toString() ?? '',
+      );
+
+      if (latestCreatedAt == null) {
+        return true;
+      }
+
+      final latestAge = DateTime.now().toUtc().difference(
+            latestCreatedAt.toUtc(),
+          );
+
+      if (latestAge.isNegative ||
+          latestAge > const Duration(seconds: 45)) {
+        return true;
+      }
+
       final accepted = await showDialog<bool>(
         context: context,
         barrierDismissible: false,
@@ -213,13 +359,10 @@ class _KostRadarAppState extends State<KostRadarApp> {
                 ),
                 SizedBox(width: 10),
                 Expanded(
-                  child: Text(
-                    'Panggilan Masuk',
-                  ),
+                  child: Text('Panggilan Masuk'),
                 ),
               ],
             ),
-
             content: const Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -230,9 +373,7 @@ class _KostRadarAppState extends State<KostRadarApp> {
                     size: 40,
                   ),
                 ),
-
                 SizedBox(height: 16),
-
                 Text(
                   'Pengguna KOSTRADAR',
                   style: TextStyle(
@@ -240,26 +381,18 @@ class _KostRadarAppState extends State<KostRadarApp> {
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-
                 SizedBox(height: 8),
-
                 Text(
-                  'Menghubungi Anda melalui '
-                  'panggilan suara',
+                  'Menghubungi Anda melalui panggilan suara.',
                   textAlign: TextAlign.center,
                 ),
               ],
             ),
-
-            actionsAlignment:
-                MainAxisAlignment.spaceEvenly,
-
+            actionsAlignment: MainAxisAlignment.spaceEvenly,
             actions: [
-              // TOMBOL TOLAK
               TextButton.icon(
                 onPressed: () {
-                  Navigator.of(dialogContext)
-                      .pop(false);
+                  Navigator.of(dialogContext).pop(false);
                 },
                 icon: const Icon(
                   Icons.call_end,
@@ -267,17 +400,12 @@ class _KostRadarAppState extends State<KostRadarApp> {
                 ),
                 label: const Text(
                   'Tolak',
-                  style: TextStyle(
-                    color: Colors.red,
-                  ),
+                  style: TextStyle(color: Colors.red),
                 ),
               ),
-
-              // TOMBOL TERIMA
               FilledButton.icon(
                 onPressed: () {
-                  Navigator.of(dialogContext)
-                      .pop(true);
+                  Navigator.of(dialogContext).pop(true);
                 },
                 icon: const Icon(Icons.call),
                 label: const Text('Terima'),
@@ -291,25 +419,45 @@ class _KostRadarAppState extends State<KostRadarApp> {
       );
 
       if (!mounted) {
-        return;
+        return false;
       }
 
-      // Pastikan panggilan masih aktif
-      final latestCall = await Supabase.instance.client
+      // Periksa apakah akun masih sama.
+      final activeUserId =
+          Supabase.instance.client.auth.currentUser?.id;
+
+      if (activeUserId != currentUserId) {
+        return true;
+      }
+
+      // Pastikan panggilan belum dibatalkan oleh pemanggil.
+      final finalCall = await Supabase.instance.client
           .from('voice_calls')
-          .select('status')
+          .select('status, caller_id, receiver_id')
           .eq('id', callId)
           .maybeSingle();
 
-      if (latestCall == null ||
-          latestCall['status'] != 'ringing') {
-        return;
+      if (!mounted) {
+        return false;
+      }
+
+      if (finalCall == null ||
+          finalCall['status']?.toString() != 'ringing' ||
+          finalCall['receiver_id']?.toString() !=
+              currentUserId) {
+        return true;
       }
 
       if (accepted == true) {
-        // Buka halaman panggilan suara
-        navigatorKey.currentState?.push(
-          MaterialPageRoute(
+        // Buka halaman panggilan untuk menerima panggilan.
+        final navigator = navigatorKey.currentState;
+
+        if (navigator == null) {
+          return false;
+        }
+
+        await navigator.push(
+          MaterialPageRoute<void>(
             builder: (_) => VoiceCallPage(
               peerId: callerId,
               peerName: 'Pengguna KOSTRADAR',
@@ -317,24 +465,40 @@ class _KostRadarAppState extends State<KostRadarApp> {
             ),
           ),
         );
-      } else {
-        // Ubah status menjadi ditolak
-        await Supabase.instance.client
-            .from('voice_calls')
-            .update({
-              'status': 'declined',
-              'ended_at':
-                  DateTime.now().toUtc().toIso8601String(),
-            })
-            .eq('id', callId)
-            .eq('status', 'ringing');
+
+        return true;
       }
-    } catch (error) {
-      debugPrint(
-        'Error saat menangani panggilan: $error',
-      );
+
+      // Tolak panggilan jika pengguna menekan tombol Tolak.
+      await Supabase.instance.client
+          .from('voice_calls')
+          .update({
+            'status': 'declined',
+            'ended_at': DateTime.now()
+                .toUtc()
+                .toIso8601String(),
+          })
+          .eq('id', callId)
+          .eq('status', 'ringing');
+
+      debugPrint('CALL: panggilan ditolak $callId');
+
+      return true;
+    } catch (error, stackTrace) {
+      debugPrint('CALL DIALOG ERROR: $error');
+      debugPrint('$stackTrace');
+      return false;
     } finally {
       isIncomingDialogOpen = false;
+
+      // Proses panggilan berikutnya setelah dialog ditutup.
+      if (mounted) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            _processIncomingCallQueue();
+          }
+        });
+      }
     }
   }
 
@@ -362,29 +526,20 @@ class _KostRadarAppState extends State<KostRadarApp> {
           create: (_) => ChatProvider(),
         ),
       ],
-
       child: MaterialApp(
         navigatorKey: navigatorKey,
-
         debugShowCheckedModeBanner: false,
-
         theme: AppTheme.lightTheme,
-
         initialRoute: '/splash',
-
         routes: {
           // AUTH
           '/splash': (c) => const SplashScreen(),
-
           '/login': (c) => const LoginScreen(),
-
           '/register': (c) => const RegisterScreen(),
 
           // HOME
           '/home': (c) => const HomePage(),
-
           '/pencarian': (c) => const PencarianPage(),
-
           '/hasil-pencarian': (c) =>
               const HasilPencarianPage(),
 
@@ -401,34 +556,23 @@ class _KostRadarAppState extends State<KostRadarApp> {
                   fasilitas: [],
                 ),
               ),
-
           '/daftar-favorite': (c) =>
               const DaftarFavoritePage(),
 
           // CHAT USER
-          '/daftar-chat': (c) =>
-              const DaftarChatPage(),
-
-          '/profil': (c) =>
-              const ProfilPage(),
+          '/daftar-chat': (c) => const DaftarChatPage(),
+          '/profil': (c) => const ProfilPage(),
 
           // ADMIN
-          '/home-admin': (c) =>
-              const HomeAdminPage(),
-
-          '/data-kost': (c) =>
-              const DataKostPage(),
-
+          '/home-admin': (c) => const HomeAdminPage(),
+          '/data-kost': (c) => const DataKostPage(),
           '/tambah-edit-kost': (c) =>
               const TambahEditKostPage(),
-
           '/daftar-chat-admin': (c) =>
               const DaftarChatAdminPage(
                 chatData: {},
               ),
-
-          '/profil-admin': (c) =>
-              const ProfilAdminPage(),
+          '/profil-admin': (c) => const ProfilAdminPage(),
         },
       ),
     );
