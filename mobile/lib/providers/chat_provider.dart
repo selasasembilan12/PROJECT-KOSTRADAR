@@ -2,6 +2,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class ChatMessage {
@@ -11,6 +12,8 @@ class ChatMessage {
   final String message;
   final DateTime createdAt;
   final bool isRead;
+  final String jenisPesan;
+  final String? mediaUrl;
 
   const ChatMessage({
     required this.idMessage,
@@ -19,7 +22,11 @@ class ChatMessage {
     required this.message,
     required this.createdAt,
     this.isRead = false,
+    this.jenisPesan = 'text',
+    this.mediaUrl,
   });
+
+  bool get isImage => jenisPesan == 'image';
 
   factory ChatMessage.fromMap(Map<String, dynamic> map) {
     return ChatMessage(
@@ -27,10 +34,13 @@ class ChatMessage {
       pengirimId: map['pengirim_id']?.toString() ?? '',
       penerimaId: map['penerima_id']?.toString() ?? '',
       message: (map['isi_pesan'] ?? '').toString(),
-      createdAt:
-          DateTime.tryParse(map['created_at']?.toString() ?? '') ??
-              DateTime.now(),
+      createdAt: DateTime.tryParse(
+            map['created_at']?.toString() ?? '',
+          ) ??
+          DateTime.now(),
       isRead: map['is_read'] == true,
+      jenisPesan: (map['jenis_pesan'] ?? 'text').toString(),
+      mediaUrl: map['media_url']?.toString(),
     );
   }
 }
@@ -51,6 +61,9 @@ class ChatConversation {
 
 class ChatProvider extends ChangeNotifier {
   final SupabaseClient _supabase = Supabase.instance.client;
+
+  static const String _bucketName = 'chat-images';
+  static const int _maxImageBytes = 10 * 1024 * 1024;
 
   List<ChatMessage> _messages = [];
   List<ChatMessage> get messages => List.unmodifiable(_messages);
@@ -78,12 +91,13 @@ class ChatProvider extends ChangeNotifier {
     }
   }
 
+  // Membentuk daftar percakapan dari pesan terbaru.
   List<ChatConversation> _buildConversations(
     List<Map<String, dynamic>> rows,
-    String myUserId,
+    String myId,
   ) {
-    final latestByPartner = <String, Map<String, dynamic>>{};
-    final unreadByPartner = <String, int>{};
+    final latest = <String, Map<String, dynamic>>{};
+    final unread = <String, int>{};
 
     final sortedRows = [...rows]
       ..sort((a, b) {
@@ -106,32 +120,34 @@ class ChatProvider extends ChangeNotifier {
 
       if (sender.isEmpty || receiver.isEmpty) continue;
 
-      final partnerId = sender == myUserId ? receiver : sender;
+      final partnerId = sender == myId ? receiver : sender;
 
-      if (partnerId == myUserId) continue;
+      if (partnerId == myId) continue;
 
-      if (receiver == myUserId && row['is_read'] != true) {
-        unreadByPartner[partnerId] =
-            (unreadByPartner[partnerId] ?? 0) + 1;
+      if (receiver == myId && row['is_read'] != true) {
+        unread[partnerId] = (unread[partnerId] ?? 0) + 1;
       }
 
-      latestByPartner.putIfAbsent(partnerId, () => row);
+      latest.putIfAbsent(partnerId, () => row);
     }
 
     final result = <ChatConversation>[];
 
-    for (final entry in latestByPartner.entries) {
+    for (final entry in latest.entries) {
       final row = entry.value;
+      final isImage = row['jenis_pesan'] == 'image';
 
       result.add(
         ChatConversation(
           lawanBicaraId: entry.key,
-          pesanTerakhir: (row['isi_pesan'] ?? '').toString(),
+          pesanTerakhir: isImage
+              ? 'Foto'
+              : (row['isi_pesan'] ?? '').toString(),
           waktuTerakhir: DateTime.tryParse(
                 row['created_at']?.toString() ?? '',
               ) ??
               DateTime.now(),
-          jumlahBelumDibaca: unreadByPartner[entry.key] ?? 0,
+          jumlahBelumDibaca: unread[entry.key] ?? 0,
         ),
       );
     }
@@ -143,6 +159,7 @@ class ChatProvider extends ChangeNotifier {
     return result;
   }
 
+  // Memuat daftar percakapan akun yang sedang login.
   Future<void> fetchConversations() async {
     if (_fetchingConversations) {
       _fetchConversationsAgain = true;
@@ -150,10 +167,9 @@ class ChatProvider extends ChangeNotifier {
     }
 
     _fetchingConversations = true;
+    final myId = _supabase.auth.currentUser?.id;
 
-    final myUserId = _supabase.auth.currentUser?.id;
-
-    if (myUserId == null) {
+    if (myId == null) {
       _conversations = [];
       _isLoading = false;
       _fetchingConversations = false;
@@ -165,15 +181,12 @@ class ChatProvider extends ChangeNotifier {
       final response = await _supabase
           .from('messages')
           .select()
-          .or(
-            'pengirim_id.eq.$myUserId,'
-            'penerima_id.eq.$myUserId',
-          )
+          .or('pengirim_id.eq.$myId,penerima_id.eq.$myId')
           .order('created_at', ascending: false);
 
       _conversations = _buildConversations(
         List<Map<String, dynamic>>.from(response),
-        myUserId,
+        myId,
       );
     } catch (e, stackTrace) {
       debugPrint('Gagal mengambil daftar percakapan: $e');
@@ -190,10 +203,14 @@ class ChatProvider extends ChangeNotifier {
     }
   }
 
+  // Memantau perubahan pesan untuk daftar percakapan.
   void listenToConversations() {
-    final myUserId = _supabase.auth.currentUser?.id;
+    final myId = _supabase.auth.currentUser?.id;
 
-    if (myUserId == null) return;
+    if (myId == null) {
+      debugPrint('Tidak dapat memantau chat: pengguna belum login.');
+      return;
+    }
 
     _conversationsSubscription?.cancel();
 
@@ -206,13 +223,13 @@ class ChatProvider extends ChangeNotifier {
         if (_disposed) return;
 
         final relevantRows = rows.where((row) {
-          return row['pengirim_id']?.toString() == myUserId ||
-              row['penerima_id']?.toString() == myUserId;
+          return row['pengirim_id']?.toString() == myId ||
+              row['penerima_id']?.toString() == myId;
         }).toList();
 
         _conversations = _buildConversations(
           relevantRows,
-          myUserId,
+          myId,
         );
 
         _isLoading = false;
@@ -225,12 +242,11 @@ class ChatProvider extends ChangeNotifier {
     );
   }
 
-  void listenToMessages(String lawanBicaraId) {
-    final myUserId = _supabase.auth.currentUser?.id;
+  // Memantau pesan dua arah dalam satu room chat.
+  void listenToMessages(String partnerId) {
+    final myId = _supabase.auth.currentUser?.id;
 
-    if (myUserId == null || lawanBicaraId.trim().isEmpty) {
-      return;
-    }
+    if (myId == null || partnerId.trim().isEmpty) return;
 
     _messagesSubscription?.cancel();
 
@@ -246,17 +262,15 @@ class ChatProvider extends ChangeNotifier {
       (rows) {
         if (_disposed) return;
 
-        final filteredRows = rows.where((row) {
+        final filtered = rows.where((row) {
           final sender = row['pengirim_id']?.toString();
           final receiver = row['penerima_id']?.toString();
 
-          return (sender == myUserId &&
-                  receiver == lawanBicaraId) ||
-              (sender == lawanBicaraId &&
-                  receiver == myUserId);
+          return (sender == myId && receiver == partnerId) ||
+              (sender == partnerId && receiver == myId);
         }).toList();
 
-        _messages = filteredRows
+        _messages = filtered
             .map((row) => ChatMessage.fromMap(row))
             .toList();
 
@@ -275,47 +289,35 @@ class ChatProvider extends ChangeNotifier {
     );
   }
 
-  Future<void> markMessagesAsRead(String lawanBicaraId) async {
-    final myUserId = _supabase.auth.currentUser?.id;
+  // Tandai pesan masuk dari lawan bicara sebagai sudah dibaca.
+  Future<void> markMessagesAsRead(String partnerId) async {
+    final myId = _supabase.auth.currentUser?.id;
 
-    if (myUserId == null || lawanBicaraId.trim().isEmpty) {
-      return;
-    }
+    if (myId == null || partnerId.trim().isEmpty) return;
 
-    try {
-      await _supabase
-          .from('messages')
-          .update({'is_read': true})
-          .eq('pengirim_id', lawanBicaraId)
-          .eq('penerima_id', myUserId)
-          .eq('is_read', false);
-    } catch (e, stackTrace) {
-      debugPrint('Gagal menandai pesan sebagai dibaca: $e');
-      debugPrintStack(stackTrace: stackTrace);
-      rethrow;
-    }
+    await _supabase
+        .from('messages')
+        .update({'is_read': true})
+        .eq('pengirim_id', partnerId)
+        .eq('penerima_id', myId)
+        .eq('is_read', false);
   }
 
+  // Mengirim pesan teks.
   Future<void> sendNewMessage(
-    String lawanBicaraId,
-    String teksPesan, {
+    String partnerId,
+    String text, {
     String? idKost,
   }) async {
-    final myUserId = _supabase.auth.currentUser?.id;
-    final message = teksPesan.trim();
+    final myId = _supabase.auth.currentUser?.id;
+    final message = text.trim();
 
-    if (myUserId == null) {
+    if (myId == null) {
       throw StateError('Pengguna belum login.');
     }
 
-    if (lawanBicaraId.trim().isEmpty) {
-      throw ArgumentError('ID penerima tidak boleh kosong.');
-    }
-
-    if (myUserId == lawanBicaraId) {
-      throw ArgumentError(
-        'ID pengirim dan penerima tidak boleh sama.',
-      );
+    if (partnerId.trim().isEmpty || partnerId == myId) {
+      throw ArgumentError('ID penerima tidak valid.');
     }
 
     if (message.isEmpty) {
@@ -323,48 +325,182 @@ class ChatProvider extends ChangeNotifier {
     }
 
     final payload = <String, dynamic>{
-      'pengirim_id': myUserId,
-      'penerima_id': lawanBicaraId,
+      'pengirim_id': myId,
+      'penerima_id': partnerId,
       'isi_pesan': message,
       'is_read': false,
+      'jenis_pesan': 'text',
     };
 
     if (idKost != null && idKost.trim().isNotEmpty) {
       payload['id_kost'] = idKost;
     }
 
+    await _supabase.from('messages').insert(payload);
+    await fetchConversations();
+  }
+
+  // Upload foto ke Storage privat dan simpan path-nya ke messages.
+  Future<void> sendImageMessage(
+    String partnerId,
+    XFile image, {
+    String? idKost,
+  }) async {
+    final myId = _supabase.auth.currentUser?.id;
+
+    if (myId == null) {
+      throw StateError('Pengguna belum login.');
+    }
+
+    if (partnerId.trim().isEmpty || partnerId == myId) {
+      throw ArgumentError('ID penerima tidak valid.');
+    }
+
+    final nameParts = image.name.split('.');
+    final extension = nameParts.length > 1
+        ? nameParts.last.toLowerCase()
+        : 'jpg';
+
+    const allowedExtensions = ['jpg', 'jpeg', 'png', 'webp'];
+
+    if (!allowedExtensions.contains(extension)) {
+      throw ArgumentError(
+        'Format foto harus JPG, JPEG, PNG, atau WEBP.',
+      );
+    }
+
+    final bytes = await image.readAsBytes();
+
+    if (bytes.isEmpty) {
+      throw StateError('Foto tidak dapat dibaca.');
+    }
+
+    if (bytes.length > _maxImageBytes) {
+      throw ArgumentError('Ukuran foto maksimal 10 MB.');
+    }
+
+    final contentType = switch (extension) {
+      'png' => 'image/png',
+      'webp' => 'image/webp',
+      _ => 'image/jpeg',
+    };
+
+    final path =
+        '$myId/${DateTime.now().microsecondsSinceEpoch}.$extension';
+
+    await _supabase.storage.from(_bucketName).uploadBinary(
+      path,
+      bytes,
+      fileOptions: FileOptions(
+        contentType: contentType,
+        upsert: false,
+      ),
+    );
+
     try {
+      final payload = <String, dynamic>{
+        'pengirim_id': myId,
+        'penerima_id': partnerId,
+        'isi_pesan': 'Foto',
+        'jenis_pesan': 'image',
+        'media_url': path,
+        'is_read': false,
+      };
+
+      if (idKost != null && idKost.trim().isNotEmpty) {
+        payload['id_kost'] = idKost;
+      }
+
       await _supabase.from('messages').insert(payload);
       await fetchConversations();
-    } catch (e, stackTrace) {
-      debugPrint('Gagal mengirim pesan: $e');
-      debugPrintStack(stackTrace: stackTrace);
+    } catch (e) {
+      // Hapus file yang telanjur diupload jika insert pesan gagal.
+      try {
+        await _supabase.storage.from(_bucketName).remove([path]);
+      } catch (cleanupError) {
+        debugPrint('Gagal membersihkan file foto: $cleanupError');
+      }
+
       rethrow;
     }
   }
 
+  // Membuat URL sementara untuk menampilkan foto private.
+  Future<String> getImageSignedUrl(String path) async {
+    if (path.trim().isEmpty) {
+      throw ArgumentError('Path foto kosong.');
+    }
+
+    // Mendukung data lama yang mungkin menyimpan URL langsung.
+    if (path.startsWith('https://') || path.startsWith('http://')) {
+      return path;
+    }
+
+    return _supabase.storage
+        .from(_bucketName)
+        .createSignedUrl(path, 3600);
+  }
+
+  // Menghapus pesan milik sendiri dan file foto terkait.
   Future<void> deleteMessage(String messageId) async {
     if (messageId.trim().isEmpty) {
       throw ArgumentError('ID pesan tidak boleh kosong.');
     }
 
-    try {
-      await _supabase
-          .from('messages')
-          .delete()
-          .eq('id_message', messageId);
+    final myId = _supabase.auth.currentUser?.id;
 
-      _messages.removeWhere(
-        (message) => message.idMessage == messageId,
-      );
-
-      _notifySafely();
-      await fetchConversations();
-    } catch (e, stackTrace) {
-      debugPrint('Gagal menghapus pesan: $e');
-      debugPrintStack(stackTrace: stackTrace);
-      rethrow;
+    if (myId == null) {
+      throw StateError('Pengguna belum login.');
     }
+
+    final row = await _supabase
+        .from('messages')
+        .select('id_message, pengirim_id, media_url')
+        .eq('id_message', messageId)
+        .maybeSingle();
+
+    if (row == null) {
+      throw StateError('Pesan tidak ditemukan.');
+    }
+
+    if (row['pengirim_id']?.toString() != myId) {
+      throw StateError(
+        'Kamu hanya dapat menghapus pesan milik sendiri.',
+      );
+    }
+
+    final mediaPath = row['media_url']?.toString();
+
+    // Hapus pesan dari database terlebih dahulu.
+    await _supabase
+        .from('messages')
+        .delete()
+        .eq('id_message', messageId)
+        .eq('pengirim_id', myId);
+
+    _messages.removeWhere(
+      (message) => message.idMessage == messageId,
+    );
+
+    _notifySafely();
+
+    // Hapus foto Storage jika pesan memiliki media.
+    if (mediaPath != null && mediaPath.isNotEmpty) {
+      // URL lama bukan path objek Storage.
+      if (!mediaPath.startsWith('http://') &&
+          !mediaPath.startsWith('https://')) {
+        try {
+          await _supabase.storage
+              .from(_bucketName)
+              .remove([mediaPath]);
+        } catch (e) {
+          // Pesan sudah dihapus; log jika pembersihan file gagal.
+          debugPrint('Pesan terhapus, tetapi file foto gagal dihapus: $e');
+        }
+      }
+    }
+
+    await fetchConversations();
   }
 
   @override

@@ -1,5 +1,7 @@
 
+import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -22,10 +24,11 @@ class AdminChatDetailPage extends StatefulWidget {
 
 class _AdminChatDetailPageState
     extends State<AdminChatDetailPage> {
-  final SupabaseClient _supabase = Supabase.instance.client;
-  final TextEditingController messageController =
-      TextEditingController();
-  final ScrollController scrollController = ScrollController();
+  final _supabase = Supabase.instance.client;
+  final messageController = TextEditingController();
+  final scrollController = ScrollController();
+
+  final Map<String, Future<String>> _imageUrls = {};
 
   String _receiverName = 'Mahasiswa';
   String? _receiverPhoto;
@@ -71,7 +74,7 @@ class _AdminChatDetailPageState
 
         if (profile != null) break;
       } catch (e) {
-        debugPrint('Pencarian profil ${lookup.$1} gagal: $e');
+        debugPrint('Gagal mengambil profil ${lookup.$1}: $e');
       }
     }
 
@@ -81,7 +84,9 @@ class _AdminChatDetailPageState
       for (final key in keys) {
         final value = profile![key]?.toString().trim();
 
-        if (value != null && value.isNotEmpty && value != 'null') {
+        if (value != null &&
+            value.isNotEmpty &&
+            value != 'null') {
           return value;
         }
       }
@@ -125,7 +130,7 @@ class _AdminChatDetailPageState
         listen: false,
       ).markMessagesAsRead(widget.receiverId);
     } catch (e) {
-      debugPrint('Gagal menandai pesan sudah dibaca: $e');
+      debugPrint('Gagal menandai pesan dibaca: $e');
     } finally {
       _markingRead = false;
     }
@@ -133,10 +138,11 @@ class _AdminChatDetailPageState
 
   Widget _avatar() {
     final photo = _receiverPhoto?.trim() ?? '';
-    final name = _receiverName.trim();
-    final initial = name.isNotEmpty ? name[0].toUpperCase() : 'M';
+    final initial = _receiverName.trim().isEmpty
+        ? 'M'
+        : _receiverName.trim()[0].toUpperCase();
 
-    if (photo.startsWith('https://') || photo.startsWith('http://')) {
+    if (photo.startsWith('http')) {
       return CircleAvatar(
         radius: 20,
         backgroundColor: const Color(0xFFF0F2F5),
@@ -176,6 +182,14 @@ class _AdminChatDetailPageState
         '${local.minute.toString().padLeft(2, '0')}';
   }
 
+  void _showMessage(String text) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(text)),
+    );
+  }
+
   void _scrollToLatest() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !scrollController.hasClients) return;
@@ -188,9 +202,203 @@ class _AdminChatDetailPageState
     });
   }
 
+  Future<XFile?> _captureWithCamera() async {
+    CameraController? controller;
+
+    try {
+      final cameras = await availableCameras();
+
+      if (cameras.isEmpty) {
+        throw StateError('Kamera tidak ditemukan.');
+      }
+
+      final selectedCamera = cameras.firstWhere(
+        (camera) => camera.lensDirection == CameraLensDirection.back,
+        orElse: () => cameras.first,
+      );
+
+      controller = CameraController(
+        selectedCamera,
+        ResolutionPreset.medium,
+        enableAudio: false,
+      );
+
+      await controller.initialize();
+
+      if (!mounted) return null;
+
+      final activeController = controller;
+
+      return await showDialog<XFile>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Ambil Foto'),
+          content: SizedBox(
+            width: 360,
+            child: AspectRatio(
+              aspectRatio: activeController.value.aspectRatio,
+              child: CameraPreview(activeController),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Batal'),
+            ),
+            FilledButton.icon(
+              onPressed: () async {
+                try {
+                  if (!activeController.value.isInitialized ||
+                      activeController.value.isTakingPicture) {
+                    return;
+                  }
+
+                  final photo = await activeController.takePicture();
+
+                  if (dialogContext.mounted) {
+                    Navigator.pop(dialogContext, photo);
+                  }
+                } catch (e) {
+                  debugPrint('Gagal mengambil foto: $e');
+
+                  if (dialogContext.mounted) {
+                    ScaffoldMessenger.of(dialogContext).showSnackBar(
+                      SnackBar(content: Text('Gagal mengambil foto: $e')),
+                    );
+                  }
+                }
+              },
+              icon: const Icon(Icons.camera_alt),
+              label: const Text('Ambil Foto'),
+            ),
+          ],
+        ),
+      );
+    } catch (e, st) {
+      debugPrint('Kamera tidak dapat dibuka: $e');
+      debugPrintStack(stackTrace: st);
+
+      if (mounted) {
+        _showMessage('Kamera tidak dapat dibuka: $e');
+      }
+
+      return null;
+    } finally {
+      await controller?.dispose();
+    }
+  }
+
+  Future<void> _showImageOptions() async {
+    if (_isSending) return;
+
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Wrap(
+          children: [
+            const ListTile(
+              title: Text(
+                'Kirim Foto',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('Pilih dari Galeri'),
+              onTap: () =>
+                  Navigator.pop(context, ImageSource.gallery),
+            ),
+            ListTile(
+              leading: const Icon(Icons.camera_alt_outlined),
+              title: const Text('Ambil Foto'),
+              onTap: () =>
+                  Navigator.pop(context, ImageSource.camera),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (source == null || !mounted) return;
+
+    try {
+      final image = source == ImageSource.camera
+          ? await _captureWithCamera()
+          : await ImagePicker().pickImage(
+              source: ImageSource.gallery,
+              imageQuality: 80,
+              maxWidth: 1600,
+              maxHeight: 1600,
+            );
+
+      if (image == null || !mounted) return;
+
+      final bytes = await image.readAsBytes();
+
+      if (bytes.isEmpty) {
+        _showMessage('Foto tidak dapat dibaca.');
+        return;
+      }
+
+      if (bytes.length > 10 * 1024 * 1024) {
+        _showMessage('Ukuran foto maksimal 10 MB.');
+        return;
+      }
+
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Pratinjau Foto'),
+          content: Image.memory(
+            bytes,
+            width: 280,
+            height: 280,
+            fit: BoxFit.contain,
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Batal'),
+            ),
+            FilledButton.icon(
+              onPressed: () => Navigator.pop(ctx, true),
+              icon: const Icon(Icons.send, size: 18),
+              label: const Text('Kirim'),
+            ),
+          ],
+        ),
+      );
+
+      if (confirmed != true || !mounted) return;
+
+      setState(() => _isSending = true);
+
+      await Provider.of<ChatProvider>(
+        context,
+        listen: false,
+      ).sendImageMessage(
+        widget.receiverId,
+        image,
+        idKost: widget.idKost,
+      );
+
+      if (!mounted) return;
+
+      _scrollToLatest();
+      _showMessage('Foto berhasil dikirim.');
+    } catch (e, st) {
+      debugPrint('Gagal mengirim foto admin: $e');
+      debugPrintStack(stackTrace: st);
+
+      if (mounted) _showMessage('Foto gagal dikirim: $e');
+    } finally {
+      if (mounted) setState(() => _isSending = false);
+    }
+  }
+
   Future<void> sendMessage() async {
     final text = messageController.text.trim();
-
     if (text.isEmpty || _isSending) return;
 
     final myId = userId;
@@ -222,39 +430,32 @@ class _AdminChatDetailPageState
       messageController.clear();
       _scrollToLatest();
     } catch (e) {
-      debugPrint('Gagal mengirim pesan admin: $e');
-
-      if (mounted) {
-        _showMessage('Pesan gagal dikirim: $e');
-      }
+      if (mounted) _showMessage('Pesan gagal dikirim: $e');
     } finally {
       if (mounted) setState(() => _isSending = false);
     }
   }
 
-  void _showMessage(String text) {
-    if (!mounted) return;
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(text)),
-    );
-  }
-
+  // Menghapus hanya pesan milik admin yang sedang login.
   Future<void> _deleteMessage(ChatMessage message) async {
     if (message.pengirimId != userId) return;
 
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Hapus Pesan'),
-        content: const Text('Yakin ingin menghapus pesan ini?'),
+      builder: (ctx) => AlertDialog(
+        title: Text(message.isImage ? 'Hapus Foto' : 'Hapus Pesan'),
+        content: Text(
+          message.isImage
+              ? 'Hapus foto ini dari percakapan?'
+              : 'Hapus pesan ini dari percakapan?',
+        ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
+            onPressed: () => Navigator.pop(ctx, false),
             child: const Text('Batal'),
           ),
           TextButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
+            onPressed: () => Navigator.pop(ctx, true),
             child: const Text(
               'Hapus',
               style: TextStyle(color: Colors.red),
@@ -271,9 +472,117 @@ class _AdminChatDetailPageState
         context,
         listen: false,
       ).deleteMessage(message.idMessage);
+
+      if (mounted) {
+        _showMessage(
+          message.isImage
+              ? 'Foto berhasil dihapus.'
+              : 'Pesan berhasil dihapus.',
+        );
+      }
     } catch (e) {
-      _showMessage('Gagal menghapus pesan: $e');
+      if (mounted) _showMessage('Gagal menghapus pesan: $e');
     }
+  }
+
+  Future<String> _signedImageUrl(
+    ChatProvider provider,
+    String path,
+  ) {
+    return _imageUrls.putIfAbsent(
+      path,
+      () => provider.getImageSignedUrl(path),
+    );
+  }
+
+  Future<void> _openImage(
+    ChatProvider provider,
+    String path,
+  ) async {
+    try {
+      final url = await _signedImageUrl(provider, path);
+      if (!mounted) return;
+
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => Dialog(
+          backgroundColor: Colors.black,
+          child: Stack(
+            children: [
+              InteractiveViewer(
+                child: Image.network(
+                  url,
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, __, ___) => const Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Text(
+                      'Foto tidak dapat dimuat.',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(
+                right: 4,
+                top: 4,
+                child: IconButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  icon: const Icon(
+                    Icons.close,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    } catch (e) {
+      _showMessage('Foto gagal dibuka: $e');
+    }
+  }
+
+  Widget _buildImage(ChatProvider provider, String path) {
+    return FutureBuilder<String>(
+      future: _signedImageUrl(provider, path),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const SizedBox(
+            width: 190,
+            height: 120,
+            child: Center(
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          );
+        }
+
+        if (snapshot.hasError || !snapshot.hasData) {
+          return const SizedBox(
+            width: 190,
+            height: 90,
+            child: Center(child: Text('Foto gagal dimuat')),
+          );
+        }
+
+        return GestureDetector(
+          onTap: () => _openImage(provider, path),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: Image.network(
+              snapshot.data!,
+              width: 210,
+              height: 160,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => const SizedBox(
+                width: 190,
+                height: 90,
+                child: Center(child: Text('Foto gagal dimuat')),
+              ),
+            ),
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -324,7 +633,6 @@ class _AdminChatDetailPageState
           ],
         ),
       ),
-      resizeToAvoidBottomInset: true,
       body: SafeArea(
         top: false,
         child: Column(
@@ -345,23 +653,8 @@ class _AdminChatDetailPageState
 
         if (provider.isLoading) {
           return const Center(
-            child: CircularProgressIndicator(
-              color: Color(0xFF075E54),
-            ),
+            child: CircularProgressIndicator(),
           );
-        }
-
-        final hasUnreadIncoming = messages.any(
-          (message) =>
-              message.pengirimId == widget.receiverId &&
-              message.penerimaId == myId &&
-              !message.isRead,
-        );
-
-        if (hasUnreadIncoming && !_markingRead) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) _markMessagesRead();
-          });
         }
 
         if (_lastMessageCount != messages.length) {
@@ -369,97 +662,97 @@ class _AdminChatDetailPageState
           _scrollToLatest();
         }
 
+        final unreadIncoming = messages.any(
+          (m) =>
+              m.pengirimId == widget.receiverId &&
+              m.penerimaId == myId &&
+              !m.isRead,
+        );
+
+        if (unreadIncoming && !_markingRead) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) _markMessagesRead();
+          });
+        }
+
         return ColoredBox(
           color: Colors.white,
-          child: messages.isEmpty
-              ? const Center(
-                  child: Text(
-                    'Belum ada pesan.\nMulai percakapan dengan mengirim pesan.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: Color(0xFF667781),
-                    ),
-                  ),
-                )
-              : ListView.builder(
-                  controller: scrollController,
-                  keyboardDismissBehavior:
-                      ScrollViewKeyboardDismissBehavior.onDrag,
-                  padding: const EdgeInsets.fromLTRB(12, 14, 12, 14),
-                  itemCount: messages.length,
-                  itemBuilder: (context, index) {
-                    final message = messages[index];
-                    final isMe = message.pengirimId == myId;
+          child: ListView.builder(
+            controller: scrollController,
+            keyboardDismissBehavior:
+                ScrollViewKeyboardDismissBehavior.onDrag,
+            padding: const EdgeInsets.all(12),
+            itemCount: messages.length,
+            itemBuilder: (context, index) {
+              final message = messages[index];
+              final isMe = message.pengirimId == myId;
 
-                    return Align(
-                      alignment: isMe
-                          ? Alignment.centerRight
-                          : Alignment.centerLeft,
-                      child: GestureDetector(
-                        onLongPress: isMe
-                            ? () => _deleteMessage(message)
-                            : null,
-                        child: Container(
-                          constraints: BoxConstraints(
-                            maxWidth:
-                                MediaQuery.of(context).size.width * 0.60,
-                          ),
-                          margin: const EdgeInsets.only(bottom: 7),
-                          padding: const EdgeInsets.fromLTRB(8, 6, 6, 4),
-                          decoration: BoxDecoration(
-                            color: isMe
-                                ? const Color(0xFFD9FDD3)
-                                : const Color(0xFFF7F8FA),
-                            borderRadius: BorderRadius.only(
-                              topLeft: const Radius.circular(8),
-                              topRight: const Radius.circular(8),
-                              bottomLeft: Radius.circular(isMe ? 8 : 2),
-                              bottomRight: Radius.circular(isMe ? 2 : 8),
+              return Align(
+                alignment:
+                    isMe ? Alignment.centerRight : Alignment.centerLeft,
+                child: GestureDetector(
+                  onLongPress:
+                      isMe ? () => _deleteMessage(message) : null,
+                  child: Container(
+                    constraints: BoxConstraints(
+                      maxWidth:
+                          MediaQuery.of(context).size.width * 0.60,
+                    ),
+                    margin: const EdgeInsets.only(bottom: 7),
+                    padding: const EdgeInsets.fromLTRB(8, 6, 6, 4),
+                    decoration: BoxDecoration(
+                      color: isMe
+                          ? const Color(0xFFD9FDD3)
+                          : const Color(0xFFF7F8FA),
+                      borderRadius: BorderRadius.circular(9),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        if (message.isImage &&
+                            (message.mediaUrl?.isNotEmpty ?? false))
+                          _buildImage(provider, message.mediaUrl!)
+                        else
+                          Text(
+                            message.message,
+                            softWrap: true,
+                            style: const TextStyle(
+                              color: Color(0xFF17232B),
+                              fontSize: 13,
+                              height: 1.3,
                             ),
                           ),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              Text(
-                                message.message,
-                                softWrap: true,
-                                style: const TextStyle(
-                                  color: Color(0xFF17232B),
-                                  fontSize: 13,
-                                  height: 1.3,
-                                ),
+                        const SizedBox(height: 3),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              _formatTime(message.createdAt),
+                              style: const TextStyle(
+                                color: Color(0xFF596B73),
+                                fontSize: 10,
                               ),
-                              const SizedBox(height: 3),
-                              Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(
-                                    _formatTime(message.createdAt),
-                                    style: const TextStyle(
-                                      color: Color(0xFF596B73),
-                                      fontSize: 10,
-                                    ),
-                                  ),
-                                  if (isMe) ...[
-                                    const SizedBox(width: 3),
-                                    Icon(
-                                      Icons.done_all,
-                                      size: 17,
-                                      color: message.isRead
-                                          ? const Color(0xFF34B7F1)
-                                          : const Color(0xFF8696A0),
-                                    ),
-                                  ],
-                                ],
+                            ),
+                            if (isMe) ...[
+                              const SizedBox(width: 3),
+                              Icon(
+                                Icons.done_all,
+                                size: 17,
+                                color: message.isRead
+                                    ? const Color(0xFF34B7F1)
+                                    : const Color(0xFF8696A0),
                               ),
                             ],
-                          ),
+                          ],
                         ),
-                      ),
-                );
-              },
-            ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
         );
       },
     );
@@ -467,7 +760,7 @@ class _AdminChatDetailPageState
 
   Widget _buildComposer() {
     return Container(
-      padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+      padding: const EdgeInsets.fromLTRB(6, 7, 10, 7),
       decoration: const BoxDecoration(
         color: Colors.white,
         border: Border(
@@ -478,20 +771,26 @@ class _AdminChatDetailPageState
         top: false,
         child: Row(
           children: [
+            IconButton(
+              tooltip: 'Kirim foto',
+              onPressed: _isSending ? null : _showImageOptions,
+              icon: const Icon(
+                Icons.add_circle_outline,
+                color: Color(0xFF64748B),
+                size: 29,
+              ),
+            ),
             Expanded(
               child: TextField(
                 controller: messageController,
                 enabled: !_isSending,
                 minLines: 1,
-                maxLines: 1,
-                textCapitalization: TextCapitalization.sentences,
+                maxLines: 4,
                 textInputAction: TextInputAction.send,
+                textCapitalization: TextCapitalization.sentences,
                 onSubmitted: (_) => sendMessage(),
                 decoration: InputDecoration(
                   hintText: 'Ketik pesan...',
-                  hintStyle: const TextStyle(
-                    color: Color(0xFF667781),
-                  ),
                   filled: true,
                   fillColor: const Color(0xFFF0F2F5),
                   contentPadding: const EdgeInsets.symmetric(
@@ -502,17 +801,12 @@ class _AdminChatDetailPageState
                     borderRadius: BorderRadius.circular(24),
                     borderSide: BorderSide.none,
                   ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(24),
-                    borderSide: BorderSide.none,
-                  ),
                 ),
               ),
             ),
             const SizedBox(width: 8),
             CircleAvatar(
-              radius: 23,
-              backgroundColor: const Color(0xFF075E54),
+              backgroundColor: const Color(0xFF2563EB),
               child: IconButton(
                 onPressed: _isSending ? null : sendMessage,
                 icon: _isSending
@@ -527,7 +821,6 @@ class _AdminChatDetailPageState
                     : const Icon(
                         Icons.send_rounded,
                         color: Colors.white,
-                        size: 19,
                       ),
               ),
             ),
