@@ -3,8 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-// IMPORT CORE THEME BIAR WARNANYA NYAMBUNG!
-import '../../core/theme/app_theme.dart';
 import '../../providers/chat_provider.dart';
 
 class AdminChatDetailPage extends StatefulWidget {
@@ -22,27 +20,28 @@ class AdminChatDetailPage extends StatefulWidget {
       _AdminChatDetailPageState();
 }
 
-class _AdminChatDetailPageState extends State<AdminChatDetailPage> {
+class _AdminChatDetailPageState
+    extends State<AdminChatDetailPage> {
+  final SupabaseClient _supabase = Supabase.instance.client;
   final TextEditingController messageController =
       TextEditingController();
-
   final ScrollController scrollController = ScrollController();
 
-  bool _isSending = false;
   String _receiverName = 'Mahasiswa';
   String? _receiverPhoto;
+
+  bool _isSending = false;
+  bool _markingRead = false;
   int _lastMessageCount = -1;
 
-  // Ambil ID admin yang sedang login.
-  String? get userId =>
-      Supabase.instance.client.auth.currentUser?.id;
+  String? get userId => _supabase.auth.currentUser?.id;
 
   @override
   void initState() {
     super.initState();
+
     _fetchReceiverProfile();
 
-    // Aktifkan pemantauan pesan ketika admin membuka ruang chat.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
 
@@ -50,52 +49,38 @@ class _AdminChatDetailPageState extends State<AdminChatDetailPage> {
         context,
         listen: false,
       ).listenToMessages(widget.receiverId);
+
+      _markMessagesRead();
     });
   }
 
-
-  // Memuat profil mahasiswa yang sedang diajak bicara.
   Future<void> _fetchReceiverProfile() async {
     Map<String, dynamic>? profile;
-    try {
-      profile = await Supabase.instance.client
-          .from('mahasiswa')
-          .select()
-          .eq('id', widget.receiverId)
-          .maybeSingle();
-    } catch (e) {
-      debugPrint('Profil mahasiswa tidak ditemukan lewat id: $e');
-    }
 
-    if (profile == null) {
+    for (final lookup in [
+      ('users', 'id_user'),
+      ('mahasiswa', 'id_user'),
+      ('mahasiswa', 'id'),
+    ]) {
       try {
-        profile = await Supabase.instance.client
-            .from('mahasiswa')
+        profile = await _supabase
+            .from(lookup.$1)
             .select()
-            .eq('id_user', widget.receiverId)
+            .eq(lookup.$2, widget.receiverId)
             .maybeSingle();
-      } catch (e) {
-        debugPrint('Profil mahasiswa tidak ditemukan lewat id_user: $e');
-      }
-    }
 
-    if (profile == null) {
-      try {
-        profile = await Supabase.instance.client
-            .from('users')
-            .select()
-            .eq('id_user', widget.receiverId)
-            .maybeSingle();
+        if (profile != null) break;
       } catch (e) {
-        debugPrint('Profil fallback users tidak ditemukan: $e');
+        debugPrint('Pencarian profil ${lookup.$1} gagal: $e');
       }
     }
 
     if (!mounted || profile == null) return;
 
-    String? pick(List<String> keys) {
+    String? findValue(List<String> keys) {
       for (final key in keys) {
-        final value = profile?[key]?.toString().trim();
+        final value = profile![key]?.toString().trim();
+
         if (value != null && value.isNotEmpty && value != 'null') {
           return value;
         }
@@ -103,13 +88,24 @@ class _AdminChatDetailPageState extends State<AdminChatDetailPage> {
       return null;
     }
 
-    final name = pick([
-      'nama', 'nama_mahasiswa', 'nama_lengkap', 'username', 'full_name',
-      'display_name', 'name',
+    final name = findValue([
+      'username',
+      'nama',
+      'nama_mahasiswa',
+      'nama_lengkap',
+      'full_name',
+      'display_name',
+      'name',
     ]);
-    final photo = pick([
-      'foto', 'foto_profil', 'foto_url', 'avatar_url', 'profile_photo_url',
-      'photo', 'image',
+
+    final photo = findValue([
+      'foto_profile',
+      'foto_profil',
+      'foto',
+      'foto_url',
+      'avatar_url',
+      'profile_photo_url',
+      'profile_photo',
     ]);
 
     setState(() {
@@ -118,86 +114,98 @@ class _AdminChatDetailPageState extends State<AdminChatDetailPage> {
     });
   }
 
-  Widget _receiverAvatar() {
-    final photo = _receiverPhoto;
-    if (photo != null && photo.startsWith('http')) {
+  Future<void> _markMessagesRead() async {
+    if (_markingRead || userId == null) return;
+
+    _markingRead = true;
+
+    try {
+      await Provider.of<ChatProvider>(
+        context,
+        listen: false,
+      ).markMessagesAsRead(widget.receiverId);
+    } catch (e) {
+      debugPrint('Gagal menandai pesan sudah dibaca: $e');
+    } finally {
+      _markingRead = false;
+    }
+  }
+
+  Widget _avatar() {
+    final photo = _receiverPhoto?.trim() ?? '';
+    final name = _receiverName.trim();
+    final initial = name.isNotEmpty ? name[0].toUpperCase() : 'M';
+
+    if (photo.startsWith('https://') || photo.startsWith('http://')) {
       return CircleAvatar(
-        radius: 18,
-        backgroundColor: AppColors.primaryLight,
-        backgroundImage: NetworkImage(photo),
-        onBackgroundImageError: (_, __) {},
+        radius: 20,
+        backgroundColor: const Color(0xFFF0F2F5),
+        child: ClipOval(
+          child: Image.network(
+            photo,
+            width: 40,
+            height: 40,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => _initialAvatar(initial),
+          ),
+        ),
       );
     }
-    final name = _receiverName.trim();
+
+    return _initialAvatar(initial);
+  }
+
+  Widget _initialAvatar(String initial) {
     return CircleAvatar(
-      radius: 18,
-      backgroundColor: AppColors.primaryLight,
+      radius: 20,
+      backgroundColor: const Color(0xFFF0F2F5),
       child: Text(
-        name.isNotEmpty ? name[0].toUpperCase() : 'M',
+        initial,
         style: const TextStyle(
-          color: AppColors.primary,
+          color: Color(0xFF075E54),
           fontWeight: FontWeight.bold,
         ),
       ),
     );
   }
 
-  void _scrollToLatest({bool animate = true}) {
+  String _formatTime(DateTime date) {
+    final local = date.toLocal();
+
+    return '${local.hour.toString().padLeft(2, '0')}:'
+        '${local.minute.toString().padLeft(2, '0')}';
+  }
+
+  void _scrollToLatest() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !scrollController.hasClients) return;
-      final target = scrollController.position.maxScrollExtent;
-      if (!animate) {
-        scrollController.jumpTo(target);
-      } else {
-        scrollController.animateTo(
-          target,
-          duration: const Duration(milliseconds: 220),
-          curve: Curves.easeOutCubic,
-        );
-      }
+
+      scrollController.animateTo(
+        scrollController.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
+      );
     });
   }
 
-  // Mengirim balasan admin ke mahasiswa.
   Future<void> sendMessage() async {
     final text = messageController.text.trim();
 
     if (text.isEmpty || _isSending) return;
 
-    final currentUserId = userId;
+    final myId = userId;
 
-    if (currentUserId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Silakan login terlebih dahulu.'),
-        ),
-      );
+    if (myId == null) {
+      _showMessage('Silakan login terlebih dahulu.');
       return;
     }
 
-    if (widget.receiverId.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('ID penerima tidak valid.'),
-        ),
-      );
+    if (widget.receiverId.isEmpty || widget.receiverId == myId) {
+      _showMessage('ID penerima tidak valid.');
       return;
     }
 
-    if (currentUserId == widget.receiverId) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'ID pengirim dan penerima tidak boleh sama.',
-          ),
-        ),
-      );
-      return;
-    }
-
-    setState(() {
-      _isSending = true;
-    });
+    setState(() => _isSending = true);
 
     try {
       await Provider.of<ChatProvider>(
@@ -211,28 +219,60 @@ class _AdminChatDetailPageState extends State<AdminChatDetailPage> {
 
       if (!mounted) return;
 
-      // Kosongkan input hanya setelah Supabase menerima pesan.
       messageController.clear();
-
       _scrollToLatest();
-    } catch (e, stackTrace) {
-      debugPrint('Gagal mengirim balasan admin: $e');
-      debugPrintStack(stackTrace: stackTrace);
+    } catch (e) {
+      debugPrint('Gagal mengirim pesan admin: $e');
 
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Gagal mengirim balasan: $e'),
-          duration: const Duration(seconds: 4),
-        ),
-      );
-    } finally {
       if (mounted) {
-        setState(() {
-          _isSending = false;
-        });
+        _showMessage('Pesan gagal dikirim: $e');
       }
+    } finally {
+      if (mounted) setState(() => _isSending = false);
+    }
+  }
+
+  void _showMessage(String text) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(text)),
+    );
+  }
+
+  Future<void> _deleteMessage(ChatMessage message) async {
+    if (message.pengirimId != userId) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Hapus Pesan'),
+        content: const Text('Yakin ingin menghapus pesan ini?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Batal'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text(
+              'Hapus',
+              style: TextStyle(color: Colors.red),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    try {
+      await Provider.of<ChatProvider>(
+        context,
+        listen: false,
+      ).deleteMessage(message.idMessage);
+    } catch (e) {
+      _showMessage('Gagal menghapus pesan: $e');
     }
   }
 
@@ -246,28 +286,27 @@ class _AdminChatDetailPageState extends State<AdminChatDetailPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.backgroundLight,
+      backgroundColor: Colors.white,
       appBar: AppBar(
-        backgroundColor: AppColors.white,
+        backgroundColor: Colors.white,
+        foregroundColor: const Color(0xFF25313A),
         elevation: 0.5,
-        iconTheme: const IconThemeData(
-          color: AppColors.textPrimary,
-        ),
+        titleSpacing: 0,
         title: Row(
           children: [
-            _receiverAvatar(),
+            _avatar(),
             const SizedBox(width: 10),
             Expanded(
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     _receiverName,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                      color: AppColors.textPrimary,
+                      color: Color(0xFF17232B),
                       fontWeight: FontWeight.bold,
                       fontSize: 16,
                     ),
@@ -275,7 +314,7 @@ class _AdminChatDetailPageState extends State<AdminChatDetailPage> {
                   const Text(
                     'Mahasiswa',
                     style: TextStyle(
-                      color: AppColors.textSecondary,
+                      color: Color(0xFF667781),
                       fontSize: 11,
                     ),
                   ),
@@ -289,9 +328,9 @@ class _AdminChatDetailPageState extends State<AdminChatDetailPage> {
       body: SafeArea(
         top: false,
         child: Column(
-        children: [
-          Expanded(child: _buildMessages()),
-          _buildComposer(),
+          children: [
+            Expanded(child: _buildMessages()),
+            _buildComposer(),
           ],
         ),
       ),
@@ -300,107 +339,127 @@ class _AdminChatDetailPageState extends State<AdminChatDetailPage> {
 
   Widget _buildMessages() {
     return Consumer<ChatProvider>(
-      builder: (context, chatProvider, child) {
-        final messages = chatProvider.messages;
+      builder: (context, provider, child) {
+        final messages = provider.messages;
+        final myId = userId;
 
-        if (chatProvider.isLoading) {
+        if (provider.isLoading) {
           return const Center(
             child: CircularProgressIndicator(
-              color: AppColors.primary,
+              color: Color(0xFF075E54),
             ),
           );
         }
 
-        if (messages.isEmpty) {
-          return const Center(
-            child: Padding(
-              padding: EdgeInsets.all(24),
-              child: Text(
-                'Belum ada pesan.\nMulai percakapan dengan mengirim pesan.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: AppColors.textSecondary,
-                ),
-              ),
-            ),
-          );
+        final hasUnreadIncoming = messages.any(
+          (message) =>
+              message.pengirimId == widget.receiverId &&
+              message.penerimaId == myId &&
+              !message.isRead,
+        );
+
+        if (hasUnreadIncoming && !_markingRead) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) _markMessagesRead();
+          });
         }
 
         if (_lastMessageCount != messages.length) {
           _lastMessageCount = messages.length;
-          _scrollToLatest(animate: messages.isNotEmpty);
+          _scrollToLatest();
         }
 
-        return ListView.builder(
-          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-          controller: scrollController,
-          padding: const EdgeInsets.all(16),
-          itemCount: messages.length,
-          itemBuilder: (context, index) {
-            final msg = messages[index];
-            final isAdmin = msg.pengirimId == userId;
-
-            return Align(
-              alignment: isAdmin
-                  ? Alignment.centerRight
-                  : Alignment.centerLeft,
-              child: Container(
-                constraints: BoxConstraints(
-                  maxWidth:
-                      MediaQuery.of(context).size.width * 0.78,
-                ),
-                margin: const EdgeInsets.only(bottom: 10),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 11,
-                ),
-                decoration: BoxDecoration(
-                  color: isAdmin
-                      ? AppColors.primary
-                      : AppColors.white,
-                  border: isAdmin
-                      ? null
-                      : Border.all(color: AppColors.border),
-                  borderRadius: BorderRadius.only(
-                    topLeft: const Radius.circular(16),
-                    topRight: const Radius.circular(16),
-                    bottomLeft: Radius.circular(
-                      isAdmin ? 16 : 4,
-                    ),
-                    bottomRight: Radius.circular(
-                      isAdmin ? 4 : 16,
+        return ColoredBox(
+          color: Colors.white,
+          child: messages.isEmpty
+              ? const Center(
+                  child: Text(
+                    'Belum ada pesan.\nMulai percakapan dengan mengirim pesan.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Color(0xFF667781),
                     ),
                   ),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      msg.message,
-                      style: TextStyle(
-                        color: isAdmin
-                            ? AppColors.white
-                            : AppColors.textPrimary,
-                        fontSize: 14,
-                        height: 1.35,
+                )
+              : ListView.builder(
+                  controller: scrollController,
+                  keyboardDismissBehavior:
+                      ScrollViewKeyboardDismissBehavior.onDrag,
+                  padding: const EdgeInsets.fromLTRB(12, 14, 12, 14),
+                  itemCount: messages.length,
+                  itemBuilder: (context, index) {
+                    final message = messages[index];
+                    final isMe = message.pengirimId == myId;
+
+                    return Align(
+                      alignment: isMe
+                          ? Alignment.centerRight
+                          : Alignment.centerLeft,
+                      child: GestureDetector(
+                        onLongPress: isMe
+                            ? () => _deleteMessage(message)
+                            : null,
+                        child: Container(
+                          constraints: BoxConstraints(
+                            maxWidth:
+                                MediaQuery.of(context).size.width * 0.60,
+                          ),
+                          margin: const EdgeInsets.only(bottom: 7),
+                          padding: const EdgeInsets.fromLTRB(8, 6, 6, 4),
+                          decoration: BoxDecoration(
+                            color: isMe
+                                ? const Color(0xFFD9FDD3)
+                                : const Color(0xFFF7F8FA),
+                            borderRadius: BorderRadius.only(
+                              topLeft: const Radius.circular(8),
+                              topRight: const Radius.circular(8),
+                              bottomLeft: Radius.circular(isMe ? 8 : 2),
+                              bottomRight: Radius.circular(isMe ? 2 : 8),
+                            ),
+                          ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Text(
+                                message.message,
+                                softWrap: true,
+                                style: const TextStyle(
+                                  color: Color(0xFF17232B),
+                                  fontSize: 13,
+                                  height: 1.3,
+                                ),
+                              ),
+                              const SizedBox(height: 3),
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    _formatTime(message.createdAt),
+                                    style: const TextStyle(
+                                      color: Color(0xFF596B73),
+                                      fontSize: 10,
+                                    ),
+                                  ),
+                                  if (isMe) ...[
+                                    const SizedBox(width: 3),
+                                    Icon(
+                                      Icons.done_all,
+                                      size: 17,
+                                      color: message.isRead
+                                          ? const Color(0xFF34B7F1)
+                                          : const Color(0xFF8696A0),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${msg.createdAt.toLocal().hour.toString().padLeft(2, '0')}:${msg.createdAt.toLocal().minute.toString().padLeft(2, '0')}',
-                      style: TextStyle(
-                        color: isAdmin
-                            ? AppColors.white.withValues(alpha: 0.72)
-                            : AppColors.textHint,
-                        fontSize: 10,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
+                );
+              },
+            ),
         );
       },
     );
@@ -408,38 +467,42 @@ class _AdminChatDetailPageState extends State<AdminChatDetailPage> {
 
   Widget _buildComposer() {
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+      padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
       decoration: const BoxDecoration(
-        color: AppColors.white,
+        color: Colors.white,
         border: Border(
-          top: BorderSide(color: AppColors.border),
+          top: BorderSide(color: Color(0xFFE5E7EB)),
         ),
       ),
       child: SafeArea(
         top: false,
         child: Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
           children: [
             Expanded(
               child: TextField(
                 controller: messageController,
                 enabled: !_isSending,
                 minLines: 1,
-                maxLines: 4,
+                maxLines: 1,
                 textCapitalization: TextCapitalization.sentences,
+                textInputAction: TextInputAction.send,
                 onSubmitted: (_) => sendMessage(),
                 decoration: InputDecoration(
-                  hintText: 'Tulis pesan...',
+                  hintText: 'Ketik pesan...',
                   hintStyle: const TextStyle(
-                    color: AppColors.textHint,
+                    color: Color(0xFF667781),
                   ),
                   filled: true,
-                  fillColor: AppColors.inputBackground,
+                  fillColor: const Color(0xFFF0F2F5),
                   contentPadding: const EdgeInsets.symmetric(
                     horizontal: 16,
-                    vertical: 12,
+                    vertical: 11,
                   ),
                   border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(24),
+                    borderSide: BorderSide.none,
+                  ),
+                  enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(24),
                     borderSide: BorderSide.none,
                   ),
@@ -448,23 +511,24 @@ class _AdminChatDetailPageState extends State<AdminChatDetailPage> {
             ),
             const SizedBox(width: 8),
             CircleAvatar(
-              radius: 24,
-              backgroundColor: AppColors.primary,
+              radius: 23,
+              backgroundColor: const Color(0xFF075E54),
               child: IconButton(
+                onPressed: _isSending ? null : sendMessage,
                 icon: _isSending
                     ? const SizedBox(
                         width: 18,
                         height: 18,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          color: AppColors.white,
+                          color: Colors.white,
                         ),
                       )
                     : const Icon(
                         Icons.send_rounded,
-                        color: AppColors.white,
+                        color: Colors.white,
+                        size: 19,
                       ),
-                onPressed: _isSending ? null : sendMessage,
               ),
             ),
           ],

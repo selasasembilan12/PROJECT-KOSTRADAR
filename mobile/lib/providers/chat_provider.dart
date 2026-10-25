@@ -1,7 +1,7 @@
 
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class ChatMessage {
@@ -10,13 +10,15 @@ class ChatMessage {
   final String penerimaId;
   final String message;
   final DateTime createdAt;
+  final bool isRead;
 
-  ChatMessage({
+  const ChatMessage({
     required this.idMessage,
     required this.pengirimId,
     required this.penerimaId,
     required this.message,
     required this.createdAt,
+    this.isRead = false,
   });
 
   factory ChatMessage.fromMap(Map<String, dynamic> map) {
@@ -28,6 +30,7 @@ class ChatMessage {
       createdAt:
           DateTime.tryParse(map['created_at']?.toString() ?? '') ??
               DateTime.now(),
+      isRead: map['is_read'] == true,
     );
   }
 }
@@ -36,11 +39,13 @@ class ChatConversation {
   final String lawanBicaraId;
   final String pesanTerakhir;
   final DateTime waktuTerakhir;
+  final int jumlahBelumDibaca;
 
-  ChatConversation({
+  const ChatConversation({
     required this.lawanBicaraId,
     required this.pesanTerakhir,
     required this.waktuTerakhir,
+    this.jumlahBelumDibaca = 0,
   });
 }
 
@@ -48,10 +53,11 @@ class ChatProvider extends ChangeNotifier {
   final SupabaseClient _supabase = Supabase.instance.client;
 
   List<ChatMessage> _messages = [];
-  List<ChatMessage> get messages => _messages;
+  List<ChatMessage> get messages => List.unmodifiable(_messages);
 
   List<ChatConversation> _conversations = [];
-  List<ChatConversation> get conversations => _conversations;
+  List<ChatConversation> get conversations =>
+      List.unmodifiable(_conversations);
 
   bool _isLoading = false;
   bool get isLoading => _isLoading;
@@ -63,6 +69,8 @@ class ChatProvider extends ChangeNotifier {
       _conversationsSubscription;
 
   bool _disposed = false;
+  bool _fetchingConversations = false;
+  bool _fetchConversationsAgain = false;
 
   void _notifySafely() {
     if (!_disposed) {
@@ -70,70 +78,88 @@ class ChatProvider extends ChangeNotifier {
     }
   }
 
-  // Membentuk daftar percakapan dari pesan yang melibatkan pengguna.
   List<ChatConversation> _buildConversations(
     List<Map<String, dynamic>> rows,
     String myUserId,
   ) {
-    final Map<String, ChatConversation> conversationMap = {};
-    final sortedRows = [...rows];
+    final latestByPartner = <String, Map<String, dynamic>>{};
+    final unreadByPartner = <String, int>{};
 
-    sortedRows.sort((a, b) {
-      final dateA = DateTime.tryParse(
-            a['created_at']?.toString() ?? '',
-          ) ??
-          DateTime.fromMillisecondsSinceEpoch(0);
+    final sortedRows = [...rows]
+      ..sort((a, b) {
+        final dateA = DateTime.tryParse(
+              a['created_at']?.toString() ?? '',
+            ) ??
+            DateTime.fromMillisecondsSinceEpoch(0);
 
-      final dateB = DateTime.tryParse(
-            b['created_at']?.toString() ?? '',
-          ) ??
-          DateTime.fromMillisecondsSinceEpoch(0);
+        final dateB = DateTime.tryParse(
+              b['created_at']?.toString() ?? '',
+            ) ??
+            DateTime.fromMillisecondsSinceEpoch(0);
 
-      return dateB.compareTo(dateA);
-    });
+        return dateB.compareTo(dateA);
+      });
 
     for (final row in sortedRows) {
-      final pengirim = row['pengirim_id']?.toString() ?? '';
-      final penerima = row['penerima_id']?.toString() ?? '';
+      final sender = row['pengirim_id']?.toString() ?? '';
+      final receiver = row['penerima_id']?.toString() ?? '';
 
-      if (pengirim.isEmpty || penerima.isEmpty) continue;
+      if (sender.isEmpty || receiver.isEmpty) continue;
 
-      final lawanBicaraId =
-          pengirim == myUserId ? penerima : pengirim;
+      final partnerId = sender == myUserId ? receiver : sender;
 
-      // Pesan yang dikirim ke diri sendiri bukan percakapan valid.
-      if (lawanBicaraId == myUserId ||
-          conversationMap.containsKey(lawanBicaraId)) {
-        continue;
+      if (partnerId == myUserId) continue;
+
+      if (receiver == myUserId && row['is_read'] != true) {
+        unreadByPartner[partnerId] =
+            (unreadByPartner[partnerId] ?? 0) + 1;
       }
 
-      conversationMap[lawanBicaraId] = ChatConversation(
-        lawanBicaraId: lawanBicaraId,
-        pesanTerakhir: (row['isi_pesan'] ?? '').toString(),
-        waktuTerakhir:
-            DateTime.tryParse(
-              row['created_at']?.toString() ?? '',
-            ) ??
-            DateTime.now(),
+      latestByPartner.putIfAbsent(partnerId, () => row);
+    }
+
+    final result = <ChatConversation>[];
+
+    for (final entry in latestByPartner.entries) {
+      final row = entry.value;
+
+      result.add(
+        ChatConversation(
+          lawanBicaraId: entry.key,
+          pesanTerakhir: (row['isi_pesan'] ?? '').toString(),
+          waktuTerakhir: DateTime.tryParse(
+                row['created_at']?.toString() ?? '',
+              ) ??
+              DateTime.now(),
+          jumlahBelumDibaca: unreadByPartner[entry.key] ?? 0,
+        ),
       );
     }
 
-    return conversationMap.values.toList();
+    result.sort(
+      (a, b) => b.waktuTerakhir.compareTo(a.waktuTerakhir),
+    );
+
+    return result;
   }
 
-  // Mengambil daftar percakapan untuk akun yang sedang login.
   Future<void> fetchConversations() async {
+    if (_fetchingConversations) {
+      _fetchConversationsAgain = true;
+      return;
+    }
+
+    _fetchingConversations = true;
+
     final myUserId = _supabase.auth.currentUser?.id;
 
     if (myUserId == null) {
       _conversations = [];
       _isLoading = false;
+      _fetchingConversations = false;
       _notifySafely();
       return;
     }
-
-    _isLoading = true;
-    _notifySafely();
 
     try {
       final response = await _supabase
@@ -145,26 +171,29 @@ class ChatProvider extends ChangeNotifier {
           )
           .order('created_at', ascending: false);
 
-      final rows = List<Map<String, dynamic>>.from(response);
-
-      _conversations = _buildConversations(rows, myUserId);
+      _conversations = _buildConversations(
+        List<Map<String, dynamic>>.from(response),
+        myUserId,
+      );
     } catch (e, stackTrace) {
       debugPrint('Gagal mengambil daftar percakapan: $e');
       debugPrintStack(stackTrace: stackTrace);
     } finally {
+      _fetchingConversations = false;
       _isLoading = false;
       _notifySafely();
+
+      if (_fetchConversationsAgain && !_disposed) {
+        _fetchConversationsAgain = false;
+        unawaited(fetchConversations());
+      }
     }
   }
 
-  // Memantau daftar percakapan secara realtime.
   void listenToConversations() {
     final myUserId = _supabase.auth.currentUser?.id;
 
-    if (myUserId == null) {
-      debugPrint('Tidak dapat memantau chat: pengguna belum login.');
-      return;
-    }
+    if (myUserId == null) return;
 
     _conversationsSubscription?.cancel();
 
@@ -196,7 +225,6 @@ class ChatProvider extends ChangeNotifier {
     );
   }
 
-  // Memantau pesan dua arah antara pengguna login dan lawan bicara.
   void listenToMessages(String lawanBicaraId) {
     final myUserId = _supabase.auth.currentUser?.id;
 
@@ -219,13 +247,13 @@ class ChatProvider extends ChangeNotifier {
         if (_disposed) return;
 
         final filteredRows = rows.where((row) {
-          final pengirim = row['pengirim_id']?.toString();
-          final penerima = row['penerima_id']?.toString();
+          final sender = row['pengirim_id']?.toString();
+          final receiver = row['penerima_id']?.toString();
 
-          return (pengirim == myUserId &&
-                  penerima == lawanBicaraId) ||
-              (pengirim == lawanBicaraId &&
-                  penerima == myUserId);
+          return (sender == myUserId &&
+                  receiver == lawanBicaraId) ||
+              (sender == lawanBicaraId &&
+                  receiver == myUserId);
         }).toList();
 
         _messages = filteredRows
@@ -247,14 +275,34 @@ class ChatProvider extends ChangeNotifier {
     );
   }
 
-  // Mengirim pesan kepada lawan bicara.
+  Future<void> markMessagesAsRead(String lawanBicaraId) async {
+    final myUserId = _supabase.auth.currentUser?.id;
+
+    if (myUserId == null || lawanBicaraId.trim().isEmpty) {
+      return;
+    }
+
+    try {
+      await _supabase
+          .from('messages')
+          .update({'is_read': true})
+          .eq('pengirim_id', lawanBicaraId)
+          .eq('penerima_id', myUserId)
+          .eq('is_read', false);
+    } catch (e, stackTrace) {
+      debugPrint('Gagal menandai pesan sebagai dibaca: $e');
+      debugPrintStack(stackTrace: stackTrace);
+      rethrow;
+    }
+  }
+
   Future<void> sendNewMessage(
     String lawanBicaraId,
     String teksPesan, {
     String? idKost,
   }) async {
     final myUserId = _supabase.auth.currentUser?.id;
-    final pesan = teksPesan.trim();
+    final message = teksPesan.trim();
 
     if (myUserId == null) {
       throw StateError('Pengguna belum login.');
@@ -270,30 +318,31 @@ class ChatProvider extends ChangeNotifier {
       );
     }
 
-    if (pesan.isEmpty) {
+    if (message.isEmpty) {
       throw ArgumentError('Pesan tidak boleh kosong.');
     }
 
-    final dataPesan = <String, dynamic>{
+    final payload = <String, dynamic>{
       'pengirim_id': myUserId,
       'penerima_id': lawanBicaraId,
-      'isi_pesan': pesan,
+      'isi_pesan': message,
+      'is_read': false,
     };
 
     if (idKost != null && idKost.trim().isNotEmpty) {
-      dataPesan['id_kost'] = idKost;
+      payload['id_kost'] = idKost;
     }
 
     try {
-      await _supabase.from('messages').insert(dataPesan);
+      await _supabase.from('messages').insert(payload);
       await fetchConversations();
-    } catch (e) {
+    } catch (e, stackTrace) {
       debugPrint('Gagal mengirim pesan: $e');
+      debugPrintStack(stackTrace: stackTrace);
       rethrow;
     }
   }
 
-  // Menghapus pesan berdasarkan primary key id_message.
   Future<void> deleteMessage(String messageId) async {
     if (messageId.trim().isEmpty) {
       throw ArgumentError('ID pesan tidak boleh kosong.');
@@ -311,8 +360,9 @@ class ChatProvider extends ChangeNotifier {
 
       _notifySafely();
       await fetchConversations();
-    } catch (e) {
+    } catch (e, stackTrace) {
       debugPrint('Gagal menghapus pesan: $e');
+      debugPrintStack(stackTrace: stackTrace);
       rethrow;
     }
   }

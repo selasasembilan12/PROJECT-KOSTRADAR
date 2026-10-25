@@ -1,11 +1,8 @@
 
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../../core/theme/app_theme.dart';
 import '../../providers/chat_provider.dart';
 
 class RuangChatPage extends StatefulWidget {
@@ -25,26 +22,34 @@ class RuangChatPage extends StatefulWidget {
 }
 
 class _RuangChatPageState extends State<RuangChatPage> {
+  final SupabaseClient _supabase = Supabase.instance.client;
   final TextEditingController _messageController =
       TextEditingController();
   final ScrollController _scrollController = ScrollController();
 
-  final SupabaseClient _supabase = Supabase.instance.client;
+  Map<String, dynamic>? _kostInfo;
+  String _partnerName = '';
+  String? _partnerPhoto;
 
-  Map<String, dynamic>? _resolvedKostInfo;
-  String _chatPartnerName = '';
-  String? _chatPartnerPhoto;
-  int _lastMessageCount = -1;
-  bool _isLoadingKost = true;
   bool _isSending = false;
+  bool _markingRead = false;
+  bool _fetchingProfile = false;
+
+  int _lastMessageCount = -1;
+
+  String? get _myId => _supabase.auth.currentUser?.id;
 
   @override
   void initState() {
     super.initState();
-    _chatPartnerName = widget.namaAdmin.trim().isNotEmpty
+
+    _partnerName = widget.namaAdmin.trim().isNotEmpty
         ? widget.namaAdmin.trim()
-        : 'Pengelola Kost';
-    _fetchChatPartnerProfile();
+        : 'Pemilik Kost';
+
+    _kostInfo = widget.kostInfo;
+
+    _fetchPartnerProfile();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -53,246 +58,255 @@ class _RuangChatPageState extends State<RuangChatPage> {
         context,
         listen: false,
       ).listenToMessages(widget.idAdminTujuan);
+
+      _markMessagesRead();
     });
 
-    if (widget.kostInfo != null && widget.kostInfo!.isNotEmpty) {
-      _resolvedKostInfo = widget.kostInfo;
-      _isLoadingKost = false;
-    } else {
-      _fetchKostFromDatabase();
+    if (_kostInfo == null || _kostInfo!.isEmpty) {
+      _fetchKostInfo();
     }
   }
 
-
-  // Mengambil nama dan foto lawan bicara dari public.users.
-  // idAdminTujuan harus berisi UUID akun pemilik kost (users.id_user),
-  // bukan UUID kost (kost.id_kost).
-  Future<void> _fetchChatPartnerProfile() async {
-    final targetId = widget.idAdminTujuan.trim();
-
-    if (targetId.isEmpty) {
-      debugPrint('ID tujuan room chat kosong.');
-      return;
-    }
+  Future<void> _fetchPartnerProfile() async {
+    if (_fetchingProfile) return;
+    _fetchingProfile = true;
 
     try {
-      debugPrint('Memuat profil room chat dari users, ID: $targetId');
-
       final profile = await _supabase
           .from('users')
           .select('id_user, username, foto_profile, role')
-          .eq('id_user', targetId)
+          .eq('id_user', widget.idAdminTujuan)
           .maybeSingle();
 
-      if (!mounted) return;
+      if (!mounted || profile == null) return;
 
-      if (profile == null) {
-        debugPrint(
-          'Profil tidak ditemukan di public.users untuk id_user=$targetId. '
-          'Pastikan ID yang dikirim saat membuka room adalah UUID pemilik kost.',
-        );
-        return;
-      }
-
-      final username = profile['username']?.toString().trim();
+      final name = profile['username']?.toString().trim();
       final photo = profile['foto_profile']?.toString().trim();
-      final role = profile['role']?.toString().trim();
-
-      debugPrint(
-        'Profil room chat berhasil dibaca: '
-        'username=$username, role=$role, foto=$photo',
-      );
 
       setState(() {
-        if (username != null &&
-            username.isNotEmpty &&
-            username != 'null') {
-          _chatPartnerName = username;
+        if (name != null && name.isNotEmpty && name != 'null') {
+          _partnerName = name;
         }
 
-        _chatPartnerPhoto =
-            photo != null &&
-                    photo.isNotEmpty &&
-                    photo != 'null'
+        _partnerPhoto =
+            photo != null && photo.isNotEmpty && photo != 'null'
                 ? photo
                 : null;
       });
-    } catch (e, stackTrace) {
-      debugPrint('Gagal mengambil profil room chat: $e');
-      debugPrintStack(stackTrace: stackTrace);
+    } catch (e) {
+      debugPrint('Gagal mengambil profil pemilik kost: $e');
+    } finally {
+      _fetchingProfile = false;
     }
   }
 
-  Widget _buildPartnerAvatar({double radius = 18}) {
-    final photo = _chatPartnerPhoto?.trim() ?? '';
-    final name = _chatPartnerName.trim();
+  Future<void> _markMessagesRead() async {
+    if (_markingRead || _myId == null) return;
 
-    Widget fallbackAvatar() {
+    _markingRead = true;
+
+    try {
+      await Provider.of<ChatProvider>(
+        context,
+        listen: false,
+      ).markMessagesAsRead(widget.idAdminTujuan);
+    } catch (e) {
+      debugPrint('Gagal menandai pesan sudah dibaca: $e');
+    } finally {
+      _markingRead = false;
+    }
+  }
+
+  Future<void> _fetchKostInfo() async {
+    final myId = _myId;
+    if (myId == null) return;
+
+    try {
+      final rows = await _supabase
+          .from('messages')
+          .select('id_kost')
+          .or(
+            'and(pengirim_id.eq.$myId,'
+            'penerima_id.eq.${widget.idAdminTujuan}),'
+            'and(pengirim_id.eq.${widget.idAdminTujuan},'
+            'penerima_id.eq.$myId)',
+          )
+          .not('id_kost', 'is', null)
+          .order('created_at', ascending: false)
+          .limit(1);
+
+      if (rows.isEmpty) return;
+
+      final kostId = rows.first['id_kost'];
+      if (kostId == null) return;
+
+      final kost = await _supabase
+          .from('kost')
+          .select()
+          .eq('id_kost', kostId)
+          .maybeSingle();
+
+      if (!mounted || kost == null) return;
+
+      setState(() {
+        _kostInfo = kost;
+      });
+    } catch (e) {
+      debugPrint('Gagal mengambil informasi kost: $e');
+    }
+  }
+
+  Widget _avatar({double radius = 20}) {
+    final photo = _partnerPhoto?.trim() ?? '';
+    final name = _partnerName.trim();
+    final initial = name.isNotEmpty ? name[0].toUpperCase() : 'P';
+
+    if (photo.startsWith('https://') || photo.startsWith('http://')) {
       return CircleAvatar(
         radius: radius,
-        backgroundColor: AppColors.primary,
-        child: Text(
-          name.isNotEmpty ? name[0].toUpperCase() : 'P',
-          style: const TextStyle(
-            color: AppColors.white,
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
+        backgroundColor: const Color(0xFFF0F2F5),
+        child: ClipOval(
+          child: Image.network(
+            photo,
+            width: radius * 2,
+            height: radius * 2,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => _initialAvatar(initial, radius),
           ),
         ),
       );
     }
 
-    if (photo.isEmpty ||
-        !(photo.startsWith('https://') ||
-            photo.startsWith('http://'))) {
-      return fallbackAvatar();
-    }
+    return _initialAvatar(initial, radius);
+  }
 
+  Widget _initialAvatar(String initial, double radius) {
     return CircleAvatar(
       radius: radius,
-      backgroundColor: AppColors.primaryLight,
-      child: ClipOval(
-        child: Image.network(
-          photo,
-          key: ValueKey(photo),
-          width: radius * 2,
-          height: radius * 2,
-          fit: BoxFit.cover,
-          errorBuilder: (context, error, stackTrace) {
-            debugPrint('Foto profil room chat gagal dimuat: $error');
-            return fallbackAvatar();
-          },
+      backgroundColor: const Color(0xFFF0F2F5),
+      child: Text(
+        initial,
+        style: const TextStyle(
+          color: Color(0xFF075E54),
+          fontWeight: FontWeight.bold,
         ),
       ),
     );
   }
 
+  String _formatTime(DateTime date) {
+    final local = date.toLocal();
+
+    return '${local.hour.toString().padLeft(2, '0')}:'
+        '${local.minute.toString().padLeft(2, '0')}';
+  }
+
   void _scrollToLatest({bool animate = true}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !_scrollController.hasClients) return;
+
       final target = _scrollController.position.maxScrollExtent;
+
       if (!animate) {
         _scrollController.jumpTo(target);
-        return;
+      } else {
+        _scrollController.animateTo(
+          target,
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOutCubic,
+        );
       }
-      _scrollController.animateTo(
-        target,
-        duration: const Duration(milliseconds: 220),
-        curve: Curves.easeOutCubic,
-      );
     });
   }
 
-  Future<void> _fetchKostFromDatabase() async {
-    try {
-      // Cari kost berdasarkan ID pemilik.
-      // Jika tidak ditemukan, coba berdasarkan ID kost.
-      var response = await _supabase
-          .from('kost')
-          .select()
-          .eq('id_user', widget.idAdminTujuan)
-          .limit(1)
-          .maybeSingle();
-
-      response ??= await _supabase
-            .from('kost')
-            .select()
-            .eq('id_kost', widget.idAdminTujuan)
-            .maybeSingle();
-
-      if (!mounted) return;
-
-      setState(() {
-        _resolvedKostInfo = response;
-        _isLoadingKost = false;
-      });
-    } catch (e) {
-      debugPrint('Gagal mengambil data kost: $e');
-
-      if (!mounted) return;
-
-      setState(() {
-        _isLoadingKost = false;
-      });
-    }
-  }
-
-  // Mengirim pesan dan menunggu hasil operasi Supabase.
   Future<void> _sendMessage() async {
     final text = _messageController.text.trim();
 
     if (text.isEmpty || _isSending) return;
 
-    final currentUser = _supabase.auth.currentUser;
+    final myId = _myId;
 
-    if (currentUser == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Silakan login terlebih dahulu.'),
-        ),
-      );
+    if (myId == null) {
+      _showMessage('Silakan login terlebih dahulu.');
       return;
     }
 
-    if (widget.idAdminTujuan.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('ID tujuan chat tidak valid.'),
-        ),
-      );
+    if (widget.idAdminTujuan.trim().isEmpty ||
+        widget.idAdminTujuan == myId) {
+      _showMessage('ID penerima tidak valid.');
       return;
     }
 
-    if (currentUser.id == widget.idAdminTujuan) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'ID pengirim dan penerima tidak boleh sama.',
-          ),
-        ),
-      );
-      return;
-    }
-
-    setState(() {
-      _isSending = true;
-    });
+    setState(() => _isSending = true);
 
     try {
-      final idKost = _resolvedKostInfo?['id_kost']?.toString();
-
       await Provider.of<ChatProvider>(
         context,
         listen: false,
       ).sendNewMessage(
         widget.idAdminTujuan,
         text,
-        idKost: idKost,
+        idKost: _kostInfo?['id_kost']?.toString(),
       );
 
       if (!mounted) return;
 
-      // Kosongkan input hanya setelah pengiriman berhasil.
       _messageController.clear();
       _scrollToLatest();
-    } catch (e, stackTrace) {
-      debugPrint('Gagal mengirim pesan: $e');
-      debugPrintStack(stackTrace: stackTrace);
+    } catch (e) {
+      debugPrint('Gagal mengirim pesan mahasiswa: $e');
 
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Pesan gagal dikirim: $e'),
-          duration: const Duration(seconds: 4),
-        ),
-      );
+      if (mounted) {
+        _showMessage('Pesan gagal dikirim: $e');
+      }
     } finally {
       if (mounted) {
-        setState(() {
-          _isSending = false;
-        });
+        setState(() => _isSending = false);
       }
+    }
+  }
+
+  void _showMessage(String text) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(text)),
+    );
+  }
+
+  Future<void> _deleteMessage(ChatMessage message) async {
+    if (message.pengirimId != _myId) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Hapus Pesan'),
+        content: const Text('Yakin ingin menghapus pesan ini?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Batal'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text(
+              'Hapus',
+              style: TextStyle(color: Colors.red),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    try {
+      await Provider.of<ChatProvider>(
+        context,
+        listen: false,
+      ).deleteMessage(message.idMessage);
+    } catch (e) {
+      _showMessage('Gagal menghapus pesan: $e');
     }
   }
 
@@ -305,62 +319,41 @@ class _RuangChatPageState extends State<RuangChatPage> {
 
   @override
   Widget build(BuildContext context) {
-    final myUserId = _supabase.auth.currentUser?.id;
-
-    final String namaKost =
-        _resolvedKostInfo?['nama_kost'] ??
-        _resolvedKostInfo?['nama'] ??
-        _resolvedKostInfo?['title'] ??
-        widget.namaAdmin;
-
-    final String fotoKost =
-        _resolvedKostInfo?['foto_kost'] ??
-        _resolvedKostInfo?['image'] ??
-        _resolvedKostInfo?['foto'] ??
-        _resolvedKostInfo?['photo'] ??
-        '';
-
-    final rawHarga =
-        _resolvedKostInfo?['harga'] ??
-        _resolvedKostInfo?['price'] ??
-        '';
-
-    final String hargaKost = rawHarga.toString().isNotEmpty
-        ? rawHarga.toString()
-        : 'Hubungi Pengelola';
-
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Colors.white,
       appBar: AppBar(
-        backgroundColor: AppColors.white,
-        foregroundColor: AppColors.textPrimary,
+        backgroundColor: Colors.white,
+        foregroundColor: const Color(0xFF25313A),
         elevation: 0.5,
         titleSpacing: 0,
         title: Row(
           children: [
-            _buildPartnerAvatar(radius: 18),
+            _avatar(),
             const SizedBox(width: 10),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  _chatPartnerName,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textPrimary,
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _partnerName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Color(0xFF17232B),
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
                   ),
-                ),
-                const Text(
-                  'Online',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: AppColors.success,
+                  const Text(
+                    'Pemilik Kost',
+                    style: TextStyle(
+                      color: Color(0xFF667781),
+                      fontSize: 11,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ],
         ),
@@ -369,363 +362,315 @@ class _RuangChatPageState extends State<RuangChatPage> {
       body: SafeArea(
         top: false,
         child: Column(
+          children: [
+            if (_kostInfo != null) _buildKostCard(),
+            Expanded(child: _buildMessages()),
+            _buildComposer(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildKostCard() {
+    final kost = _kostInfo!;
+
+    final name = (
+      kost['nama_kost'] ??
+      kost['nama'] ??
+      kost['nama_kostan'] ??
+      'Informasi Kost'
+    ).toString();
+
+    final price = kost['harga']?.toString() ?? '';
+    final rawPhoto = kost['foto'] ?? kost['foto_kost'] ?? kost['foto_url'];
+
+    String photo = '';
+
+    if (rawPhoto is String && rawPhoto.startsWith('http')) {
+      photo = rawPhoto;
+    } else if (rawPhoto is List && rawPhoto.isNotEmpty) {
+      photo = rawPhoto.first.toString();
+    }
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 10, 12, 4),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Row(
         children: [
-          // Informasi kost.
-          Container(
-            margin: const EdgeInsets.all(12),
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: AppColors.white,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.border),
-            ),
-            child: Row(
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: photo.startsWith('http')
+                ? Image.network(
+                    photo,
+                    width: 60,
+                    height: 60,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => _kostPlaceholder(),
+                  )
+                : _kostPlaceholder(),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: fotoKost.isNotEmpty
-                      ? Image.network(
-                          fotoKost,
-                          width: 60,
-                          height: 60,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, _, _) =>
-                              _defaultImageContainer(),
-                        )
-                      : _defaultImageContainer(),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        namaKost,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.textPrimary,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: AppColors.successLight,
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: const Text(
-                              'Terverifikasi',
-                              style: TextStyle(
-                                fontSize: 10,
-                                color: AppColors.success,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        hargaKost.startsWith('Rp')
-                            ? hargaKost
-                            : 'Rp $hargaKost',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.primary,
-                        ),
-                      ),
-                    ],
+                Text(
+                  name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF17232B),
                   ),
                 ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Informasi kost',
+                  style: TextStyle(
+                    color: Color(0xFF667781),
+                    fontSize: 11,
+                  ),
+                ),
+                if (price.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    price.startsWith('Rp') ? price : 'Rp $price',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF075E54),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
+        ],
+      ),
+    );
+  }
 
-          // Daftar pesan.
-          Expanded(
-            child: Consumer<ChatProvider>(
-              builder: (context, chatProvider, child) {
-                final messages = chatProvider.messages;
-                if (_lastMessageCount != messages.length) {
-                  _lastMessageCount = messages.length;
-                  _scrollToLatest(animate: messages.length > 0);
-                }
+  Widget _kostPlaceholder() {
+    return Container(
+      width: 60,
+      height: 60,
+      color: const Color(0xFFF7F8FA),
+      child: const Icon(
+        Icons.home_outlined,
+        color: Color(0xFF667781),
+      ),
+    );
+  }
 
-                if (chatProvider.isLoading) {
-                  return const Center(
-                    child: CircularProgressIndicator(
-                      color: AppColors.primary,
+  Widget _buildMessages() {
+    return Consumer<ChatProvider>(
+      builder: (context, provider, child) {
+        final messages = provider.messages;
+        final myId = _myId;
+
+        if (provider.isLoading) {
+          return const Center(
+            child: CircularProgressIndicator(
+              color: Color(0xFF075E54),
+            ),
+          );
+        }
+
+        final hasUnreadIncoming = messages.any(
+          (message) =>
+              message.pengirimId == widget.idAdminTujuan &&
+              message.penerimaId == myId &&
+              !message.isRead,
+        );
+
+        if (hasUnreadIncoming && !_markingRead) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) _markMessagesRead();
+          });
+        }
+
+        if (_lastMessageCount != messages.length) {
+          _lastMessageCount = messages.length;
+          _scrollToLatest(animate: messages.isNotEmpty);
+        }
+
+        return ColoredBox(
+          color: Colors.white,
+          child: messages.isEmpty
+              ? const Center(
+                  child: Text(
+                    'Belum ada percakapan.\nKirim pesan untuk mulai!',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Color(0xFF667781),
+                      fontSize: 14,
                     ),
-                  );
-                }
-
-                if (messages.isEmpty) {
-                  return const Center(
-                    child: Text(
-                      'Belum ada percakapan.\nKirim pesan untuk mulai!',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                  );
-                }
-
-                return ListView.builder(
-                  controller: _scrollController,
-                  keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 8,
                   ),
+                )
+              : ListView.builder(
+                  controller: _scrollController,
+                  keyboardDismissBehavior:
+                      ScrollViewKeyboardDismissBehavior.onDrag,
+                  padding: const EdgeInsets.fromLTRB(12, 14, 12, 14),
                   itemCount: messages.length,
                   itemBuilder: (context, index) {
-                    final msg = messages[index];
-                    final isMe = msg.pengirimId == myUserId;
-
-                    final localCreatedAt = msg.createdAt.toLocal();
-                    final String timeString =
-                        '${localCreatedAt.hour.toString().padLeft(2, '0')}:'
-                        '${localCreatedAt.minute.toString().padLeft(2, '0')}';
+                    final message = messages[index];
+                    final isMe = message.pengirimId == myId;
 
                     return Align(
                       alignment: isMe
                           ? Alignment.centerRight
                           : Alignment.centerLeft,
                       child: GestureDetector(
-                        onLongPress: () {
-                          if (!isMe) return;
-
-                          showDialog<void>(
-                            context: context,
-                            builder: (dialogContext) {
-                              return AlertDialog(
-                                title: const Text('Hapus Pesan'),
-                                content: const Text(
-                                  'Apakah kamu yakin ingin menghapus pesan ini?',
-                                ),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () {
-                                      Navigator.pop(dialogContext);
-                                    },
-                                    child: const Text('Batal'),
-                                  ),
-                                  TextButton(
-                                    onPressed: () async {
-                                      Navigator.pop(dialogContext);
-
-                                      try {
-                                        await Provider.of<ChatProvider>(
-                                          context,
-                                          listen: false,
-                                        ).deleteMessage(msg.idMessage);
-                                      } catch (e) {
-                                        if (!context.mounted) return;
-
-                                        ScaffoldMessenger.of(context)
-                                            .showSnackBar(
-                                          SnackBar(
-                                            content: Text(
-                                              'Gagal menghapus pesan: $e',
-                                            ),
-                                          ),
-                                        );
-                                      }
-                                    },
-                                    child: const Text(
-                                      'Hapus',
-                                      style: TextStyle(
-                                        color: Colors.red,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              );
-                            },
-                          );
-                        },
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            if (!isMe) ...[
-                              _buildPartnerAvatar(radius: 14),
-                              const SizedBox(width: 6),
-                            ],
-                            Flexible(
-                              child: Container(
-                                margin: const EdgeInsets.symmetric(vertical: 6),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 14,
-                                  vertical: 10,
-                                ),
-                                constraints: BoxConstraints(
-                                  maxWidth:
-                                      MediaQuery.of(context).size.width * 0.70,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: isMe
-                                      ? AppColors.primary
-                                      : AppColors.white,
-                                  borderRadius: BorderRadius.only(
-                                    topLeft: const Radius.circular(16),
-                                    topRight: const Radius.circular(16),
-                                    bottomLeft:
-                                        Radius.circular(isMe ? 16 : 4),
-                                    bottomRight:
-                                        Radius.circular(isMe ? 4 : 16),
-                                  ),
-                                  boxShadow: const [
-                                    BoxShadow(
-                                      color: AppColors.cardShadow,
-                                      blurRadius: 4,
-                                      offset: Offset(0, 2),
-                                    ),
-                                  ],
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.end,
-                                  children: [
-                                    Text(
-                                      msg.message,
-                                      style: TextStyle(
-                                        color: isMe
-                                            ? AppColors.white
-                                            : AppColors.textPrimary,
-                                        fontSize: 14,
-                                        height: 1.4,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Text(
-                                          timeString,
-                                          style: TextStyle(
-                                            color: isMe
-                                                ? AppColors.white.withValues(
-                                                    alpha: 0.7,
-                                                  )
-                                                : AppColors.textHint,
-                                            fontSize: 10,
-                                          ),
-                                        ),
-                                        if (isMe) ...[
-                                          const SizedBox(width: 4),
-                                          const Icon(
-                                            Icons.check,
-                                            size: 12,
-                                            color: Colors.white70,
-                                          ),
-                                        ],
-                                      ],
-                                    ),
-                                  ],
+                        onLongPress: isMe
+                            ? () => _deleteMessage(message)
+                            : null,
+                        child: Container(
+                          constraints: BoxConstraints(
+                            maxWidth:
+                                MediaQuery.of(context).size.width * 0.60,
+                          ),
+                          margin: const EdgeInsets.only(bottom: 7),
+                          padding: const EdgeInsets.fromLTRB(8, 6, 6, 4),
+                          decoration: BoxDecoration(
+                            color: isMe
+                                ? const Color(0xFFD9FDD3)
+                                : const Color(0xFFF7F8FA),
+                            borderRadius: BorderRadius.only(
+                              topLeft: const Radius.circular(8),
+                              topRight: const Radius.circular(8),
+                              bottomLeft: Radius.circular(isMe ? 8 : 2),
+                              bottomRight: Radius.circular(isMe ? 2 : 8),
+                            ),
+                          ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Text(
+                                message.message,
+                                softWrap: true,
+                                style: const TextStyle(
+                                  color: Color(0xFF17232B),
+                                  fontSize: 13,
+                                  height: 1.3,
                                 ),
                               ),
-                            ),
-                          ],
+                              const SizedBox(height: 3),
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    _formatTime(message.createdAt),
+                                    style: const TextStyle(
+                                      color: Color(0xFF596B73),
+                                      fontSize: 10,
+                                    ),
+                                  ),
+                                  if (isMe) ...[
+                                    const SizedBox(width: 3),
+                                    Icon(
+                                      Icons.done_all,
+                                      size: 17,
+                                      color: message.isRead
+                                          ? const Color(0xFF34B7F1)
+                                          : const Color(0xFF8696A0),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     );
                   },
-                );
-              },
-            ),
-          ),
-
-          // Kolom input pesan.
-          Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 12,
-              vertical: 8,
-            ),
-            decoration: const BoxDecoration(
-              color: AppColors.white,
-              boxShadow: [
-                BoxShadow(
-                  color: AppColors.cardShadow,
-                  blurRadius: 10,
-                  offset: Offset(0, -2),
                 ),
-              ],
-            ),
-            child: SafeArea(
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _messageController,
-                      enabled: !_isSending,
-                      onSubmitted: (_) => _sendMessage(),
-                      decoration: InputDecoration(
-                        hintText: 'Ketik pesan...',
-                        hintStyle: const TextStyle(
-                          color: AppColors.textHint,
-                        ),
-                        filled: true,
-                        fillColor: AppColors.backgroundLight,
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 10,
-                        ),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(24),
-                          borderSide: BorderSide.none,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  CircleAvatar(
-                    backgroundColor: AppColors.primary,
-                    child: IconButton(
-                      onPressed: _isSending ? null : _sendMessage,
-                      icon: _isSending
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: AppColors.white,
-                              ),
-                            )
-                          : const Icon(
-                              Icons.send_rounded,
-                              color: AppColors.white,
-                              size: 18,
-                            ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-      ),
+        );
+      },
     );
   }
 
-  Widget _defaultImageContainer() {
+  Widget _buildComposer() {
     return Container(
-      width: 60,
-      height: 60,
-      color: AppColors.primaryLight,
-      child: const Icon(
-        Icons.home,
-        color: AppColors.primary,
+      padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(
+          top: BorderSide(color: Color(0xFFE5E7EB)),
+        ),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _messageController,
+                enabled: !_isSending,
+                minLines: 1,
+                maxLines: 4,
+                textCapitalization: TextCapitalization.sentences,
+                textInputAction: TextInputAction.send,
+                onSubmitted: (_) => _sendMessage(),
+                decoration: InputDecoration(
+                  hintText: 'Ketik pesan...',
+                  hintStyle: const TextStyle(
+                    color: Color(0xFF667781),
+                  ),
+                  filled: true,
+                  fillColor: const Color(0xFFF0F2F5),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 11,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(24),
+                    borderSide: BorderSide.none,
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(24),
+                    borderSide: BorderSide.none,
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(24),
+                    borderSide: const BorderSide(
+                      color: Color(0xFF9BBEAA),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            CircleAvatar(
+              radius: 23,
+              backgroundColor: const Color(0xFF075E54),
+              child: IconButton(
+                onPressed: _isSending ? null : _sendMessage,
+                icon: _isSending
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Icon(
+                        Icons.send_rounded,
+                        color: Colors.white,
+                        size: 19,
+                      ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
