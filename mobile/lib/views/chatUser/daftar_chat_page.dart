@@ -1,18 +1,9 @@
 
-//salsa
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../core/theme/app_theme.dart';
 import 'ruang_chat_page.dart';
-
-const Color _studentBlue = Color(0xFF2563EB);
-const Color _studentPageBg = Color(0xFFF7F8FA);
-const Color _studentText = Color(0xFF18212F);
-const Color _studentMuted = Color(0xFF8993A4);
-const Color _studentLine = Color(0xFFE8EBF0);
-const Color _studentRed = Color(0xFFD93040);
 
 class DaftarChatPage extends StatefulWidget {
   const DaftarChatPage({super.key});
@@ -26,619 +17,622 @@ class _DaftarChatPageState extends State<DaftarChatPage> {
   final TextEditingController _searchController =
       TextEditingController();
 
-  StreamSubscription<List<Map<String, dynamic>>>? _subscription;
+  bool _isLoading = true;
+  bool _hanyaBelumDibaca = false;
 
-  List<Map<String, dynamic>> _chats = [];
-  bool _loading = true;
-  bool _fetching = false;
-  bool _fetchAgain = false;
-  String _search = '';
-  int _filter = 0;
-
-  final List<String> _filters = const [
-    'Semua Chat',
-    'Belum Dibaca',
-    'Sudah Booking',
-  ];
-
-  String? get _myId => _supabase.auth.currentUser?.id;
+  List<Map<String, dynamic>> _chatConversations = [];
 
   @override
   void initState() {
     super.initState();
-    _searchController.addListener(_searchChanged);
-    _loadChats();
-    _listenRealtime();
+    _fetchConversations();
+    _searchController.addListener(_onSearchChanged);
   }
 
-  void _searchChanged() {
-    if (!mounted) return;
-    setState(() {
-      _search = _searchController.text.trim().toLowerCase();
-    });
-  }
-
-  void _listenRealtime() {
-    _subscription?.cancel();
-    _subscription = _supabase
-        .from('messages')
-        .stream(primaryKey: ['id_message'])
-        .order('created_at', ascending: false)
-        .listen(
-      (_) {
-        if (mounted) _loadChats();
-      },
-      onError: (Object error, StackTrace stackTrace) {
-        debugPrint('Realtime daftar chat mahasiswa: $error');
-      },
-    );
+  void _onSearchChanged() {
+    if (mounted) setState(() {});
   }
 
   @override
   void dispose() {
-    _subscription?.cancel();
-    _searchController.removeListener(_searchChanged);
+    _searchController.removeListener(_onSearchChanged);
     _searchController.dispose();
     super.dispose();
   }
 
-  String _pick(
-    Map<String, dynamic> row,
-    List<String> keys, {
-    String fallback = '',
-  }) {
-    for (final key in keys) {
-      final value = row[key]?.toString().trim() ?? '';
-      if (value.isNotEmpty && value != 'null') return value;
-    }
-    return fallback;
-  }
+  // =========================================================
+  // MEMUAT DAFTAR CHAT, NAMA, DAN FOTO PROFIL
+  // =========================================================
 
-  Future<Map<String, dynamic>> _loadProfile(String id) async {
+  Future<void> _fetchConversations() async {
+    if (mounted) {
+      setState(() => _isLoading = true);
+    }
+
     try {
-      final row = await _supabase
-          .from('users')
-          .select()
-          .eq('id_user', id)
-          .maybeSingle();
+      final currentUser = _supabase.auth.currentUser;
+      final userId = currentUser?.id;
 
-      if (row != null) return Map<String, dynamic>.from(row);
-    } catch (e) {
-      debugPrint('Profil pemilik kost tidak tersedia: $e');
-    }
+      if (userId == null) {
+        if (!mounted) return;
 
-    return {};
-  }
-
-  Future<void> _loadChats() async {
-    if (_fetching) {
-      _fetchAgain = true;
-      return;
-    }
-
-    _fetching = true;
-    final myId = _myId;
-
-    if (myId == null) {
-      if (mounted) {
         setState(() {
-          _chats = [];
-          _loading = false;
+          _chatConversations = [];
+          _isLoading = false;
         });
+        return;
       }
 
-      _fetching = false;
-      return;
-    }
-
-    try {
+      // Ambil pesan yang dikirim atau diterima oleh pengguna.
       final response = await _supabase
           .from('messages')
           .select()
-          .or('pengirim_id.eq.$myId,penerima_id.eq.$myId')
+          .or('pengirim_id.eq.$userId,penerima_id.eq.$userId')
           .order('created_at', ascending: false);
 
-      final rows = List<Map<String, dynamic>>.from(response);
+      final Map<String, Map<String, dynamic>> groupedChat = {};
 
-      final latest = <String, Map<String, dynamic>>{};
-      final unread = <String, int>{};
+      for (final item in response) {
+        final msg = Map<String, dynamic>.from(item);
 
-      for (final row in rows) {
-        final sender = row['pengirim_id']?.toString() ?? '';
-        final receiver = row['penerima_id']?.toString() ?? '';
+        final senderId = msg['pengirim_id']?.toString() ?? '';
+        final receiverId = msg['penerima_id']?.toString() ?? '';
 
-        if (sender.isEmpty || receiver.isEmpty) continue;
+        final lawanId =
+            senderId == userId ? receiverId : senderId;
 
-        final other = sender == myId ? receiver : sender;
-        if (other == myId) continue;
-
-        if (receiver == myId && row['is_read'] != true) {
-          unread[other] = (unread[other] ?? 0) + 1;
+        if (lawanId.isEmpty || lawanId == userId) {
+          continue;
         }
 
-        latest.putIfAbsent(other, () => row);
+        // Karena pesan sudah diurutkan terbaru terlebih dahulu,
+        // pesan pertama untuk setiap lawan adalah pesan terakhir.
+        if (!groupedChat.containsKey(lawanId)) {
+          final createdAt = DateTime.tryParse(
+            msg['created_at']?.toString() ?? '',
+          );
+
+          final waktu = createdAt == null
+              ? ''
+              : '${createdAt.hour.toString().padLeft(2, '0')}:'
+                '${createdAt.minute.toString().padLeft(2, '0')}';
+
+          groupedChat[lawanId] = {
+            'id_lawan': lawanId,
+            'nama_lawan': 'Pengelola Kost',
+            'foto_lawan': '',
+            'pesan_terakhir':
+                msg['isi_pesan']?.toString() ?? '',
+            'waktu': waktu,
+            'created_at': createdAt,
+            'belum_dibaca': receiverId == userId &&
+                msg['is_read'] == false,
+          };
+        }
       }
 
-      final result = <Map<String, dynamic>>[];
+      // Ambil profil lawan chat dari tabel users.
+      final lawanIds = groupedChat.keys.toList();
 
-      for (final entry in latest.entries) {
-        final id = entry.key;
-        final message = entry.value;
-        final profile = await _loadProfile(id);
+      if (lawanIds.isNotEmpty) {
+        try {
+          final profiles = await _supabase
+              .from('users')
+              .select('id_user, username, foto_profile')
+              .inFilter('id_user', lawanIds);
 
-        final createdAt = DateTime.tryParse(
-              message['created_at']?.toString() ?? '',
-            )?.toLocal() ??
-            DateTime.now();
+          for (final item in profiles) {
+            final profile = Map<String, dynamic>.from(item);
+            final id = profile['id_user']?.toString() ?? '';
 
-        result.add({
-          'partner_id': id,
-          'name': _pick(
-            profile,
-            [
-              'username',
-              'nama',
-              'nama_lengkap',
-              'full_name',
-              'display_name',
-              'name',
-            ],
-            fallback: 'Pemilik Kost',
-          ),
-          'photo': _pick(
-            profile,
-            [
-              'foto_profile',
-              'foto_profil',
-              'foto_url',
-              'avatar_url',
-              'profile_photo_url',
-            ],
-          ),
-          'verified': profile['is_verified'] == true,
-          'message': _pick(
-            message,
-            ['isi_pesan', 'message'],
-          ),
-          'created_at': createdAt,
-          'unread': unread[id] ?? 0,
-          'last_unread':
-              message['penerima_id']?.toString() == myId &&
-              message['is_read'] != true,
-          'has_booking_context': message['id_kost'] != null,
-        });
+            if (!groupedChat.containsKey(id)) continue;
+
+            final nama =
+                profile['username']?.toString().trim() ?? '';
+            final foto =
+                profile['foto_profile']?.toString().trim() ?? '';
+
+            if (nama.isNotEmpty) {
+              groupedChat[id]!['nama_lawan'] = nama;
+            }
+
+            if (foto.startsWith('http')) {
+              groupedChat[id]!['foto_lawan'] = foto;
+            }
+          }
+        } catch (e) {
+          // Daftar chat tetap ditampilkan jika data profil gagal diambil.
+          debugPrint('Gagal memuat profil lawan chat: $e');
+        }
       }
-
-      result.sort(
-        (a, b) => (b['created_at'] as DateTime)
-            .compareTo(a['created_at'] as DateTime),
-      );
 
       if (!mounted) return;
 
       setState(() {
-        _chats = result;
-        _loading = false;
+        _chatConversations = groupedChat.values.toList();
+        _isLoading = false;
       });
-    } catch (e, stackTrace) {
-      debugPrint('Gagal memuat daftar chat mahasiswa: $e');
-      debugPrintStack(stackTrace: stackTrace);
-      if (mounted) setState(() => _loading = false);
-    } finally {
-      _fetching = false;
+    } catch (e) {
+      debugPrint('Gagal memuat percakapan: $e');
 
-      if (_fetchAgain && mounted) {
-        _fetchAgain = false;
-        unawaited(_loadChats());
-      }
+      if (!mounted) return;
+
+      setState(() => _isLoading = false);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Gagal memuat percakapan. Periksa koneksi dan database.',
+          ),
+        ),
+      );
     }
   }
 
-  String _time(dynamic value) {
-    final date = DateTime.tryParse(value.toString());
-    if (date == null) return '';
+  // =========================================================
+  // PENCARIAN DAN FILTER CHAT
+  // =========================================================
 
-    final local = date.toLocal();
-    final now = DateTime.now();
+  List<Map<String, dynamic>> get _filteredConversations {
+    final query = _searchController.text.trim().toLowerCase();
 
-    if (local.year == now.year &&
-        local.month == now.month &&
-        local.day == now.day) {
-      return '${local.hour.toString().padLeft(2, '0')}:'
-          '${local.minute.toString().padLeft(2, '0')}';
-    }
+    return _chatConversations.where((chat) {
+      final nama =
+          (chat['nama_lawan'] ?? '').toString().toLowerCase();
+      final pesan =
+          (chat['pesan_terakhir'] ?? '').toString().toLowerCase();
 
-    return '${local.day.toString().padLeft(2, '0')} '
-        '${_month(local.month)}';
-  }
+      final belumDibaca = chat['belum_dibaca'] == true;
 
-  String _month(int month) {
-    const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun',
-      'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des',
-    ];
-    return months[month - 1];
-  }
+      final cocokPencarian = query.isEmpty ||
+          nama.contains(query) ||
+          pesan.contains(query);
 
-  List<Map<String, dynamic>> get _filtered {
-    return _chats.where((chat) {
-      final unread = (chat['unread'] as int? ?? 0) > 0;
-      final booked = chat['has_booking_context'] == true;
+      final cocokFilter =
+          !_hanyaBelumDibaca || belumDibaca;
 
-      final name = chat['name'].toString().toLowerCase();
-      final message = chat['message'].toString().toLowerCase();
-
-      final searchMatch =
-          name.contains(_search) || message.contains(_search);
-
-      final filterMatch = switch (_filter) {
-        1 => unread,
-        2 => booked,
-        _ => true,
-      };
-
-      return searchMatch && filterMatch;
+      return cocokPencarian && cocokFilter;
     }).toList();
   }
 
-  Widget _avatar(Map<String, dynamic> chat) {
-    final name = chat['name']?.toString() ?? 'P';
-    final photo = chat['photo']?.toString() ?? '';
-    final initial = name.trim().isEmpty
-        ? 'P'
-        : name.trim()[0].toUpperCase();
-
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        CircleAvatar(
-          radius: 23,
-          backgroundColor: const Color(0xFFE4EDF9),
-          backgroundImage:
-              photo.startsWith('http') ? NetworkImage(photo) : null,
-          onBackgroundImageError:
-              photo.startsWith('http') ? (_, _) {} : null,
-          child: photo.startsWith('http')
-              ? null
-              : Text(
-                  initial,
-                  style: const TextStyle(
-                    color: _studentBlue,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-        ),
-        if (chat['verified'] == true)
-          const Positioned(
-            right: -2,
-            top: -1,
-            child: Icon(
-              Icons.verified,
-              color: _studentBlue,
-              size: 15,
-            ),
-          ),
-      ],
-    );
-  }
+  // =========================================================
+  // TAMPILAN UTAMA
+  // =========================================================
 
   @override
   Widget build(BuildContext context) {
-    final chats = _filtered;
+    final conversations = _filteredConversations;
 
     return Scaffold(
-      backgroundColor: _studentPageBg,
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: _studentPageBg,
-        foregroundColor: _studentText,
-        elevation: 0,
         title: const Text(
           'Chat',
           style: TextStyle(
             fontWeight: FontWeight.bold,
+            color: AppColors.textPrimary,
             fontSize: 20,
           ),
         ),
+        backgroundColor: AppColors.background,
+        foregroundColor: AppColors.textPrimary,
+        elevation: 0,
         actions: [
           IconButton(
-            onPressed: _loadChats,
-            icon: const Icon(Icons.more_vert),
+            tooltip: 'Muat ulang',
+            icon: const Icon(Icons.refresh),
+            onPressed: _fetchConversations,
           ),
         ],
       ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(14, 6, 14, 12),
-              child: TextField(
-                controller: _searchController,
-                decoration: InputDecoration(
-                  hintText: 'Cari percakapan...',
-                  hintStyle: const TextStyle(
-                    color: _studentMuted,
-                    fontSize: 13,
+      body: Column(
+        children: [
+          // PENCARIAN
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+            child: TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                hintText: 'Cari percakapan...',
+                hintStyle: const TextStyle(
+                  color: AppColors.textHint,
+                ),
+                prefixIcon: const Icon(
+                  Icons.search,
+                  color: AppColors.textSecondary,
+                ),
+                suffixIcon: _searchController.text.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.close),
+                        onPressed: _searchController.clear,
+                      )
+                    : null,
+                filled: true,
+                fillColor: AppColors.white,
+                contentPadding: const EdgeInsets.symmetric(
+                  vertical: 14,
+                  horizontal: 16,
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: const BorderSide(
+                    color: AppColors.border,
                   ),
-                  prefixIcon: const Icon(
-                    Icons.search,
-                    color: _studentMuted,
-                    size: 21,
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: const BorderSide(
+                    color: AppColors.border,
                   ),
-                  filled: true,
-                  fillColor: const Color(0xFFF0F1F4),
-                  contentPadding: const EdgeInsets.symmetric(
-                    vertical: 10,
-                  ),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: const BorderSide(
+                    color: AppColors.primary,
                   ),
                 ),
               ),
             ),
-            SizedBox(
-              height: 36,
-              child: ListView.separated(
-                padding: const EdgeInsets.symmetric(horizontal: 14),
-                scrollDirection: Axis.horizontal,
-                itemCount: _filters.length,
-                separatorBuilder: (_, _) => const SizedBox(width: 7),
-                itemBuilder: (context, index) {
-                  final selected = _filter == index;
-                  final hasUnread =
-                      _chats.any((c) => (c['unread'] as int) > 0);
+          ),
 
-                  return ChoiceChip(
-                    selected: selected,
-                    showCheckmark: false,
-                    onSelected: (_) => setState(() => _filter = index),
-                    backgroundColor: Colors.white,
-                    selectedColor: _studentBlue,
-                    side: BorderSide(
-                      color: selected ? _studentBlue : _studentLine,
-                    ),
-                    label: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(_filters[index]),
-                        if (index == 1 && hasUnread) ...[
-                          const SizedBox(width: 6),
-                          Container(
-                            width: 7,
-                            height: 7,
-                            decoration: const BoxDecoration(
-                              color: _studentRed,
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                    labelStyle: TextStyle(
-                      color: selected ? Colors.white : _studentText,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  );
-                },
-              ),
+          // FILTER: HANYA SEMUA CHAT DAN BELUM DIBACA.
+          // TOMBOL SUDAH BOOKING SUDAH DIHAPUS.
+          SizedBox(
+            height: 42,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              children: [
+                _buildFilterChip(
+                  label: 'Semua Chat',
+                  selected: !_hanyaBelumDibaca,
+                  onTap: () {
+                    setState(() => _hanyaBelumDibaca = false);
+                  },
+                ),
+                const SizedBox(width: 8),
+                _buildFilterChip(
+                  label: 'Belum Dibaca',
+                  selected: _hanyaBelumDibaca,
+                  showUnreadDot: true,
+                  onTap: () {
+                    setState(() => _hanyaBelumDibaca = true);
+                  },
+                ),
+              ],
             ),
-            const SizedBox(height: 8),
-            Expanded(
-              child: _loading
-                  ? const Center(child: CircularProgressIndicator())
-                  : chats.isEmpty
-                      ? const Center(
-                          child: Text(
-                            'Belum ada percakapan.',
-                            style: TextStyle(color: _studentMuted),
+          ),
+
+          const SizedBox(height: 12),
+
+          // DAFTAR PERCAKAPAN
+          Expanded(
+            child: _isLoading
+                ? const Center(
+                    child: CircularProgressIndicator(
+                      color: AppColors.primary,
+                    ),
+                  )
+                : conversations.isEmpty
+                    ? _buildEmptyState()
+                    : RefreshIndicator(
+                        onRefresh: _fetchConversations,
+                        child: ListView.separated(
+                          physics:
+                              const AlwaysScrollableScrollPhysics(),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 4,
                           ),
-                        )
-                      : RefreshIndicator(
-                          onRefresh: _loadChats,
-                          child: ListView.separated(
-                            padding: const EdgeInsets.fromLTRB(
-                              10, 4, 10, 10,
-                            ),
-                            itemCount: chats.length,
-                            separatorBuilder: (_, _) =>
-                                const SizedBox(height: 7),
-                            itemBuilder: (context, index) {
-                              final chat = chats[index];
-                              final unread =
-                                  chat['unread'] as int? ?? 0;
-                              final hasUnread = unread > 0;
-                              final name = chat['name'].toString();
-                              final message =
-                                  chat['message']?.toString() ?? '';
+                          itemCount: conversations.length,
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(height: 8),
+                          itemBuilder: (context, index) {
+                            final chat = conversations[index];
 
-                              return Material(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(14),
-                                child: InkWell(
-                                  borderRadius: BorderRadius.circular(14),
-                                  onTap: () async {
-                                    await Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (_) => RuangChatPage(
-                                          idAdminTujuan:
-                                              chat['partner_id'].toString(),
-                                          namaAdmin: name,
-                                        ),
+                            final nama =
+                                chat['nama_lawan']?.toString() ??
+                                    'Pengelola Kost';
+                            final pesan =
+                                chat['pesan_terakhir']?.toString() ??
+                                    '';
+                            final waktu =
+                                chat['waktu']?.toString() ?? '';
+                            final idLawan =
+                                chat['id_lawan']?.toString() ?? '';
+                            final foto =
+                                chat['foto_lawan']?.toString() ?? '';
+                            final belumDibaca =
+                                chat['belum_dibaca'] == true;
+
+                            final adaFoto = foto.startsWith('http');
+
+                            return Material(
+                              color: AppColors.white,
+                              borderRadius: BorderRadius.circular(18),
+                              child: ListTile(
+                                contentPadding:
+                                    const EdgeInsets.symmetric(
+                                  horizontal: 14,
+                                  vertical: 8,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius:
+                                      BorderRadius.circular(18),
+                                ),
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => RuangChatPage(
+                                        idAdminTujuan: idLawan,
+                                        namaAdmin: nama,
                                       ),
-                                    );
-
-                                    if (mounted) _loadChats();
-                                  },
-                                  child: Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 10,
-                                      vertical: 10,
                                     ),
-                                    child: Row(
-                                      children: [
-                                        _avatar(chat),
-                                        const SizedBox(width: 10),
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                name,
-                                                maxLines: 1,
-                                                overflow:
-                                                    TextOverflow.ellipsis,
-                                                style: TextStyle(
-                                                  color: _studentText,
-                                                  fontSize: 13,
-                                                  fontWeight: hasUnread
-                                                      ? FontWeight.bold
-                                                      : FontWeight.w600,
-                                                ),
-                                              ),
-                                              const SizedBox(height: 4),
-                                              Text(
-                                                message.isEmpty
-                                                    ? 'Mulai percakapan'
-                                                    : message,
-                                                maxLines: 1,
-                                                overflow:
-                                                    TextOverflow.ellipsis,
-                                                style: TextStyle(
-                                                  color: hasUnread
-                                                      ? _studentText
-                                                      : _studentMuted,
-                                                  fontSize: 11,
-                                                  fontWeight: hasUnread
-                                                      ? FontWeight.w600
-                                                      : FontWeight.normal,
-                                                ),
-                                              ),
-                                            ],
+                                  ).then((_) {
+                                    _fetchConversations();
+                                  });
+                                },
+
+                                // FOTO PROFIL LAWAN CHAT
+                                leading: CircleAvatar(
+                                  radius: 25,
+                                  backgroundColor:
+                                      AppColors.primaryLight,
+                                  backgroundImage: adaFoto
+                                      ? NetworkImage(foto)
+                                      : null,
+                                  child: adaFoto
+                                      ? null
+                                      : Text(
+                                          nama.isNotEmpty
+                                              ? nama[0].toUpperCase()
+                                              : '?',
+                                          style: const TextStyle(
+                                            color: AppColors.primary,
+                                            fontWeight:
+                                                FontWeight.bold,
+                                            fontSize: 18,
                                           ),
                                         ),
-                                        const SizedBox(width: 6),
-                                        SizedBox(
-                                          width: 43,
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.end,
-                                            mainAxisAlignment:
-                                                MainAxisAlignment.center,
-                                            children: [
-                                              Text(
-                                                _time(chat['created_at']),
-                                                style: TextStyle(
-                                                  color: hasUnread
-                                                      ? _studentBlue
-                                                      : _studentMuted,
-                                                  fontSize: 9,
-                                                  fontWeight: hasUnread
-                                                      ? FontWeight.bold
-                                                      : FontWeight.normal,
-                                                ),
-                                              ),
-                                              const SizedBox(height: 5),
-                                              if (hasUnread)
-                                                Container(
-                                                  constraints:
-                                                      const BoxConstraints(
-                                                    minWidth: 17,
-                                                    minHeight: 17,
-                                                  ),
-                                                  padding:
-                                                      const EdgeInsets
-                                                          .symmetric(
-                                                    horizontal: 4,
-                                                  ),
-                                                  alignment: Alignment.center,
-                                                  decoration:
-                                                      const BoxDecoration(
-                                                    color: _studentRed,
-                                                    shape: BoxShape.circle,
-                                                  ),
-                                                  child: Text(
-                                                    unread > 99
-                                                        ? '99+'
-                                                        : '$unread',
-                                                    style: const TextStyle(
-                                                      color: Colors.white,
-                                                      fontSize: 9,
-                                                      fontWeight:
-                                                          FontWeight.bold,
-                                                    ),
-                                                  ),
-                                                ),
-                                            ],
-                                          ),
-                                        ),
-                                      ],
+                                ),
+
+                                // NAMA LAWAN CHAT
+                                title: Text(
+                                  nama,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.textPrimary,
+                                    fontSize: 15,
+                                  ),
+                                ),
+
+                                // PESAN TERAKHIR
+                                subtitle: Padding(
+                                  padding:
+                                      const EdgeInsets.only(top: 5),
+                                  child: Text(
+                                    pesan.isEmpty
+                                        ? 'Mulai percakapan'
+                                        : pesan,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: belumDibaca
+                                          ? AppColors.textPrimary
+                                          : AppColors.textSecondary,
+                                      fontWeight: belumDibaca
+                                          ? FontWeight.w600
+                                          : FontWeight.normal,
+                                      fontSize: 13,
                                     ),
                                   ),
                                 ),
-                              );
-                            },
-                          ),
-                        ),
-            ),
-            _buildSafetyTip(),
-          ],
-        ),
-      ),
-    );
-  }
 
-  Widget _buildSafetyTip() {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(10, 5, 10, 10),
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: const Color(0xFFEAF2FC),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFD7E4F7)),
-      ),
-      child: const Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          CircleAvatar(
-            radius: 13,
-            backgroundColor: _studentBlue,
-            child: Icon(
-              Icons.shield_outlined,
-              color: Colors.white,
-              size: 15,
-            ),
+                                // WAKTU DAN INDIKATOR PESAN BARU
+                                trailing: Column(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.center,
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.end,
+                                  children: [
+                                    Text(
+                                      waktu,
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        color: AppColors.textHint,
+                                      ),
+                                    ),
+                                    if (belumDibaca) ...[
+                                      const SizedBox(height: 6),
+                                      Container(
+                                        width: 9,
+                                        height: 9,
+                                        decoration:
+                                            const BoxDecoration(
+                                          color: Colors.red,
+                                          shape: BoxShape.circle,
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
           ),
-          SizedBox(width: 9),
-          Expanded(
-            child: Column(
+
+          // TIPS KOMUNIKASI AMAN
+          Container(
+            margin: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: AppColors.primaryLight,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: AppColors.primary.withValues(alpha: 0.15),
+              ),
+            ),
+            child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Tips Komunikasi Aman',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                    color: _studentText,
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: const BoxDecoration(
+                    color: AppColors.primary,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.shield_outlined,
+                    color: AppColors.white,
+                    size: 20,
                   ),
                 ),
-                SizedBox(height: 3),
-                Text(
-                  'Selalu lakukan transaksi dan konfirmasi sewa '
-                  'melalui aplikasi KostRadar untuk keamanan '
-                  'deposit dan garansi kamar Anda.',
-                  style: TextStyle(
-                    fontSize: 9,
-                    height: 1.35,
-                    color: Color(0xFF69778A),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Tips Komunikasi Aman',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.textPrimary,
+                          fontSize: 14,
+                        ),
+                      ),
+                      SizedBox(height: 4),
+                      Text(
+                        'Lakukan transaksi dan konfirmasi sewa melalui aplikasi KostRadar untuk membantu menjaga keamanan Anda.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                          height: 1.4,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  // =========================================================
+  // CHIP FILTER
+  // =========================================================
+
+  Widget _buildFilterChip({
+    required String label,
+    required bool selected,
+    required VoidCallback onTap,
+    bool showUnreadDot = false,
+  }) {
+    return Material(
+      color: selected ? AppColors.primary : AppColors.white,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 9,
+          ),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: selected
+                  ? AppColors.primary
+                  : AppColors.border,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  color: selected
+                      ? AppColors.white
+                      : AppColors.textSecondary,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              if (showUnreadDot) ...[
+                const SizedBox(width: 7),
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: selected ? Colors.white : Colors.red,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // =========================================================
+  // EMPTY STATE
+  // =========================================================
+
+  Widget _buildEmptyState() {
+    final sedangMencari =
+        _searchController.text.trim().isNotEmpty;
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.chat_bubble_outline_rounded,
+              size: 60,
+              color: AppColors.textHint.withValues(alpha: 0.6),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              sedangMencari
+                  ? 'Percakapan tidak ditemukan'
+                  : _hanyaBelumDibaca
+                      ? 'Tidak ada pesan belum dibaca'
+                      : 'Belum ada percakapan',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              sedangMencari
+                  ? 'Coba gunakan kata kunci lain.'
+                  : _hanyaBelumDibaca
+                      ? 'Semua pesan sudah dibaca.'
+                      : 'Cari kost yang Anda inginkan, lalu mulai mengobrol dengan pengelola kost.',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 14,
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
