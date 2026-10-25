@@ -1,3 +1,4 @@
+import 'voice_call_page.dart';
 
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
@@ -849,6 +850,7 @@ class _RuangChatPageState extends State<RuangChatPage> {
             ),
           ],
         ),
+        actions: [IconButton(tooltip: 'Telepon suara', icon: const Icon(Icons.call), onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => VoiceCallPage(peerId: widget.idAdminTujuan, peerName: _partnerName))) )],
       ),
       body: SafeArea(
         top: false,

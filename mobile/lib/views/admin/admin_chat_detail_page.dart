@@ -1,3 +1,4 @@
+import '../chatUser/voice_call_page.dart';
 
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
@@ -632,6 +633,7 @@ class _AdminChatDetailPageState
             ),
           ],
         ),
+        actions: [IconButton(tooltip: 'Telepon suara', icon: const Icon(Icons.call), onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => VoiceCallPage(peerId: widget.receiverId, peerName: _receiverName))) )],
       ),
       body: SafeArea(
         top: false,
