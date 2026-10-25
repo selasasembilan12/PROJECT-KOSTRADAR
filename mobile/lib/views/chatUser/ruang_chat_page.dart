@@ -24,9 +24,11 @@ class RuangChatPage extends StatefulWidget {
 }
 
 class _RuangChatPageState extends State<RuangChatPage> {
-  final _supabase = Supabase.instance.client;
-  final _messageController = TextEditingController();
-  final _scrollController = ScrollController();
+  final SupabaseClient _supabase = Supabase.instance.client;
+  final TextEditingController _messageController =
+      TextEditingController();
+  final ScrollController _scrollController = ScrollController();
+
   final Map<String, Future<String>> _imageUrls = {};
 
   Map<String, dynamic>? _kostInfo;
@@ -47,7 +49,11 @@ class _RuangChatPageState extends State<RuangChatPage> {
         ? widget.namaAdmin.trim()
         : 'Pemilik Kost';
 
-    _kostInfo = widget.kostInfo;
+    // Data kost dari halaman detail harus didahulukan.
+    _kostInfo = widget.kostInfo == null
+        ? null
+        : Map<String, dynamic>.from(widget.kostInfo!);
+
     _fetchPartnerProfile();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -61,6 +67,7 @@ class _RuangChatPageState extends State<RuangChatPage> {
       _markMessagesRead();
     });
 
+    // Cari kost dari riwayat chat hanya jika belum ada data kost.
     if (_kostInfo == null || _kostInfo!.isEmpty) {
       _fetchKostInfo();
     }
@@ -83,6 +90,7 @@ class _RuangChatPageState extends State<RuangChatPage> {
         if (name != null && name.isNotEmpty && name != 'null') {
           _partnerName = name;
         }
+
         _partnerPhoto =
             photo != null && photo.isNotEmpty && photo != 'null'
                 ? photo
@@ -95,6 +103,7 @@ class _RuangChatPageState extends State<RuangChatPage> {
 
   Future<void> _markMessagesRead() async {
     if (_markingRead || _myId == null) return;
+
     _markingRead = true;
 
     try {
@@ -109,8 +118,34 @@ class _RuangChatPageState extends State<RuangChatPage> {
     }
   }
 
+  // Mengubah bentuk data relasi foto menjadi string URL.
+  String _extractPhoto(dynamic raw) {
+    if (raw == null) return '';
+
+    if (raw is String) {
+      return raw.trim();
+    }
+
+    if (raw is List && raw.isNotEmpty) {
+      return _extractPhoto(raw.first);
+    }
+
+    if (raw is Map) {
+      return _extractPhoto(
+        raw['foto_url'] ??
+            raw['foto'] ??
+            raw['url'] ??
+            raw['foto_kost'],
+      );
+    }
+
+    return '';
+  }
+
+  // Mencari data kost ketika room dibuka tanpa data dari detail kost.
   Future<void> _fetchKostInfo() async {
     final myId = _myId;
+
     if (myId == null) return;
 
     try {
@@ -129,17 +164,29 @@ class _RuangChatPageState extends State<RuangChatPage> {
 
       if (rows.isEmpty) return;
 
-      final kostId = rows.first['id_kost'];
-      if (kostId == null) return;
+      final kostId = rows.first['id_kost']?.toString();
 
-      final kost = await _supabase
+      if (kostId == null || kostId.isEmpty) return;
+
+      // Relasi foto mengikuti model KostModel pada proyek.
+      final response = await _supabase
           .from('kost')
-          .select()
+          .select('*, foto_kost(foto)')
           .eq('id_kost', kostId)
           .maybeSingle();
 
-      if (!mounted || kost == null) return;
-      setState(() => _kostInfo = kost);
+      if (!mounted || response == null) return;
+
+      final data = Map<String, dynamic>.from(response);
+      final photo = _extractPhoto(data['foto_kost']);
+
+      if (photo.isNotEmpty) {
+        data['foto_kost'] = photo;
+      }
+
+      setState(() {
+        _kostInfo = data;
+      });
     } catch (e) {
       debugPrint('Gagal mengambil informasi kost: $e');
     }
@@ -147,11 +194,13 @@ class _RuangChatPageState extends State<RuangChatPage> {
 
   Widget _avatar() {
     final photo = _partnerPhoto?.trim() ?? '';
-    final initial = _partnerName.trim().isEmpty
-        ? 'P'
-        : _partnerName.trim()[0].toUpperCase();
 
-    if (photo.startsWith('http')) {
+    final initial = _partnerName.trim().isNotEmpty
+        ? _partnerName.trim()[0].toUpperCase()
+        : 'P';
+
+    if (photo.startsWith('http://') ||
+        photo.startsWith('https://')) {
       return CircleAvatar(
         radius: 20,
         backgroundColor: const Color(0xFFF0F2F5),
@@ -175,12 +224,14 @@ class _RuangChatPageState extends State<RuangChatPage> {
 
   String _formatTime(DateTime date) {
     final local = date.toLocal();
+
     return '${local.hour.toString().padLeft(2, '0')}:'
         '${local.minute.toString().padLeft(2, '0')}';
   }
 
   void _showMessage(String text) {
     if (!mounted) return;
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(text)),
     );
@@ -203,6 +254,7 @@ class _RuangChatPageState extends State<RuangChatPage> {
 
     try {
       final cameras = await availableCameras();
+
       if (cameras.isEmpty) {
         throw StateError('Kamera tidak ditemukan.');
       }
@@ -219,6 +271,7 @@ class _RuangChatPageState extends State<RuangChatPage> {
       );
 
       await controller.initialize();
+
       if (!mounted) return null;
 
       final activeController = controller;
@@ -248,15 +301,20 @@ class _RuangChatPageState extends State<RuangChatPage> {
                     return;
                   }
 
-                  final photo = await activeController.takePicture();
+                  final photo =
+                      await activeController.takePicture();
+
                   if (dialogContext.mounted) {
                     Navigator.pop(dialogContext, photo);
                   }
                 } catch (e) {
                   debugPrint('Gagal mengambil foto: $e');
+
                   if (dialogContext.mounted) {
                     ScaffoldMessenger.of(dialogContext).showSnackBar(
-                      SnackBar(content: Text('Gagal mengambil foto: $e')),
+                      SnackBar(
+                        content: Text('Gagal mengambil foto: $e'),
+                      ),
                     );
                   }
                 }
@@ -270,7 +328,11 @@ class _RuangChatPageState extends State<RuangChatPage> {
     } catch (e, st) {
       debugPrint('Kamera gagal dibuka: $e');
       debugPrintStack(stackTrace: st);
-      if (mounted) _showMessage('Kamera tidak dapat dibuka: $e');
+
+      if (mounted) {
+        _showMessage('Kamera tidak dapat dibuka: $e');
+      }
+
       return null;
     } finally {
       await controller?.dispose();
@@ -294,12 +356,14 @@ class _RuangChatPageState extends State<RuangChatPage> {
             ListTile(
               leading: const Icon(Icons.photo_library_outlined),
               title: const Text('Pilih dari Galeri'),
-              onTap: () => Navigator.pop(context, ImageSource.gallery),
+              onTap: () =>
+                  Navigator.pop(context, ImageSource.gallery),
             ),
             ListTile(
               leading: const Icon(Icons.camera_alt_outlined),
               title: const Text('Ambil Foto'),
-              onTap: () => Navigator.pop(context, ImageSource.camera),
+              onTap: () =>
+                  Navigator.pop(context, ImageSource.camera),
             ),
           ],
         ),
@@ -321,6 +385,7 @@ class _RuangChatPageState extends State<RuangChatPage> {
       if (image == null || !mounted) return;
 
       final bytes = await image.readAsBytes();
+
       if (bytes.isEmpty) {
         _showMessage('Foto tidak dapat dibaca.');
         return;
@@ -356,6 +421,7 @@ class _RuangChatPageState extends State<RuangChatPage> {
       );
 
       if (confirmed != true || !mounted) return;
+
       setState(() => _isSending = true);
 
       await Provider.of<ChatProvider>(
@@ -368,11 +434,13 @@ class _RuangChatPageState extends State<RuangChatPage> {
       );
 
       if (!mounted) return;
+
       _scrollToLatest();
       _showMessage('Foto berhasil dikirim.');
     } catch (e, st) {
-      debugPrint('Gagal mengirim foto: $e');
+      debugPrint('Gagal mengirim foto mahasiswa: $e');
       debugPrintStack(stackTrace: st);
+
       if (mounted) _showMessage('Foto gagal dikirim: $e');
     } finally {
       if (mounted) setState(() => _isSending = false);
@@ -381,13 +449,16 @@ class _RuangChatPageState extends State<RuangChatPage> {
 
   Future<void> _sendMessage() async {
     final text = _messageController.text.trim();
+
     if (text.isEmpty || _isSending) return;
 
     final myId = _myId;
+
     if (myId == null) {
       _showMessage('Silakan login terlebih dahulu.');
       return;
     }
+
     if (widget.idAdminTujuan.isEmpty ||
         widget.idAdminTujuan == myId) {
       _showMessage('ID penerima tidak valid.');
@@ -405,6 +476,7 @@ class _RuangChatPageState extends State<RuangChatPage> {
         text,
         idKost: _kostInfo?['id_kost']?.toString(),
       );
+
       if (!mounted) return;
 
       _messageController.clear();
@@ -416,7 +488,6 @@ class _RuangChatPageState extends State<RuangChatPage> {
     }
   }
 
-  // Hanya pesan milik mahasiswa yang sedang login yang bisa dihapus.
   Future<void> _deleteMessage(ChatMessage message) async {
     if (message.pengirimId != _myId) return;
 
@@ -455,7 +526,9 @@ class _RuangChatPageState extends State<RuangChatPage> {
 
       if (mounted) {
         _showMessage(
-          message.isImage ? 'Foto berhasil dihapus.' : 'Pesan berhasil dihapus.',
+          message.isImage
+              ? 'Foto berhasil dihapus.'
+              : 'Pesan berhasil dihapus.',
         );
       }
     } catch (e) {
@@ -473,9 +546,13 @@ class _RuangChatPageState extends State<RuangChatPage> {
     );
   }
 
-  Future<void> _openImage(ChatProvider provider, String path) async {
+  Future<void> _openImage(
+    ChatProvider provider,
+    String path,
+  ) async {
     try {
       final url = await _signedImageUrl(provider, path);
+
       if (!mounted) return;
 
       await showDialog<void>(
@@ -498,11 +575,14 @@ class _RuangChatPageState extends State<RuangChatPage> {
                 ),
               ),
               Positioned(
-                top: 4,
                 right: 4,
+                top: 4,
                 child: IconButton(
                   onPressed: () => Navigator.pop(ctx),
-                  icon: const Icon(Icons.close, color: Colors.white),
+                  icon: const Icon(
+                    Icons.close,
+                    color: Colors.white,
+                  ),
                 ),
               ),
             ],
@@ -557,58 +637,166 @@ class _RuangChatPageState extends State<RuangChatPage> {
     );
   }
 
+  Widget _kostPhotoPlaceholder() {
+    return Container(
+      color: const Color(0xFFF0F2F5),
+      alignment: Alignment.center,
+      child: const Icon(
+        Icons.home_outlined,
+        size: 25,
+        color: Color(0xFF8291A2),
+      ),
+    );
+  }
+
+  // Kartu kost responsif dengan foto, nama, harga, dan sisa kamar.
   Widget _buildKostCard() {
     final kost = _kostInfo!;
+
     final name = (
       kost['nama_kost'] ??
       kost['nama'] ??
       kost['nama_kostan'] ??
       'Informasi Kost'
     ).toString();
-    final price = kost['harga']?.toString() ?? '';
+
+    final rawPrice = kost['harga']?.toString().trim() ?? '';
+
+    String formattedPrice;
+
+    if (rawPrice.startsWith('Rp')) {
+      formattedPrice = rawPrice;
+    } else {
+      final amount = double.tryParse(rawPrice) ?? 0;
+      final digits = amount.toInt().toString();
+      final buffer = StringBuffer();
+
+      for (var i = 0; i < digits.length; i++) {
+        if (i > 0 && (digits.length - i) % 3 == 0) {
+          buffer.write('.');
+        }
+        buffer.write(digits[i]);
+      }
+
+      formattedPrice =
+          'Rp ${buffer.toString()}/bulan';
+    }
+
+    final availableRooms = kost['ketersediaan_kamar'] ??
+        kost['ketersediaanKamar'] ??
+        kost['sisa_kamar'] ??
+        kost['kamar_tersedia'];
+
+    final photoUrl = _extractPhoto(
+      kost['foto_kost'] ??
+          kost['foto'] ??
+          kost['foto_url'],
+    );
+
+    final hasPhoto = photoUrl.startsWith('http://') ||
+        photoUrl.startsWith('https://');
 
     return Container(
-      margin: const EdgeInsets.fromLTRB(12, 10, 12, 4),
-      padding: const EdgeInsets.all(12),
+      width: double.infinity,
+      margin: const EdgeInsets.fromLTRB(12, 8, 12, 6),
+      padding: const EdgeInsets.all(9),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
+        color: const Color(0xFFFFFFFF),
+        borderRadius: BorderRadius.circular(17),
+        border: Border.all(
+          color: const Color(0xFFE6ECF2),
+        ),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x08000000),
+            blurRadius: 8,
+            offset: Offset(0, 2),
+          ),
+        ],
       ),
       child: Row(
         children: [
-          const SizedBox(
-            width: 50,
-            height: 50,
-            child: ColoredBox(
-              color: Color(0xFFF0F2F5),
-              child: Icon(Icons.home_outlined),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: SizedBox(
+              width: 54,
+              height: 58,
+              child: hasPhoto
+                  ? Image.network(
+                      photoUrl,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) =>
+                          _kostPhotoPlaceholder(),
+                    )
+                  : _kostPhotoPlaceholder(),
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
                   name,
-                  maxLines: 1,
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 4),
-                const Text(
-                  'Informasi kost',
-                  style: TextStyle(
-                    color: Color(0xFF667781),
-                    fontSize: 11,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    height: 1.2,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF25313A),
                   ),
                 ),
-                if (price.isNotEmpty)
-                  Text(price.startsWith('Rp') ? price : 'Rp $price'),
+                const SizedBox(height: 5),
+                Text(
+                  formattedPrice,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: Color(0xFF2563EB),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
               ],
             ),
           ),
+          if (availableRooms != null) ...[
+            const SizedBox(width: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 7,
+                vertical: 6,
+              ),
+              decoration: BoxDecoration(
+                color: const Color(0xFFE5F8EE),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 6,
+                    height: 6,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF16A765),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Sisa $availableRooms',
+                    style: const TextStyle(
+                      fontSize: 9,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF168653),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -644,6 +832,7 @@ class _RuangChatPageState extends State<RuangChatPage> {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
+                      color: Color(0xFF17232B),
                       fontWeight: FontWeight.bold,
                       fontSize: 16,
                     ),
@@ -665,7 +854,8 @@ class _RuangChatPageState extends State<RuangChatPage> {
         top: false,
         child: Column(
           children: [
-            if (_kostInfo != null) _buildKostCard(),
+            if (_kostInfo != null && _kostInfo!.isNotEmpty)
+              _buildKostCard(),
             Expanded(child: _buildMessages()),
             _buildComposer(),
           ],
@@ -681,7 +871,9 @@ class _RuangChatPageState extends State<RuangChatPage> {
         final myId = _myId;
 
         if (provider.isLoading) {
-          return const Center(child: CircularProgressIndicator());
+          return const Center(
+            child: CircularProgressIndicator(),
+          );
         }
 
         if (_lastMessageCount != messages.length) {
@@ -690,10 +882,10 @@ class _RuangChatPageState extends State<RuangChatPage> {
         }
 
         final unreadIncoming = messages.any(
-          (m) =>
-              m.pengirimId == widget.idAdminTujuan &&
-              m.penerimaId == myId &&
-              !m.isRead,
+          (message) =>
+              message.pengirimId == widget.idAdminTujuan &&
+              message.penerimaId == myId &&
+              !message.isRead,
         );
 
         if (unreadIncoming && !_markingRead) {
@@ -711,14 +903,16 @@ class _RuangChatPageState extends State<RuangChatPage> {
             padding: const EdgeInsets.all(12),
             itemCount: messages.length,
             itemBuilder: (context, index) {
-              final msg = messages[index];
-              final isMe = msg.pengirimId == myId;
+              final message = messages[index];
+              final isMe = message.pengirimId == myId;
 
               return Align(
                 alignment:
                     isMe ? Alignment.centerRight : Alignment.centerLeft,
                 child: GestureDetector(
-                  onLongPress: isMe ? () => _deleteMessage(msg) : null,
+                  onLongPress: isMe
+                      ? () => _deleteMessage(message)
+                      : null,
                   child: Container(
                     constraints: BoxConstraints(
                       maxWidth:
@@ -736,12 +930,12 @@ class _RuangChatPageState extends State<RuangChatPage> {
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
-                        if (msg.isImage &&
-                            (msg.mediaUrl?.isNotEmpty ?? false))
-                          _buildImage(provider, msg.mediaUrl!)
+                        if (message.isImage &&
+                            (message.mediaUrl?.isNotEmpty ?? false))
+                          _buildImage(provider, message.mediaUrl!)
                         else
                           Text(
-                            msg.message,
+                            message.message,
                             softWrap: true,
                             style: const TextStyle(
                               color: Color(0xFF17232B),
@@ -754,7 +948,7 @@ class _RuangChatPageState extends State<RuangChatPage> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Text(
-                              _formatTime(msg.createdAt),
+                              _formatTime(message.createdAt),
                               style: const TextStyle(
                                 color: Color(0xFF596B73),
                                 fontSize: 10,
@@ -765,7 +959,7 @@ class _RuangChatPageState extends State<RuangChatPage> {
                               Icon(
                                 Icons.done_all,
                                 size: 17,
-                                color: msg.isRead
+                                color: message.isRead
                                     ? const Color(0xFF34B7F1)
                                     : const Color(0xFF8696A0),
                               ),
@@ -789,7 +983,9 @@ class _RuangChatPageState extends State<RuangChatPage> {
       padding: const EdgeInsets.fromLTRB(6, 7, 10, 7),
       decoration: const BoxDecoration(
         color: Colors.white,
-        border: Border(top: BorderSide(color: Color(0xFFE5E7EB))),
+        border: Border(
+          top: BorderSide(color: Color(0xFFE5E7EB)),
+        ),
       ),
       child: SafeArea(
         top: false,
@@ -842,7 +1038,10 @@ class _RuangChatPageState extends State<RuangChatPage> {
                           color: Colors.white,
                         ),
                       )
-                    : const Icon(Icons.send_rounded, color: Colors.white),
+                    : const Icon(
+                        Icons.send_rounded,
+                        color: Colors.white,
+                      ),
               ),
             ),
           ],

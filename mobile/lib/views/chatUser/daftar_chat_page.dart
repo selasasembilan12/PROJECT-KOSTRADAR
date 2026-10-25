@@ -296,7 +296,7 @@ class _DaftarChatPageState extends State<DaftarChatPage> {
           backgroundImage:
               photo.startsWith('http') ? NetworkImage(photo) : null,
           onBackgroundImageError:
-              photo.startsWith('http') ? (_, __) {} : null,
+              photo.startsWith('http') ? (_, _) {} : null,
           child: photo.startsWith('http')
               ? null
               : Text(
@@ -381,7 +381,7 @@ class _DaftarChatPageState extends State<DaftarChatPage> {
                 padding: const EdgeInsets.symmetric(horizontal: 14),
                 scrollDirection: Axis.horizontal,
                 itemCount: _filters.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 7),
+                separatorBuilder: (_, _) => const SizedBox(width: 7),
                 itemBuilder: (context, index) {
                   final selected = _filter == index;
                   final hasUnread =
@@ -440,7 +440,7 @@ class _DaftarChatPageState extends State<DaftarChatPage> {
                               10, 4, 10, 10,
                             ),
                             itemCount: chats.length,
-                            separatorBuilder: (_, __) =>
+                            separatorBuilder: (_, _) =>
                                 const SizedBox(height: 7),
                             itemBuilder: (context, index) {
                               final chat = chats[index];

@@ -413,7 +413,7 @@ class _DaftarChatAdminPageState
                     width: 46,
                     height: 46,
                     fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) {
+                    errorBuilder: (_, _, _) {
                       return _fallbackAvatar(name);
                     },
                   ),
@@ -497,7 +497,7 @@ class _DaftarChatAdminPageState
                 padding: const EdgeInsets.symmetric(horizontal: 14),
                 scrollDirection: Axis.horizontal,
                 itemCount: _filters.length,
-                separatorBuilder: (_, __) =>
+                separatorBuilder: (_, _) =>
                     const SizedBox(width: 7),
                 itemBuilder: (context, index) {
                   final selected = _filter == index;
@@ -566,7 +566,7 @@ class _DaftarChatAdminPageState
                               10, 4, 10, 10,
                             ),
                             itemCount: chats.length,
-                            separatorBuilder: (_, __) =>
+                            separatorBuilder: (_, _) =>
                                 const SizedBox(height: 7),
                             itemBuilder: (context, index) {
                               final chat = chats[index];

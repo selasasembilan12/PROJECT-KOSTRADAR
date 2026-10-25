@@ -152,7 +152,7 @@ class _AdminChatDetailPageState
             width: 40,
             height: 40,
             fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => _initialAvatar(initial),
+            errorBuilder: (_, _, _) => _initialAvatar(initial),
           ),
         ),
       );
@@ -513,7 +513,7 @@ class _AdminChatDetailPageState
                 child: Image.network(
                   url,
                   fit: BoxFit.contain,
-                  errorBuilder: (_, __, ___) => const Padding(
+                  errorBuilder: (_, _, _) => const Padding(
                     padding: EdgeInsets.all(24),
                     child: Text(
                       'Foto tidak dapat dimuat.',
@@ -573,7 +573,7 @@ class _AdminChatDetailPageState
               width: 210,
               height: 160,
               fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => const SizedBox(
+              errorBuilder: (_, _, _) => const SizedBox(
                 width: 190,
                 height: 90,
                 child: Center(child: Text('Foto gagal dimuat')),
