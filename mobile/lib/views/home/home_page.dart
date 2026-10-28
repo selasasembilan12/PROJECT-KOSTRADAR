@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 // --- IMPORT STANDAR TIM ---
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/smooth_motion.dart';
 import '../../models/kost_model.dart';
 // Import file pencarian & hasil
 import 'pencarian_page.dart';
@@ -206,6 +207,24 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  Widget _animatedTab(int index, Widget child) {
+    final isSelected = _selectedIndex == index;
+    return AnimatedOpacity(
+      opacity: isSelected ? 1 : 0,
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOutCubic,
+      child: AnimatedSlide(
+        offset: isSelected ? Offset.zero : const Offset(0, 0.015),
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
+        child: IgnorePointer(
+          ignoring: !isSelected,
+          child: child,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -214,14 +233,11 @@ class _HomePageState extends State<HomePage> {
         child: IndexedStack(
           index: _selectedIndex,
           children: [
-            // TAB 0: BERANDA (TAMPILAN CARD VERTIKAL)
-            _buildBerandaTab(),
-            // TAB 1: FAVORIT (TAMPILAN CARD HORIZONTAL)
-            _buildFavoritTab(),
-            // TAB 2: CHAT
-            const DaftarChatPage(),
-            // TAB 3: PROFIL
-            const ProfilPage(),
+            // Tab tetap berada di IndexedStack agar state tiap halaman terjaga.
+            _animatedTab(0, _buildBerandaTab()),
+            _animatedTab(1, _buildFavoritTab()),
+            _animatedTab(2, const DaftarChatPage()),
+            _animatedTab(3, const ProfilPage()),
           ],
         ),
       ),
@@ -304,7 +320,12 @@ class _HomePageState extends State<HomePage> {
                   ),
                 ),
               ),
-            ...listKost.map((kost) => _buildKostCardVertikal(kost)),
+            ...listKost.asMap().entries.map(
+              (entry) => SmoothEntrance(
+                index: entry.key,
+                child: _buildKostCardVertikal(entry.value),
+              ),
+            ),
           ],
         );
       },
@@ -458,7 +479,12 @@ class _HomePageState extends State<HomePage> {
                 ),
               )
             else
-              ...listKostFavorites.map((kost) => _buildKostCardHorizontal(kost)),
+              ...listKostFavorites.asMap().entries.map(
+                (entry) => SmoothEntrance(
+                  index: entry.key,
+                  child: _buildKostCardHorizontal(entry.value),
+                ),
+              ),
           ],
         );
       },

@@ -61,10 +61,10 @@ class _AdminChatDetailPageState
   Future<void> _fetchReceiverProfile() async {
     Map<String, dynamic>? profile;
 
+    // Profil pengguna KostRadar diambil dari users.id_user sesuai skema fitur chat.
+    // Jangan query tabel mahasiswa karena tabel tersebut tidak ada.
     for (final lookup in [
       ('users', 'id_user'),
-      ('mahasiswa', 'id_user'),
-      ('mahasiswa', 'id'),
     ]) {
       try {
         profile = await _supabase

@@ -99,8 +99,10 @@ class _DaftarChatAdminPageState
     super.dispose();
   }
 
-  // Menggabungkan data profil dari beberapa tabel.
-  // Kolom kosong dari users tidak menimpa data mahasiswa.
+  // Profil pengguna disimpan di tabel users.
+  // Gunakan kolom id_user sesuai skema tabel users yang dipakai fitur chat.
+  // Tidak melakukan query ke tabel mahasiswa karena tabel tersebut
+  // tidak tersedia pada database KostRadar saat ini.
   Future<Map<String, dynamic>> _loadPartnerProfile(
     String partnerId,
   ) async {
@@ -108,8 +110,6 @@ class _DaftarChatAdminPageState
 
     final lookups = [
       ('users', 'id_user'),
-      ('mahasiswa', 'id_user'),
-      ('mahasiswa', 'id'),
     ];
 
     for (final lookup in lookups) {
@@ -143,7 +143,6 @@ class _DaftarChatAdminPageState
           }
         }
       } catch (e) {
-        // Tabel atau kolom alternatif mungkin tidak tersedia.
         debugPrint(
           'Pencarian profil ${lookup.$1}.${lookup.$2} gagal: $e',
         );

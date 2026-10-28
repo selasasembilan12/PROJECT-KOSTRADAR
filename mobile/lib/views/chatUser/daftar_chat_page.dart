@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/smooth_motion.dart';
 import 'ruang_chat_page.dart';
 
 class DaftarChatPage extends StatefulWidget {
@@ -325,7 +326,7 @@ class _DaftarChatPageState extends State<DaftarChatPage> {
                             vertical: 4,
                           ),
                           itemCount: conversations.length,
-                          separatorBuilder: (_, _) =>
+                          separatorBuilder: (_, __) =>
                               const SizedBox(height: 8),
                           itemBuilder: (context, index) {
                             final chat = conversations[index];
@@ -347,7 +348,9 @@ class _DaftarChatPageState extends State<DaftarChatPage> {
 
                             final adaFoto = foto.startsWith('http');
 
-                            return Material(
+                            return SmoothEntrance(
+                              index: index,
+                              child: Material(
                               color: AppColors.white,
                               borderRadius: BorderRadius.circular(18),
                               child: ListTile(
@@ -460,7 +463,7 @@ class _DaftarChatPageState extends State<DaftarChatPage> {
                                   ],
                                 ),
                               ),
-                            );
+                            ));
                           },
                         ),
                       ),

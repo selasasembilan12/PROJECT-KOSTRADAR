@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/smooth_motion.dart';
 import 'home_admin_page.dart';
 import 'daftar_chat_admin_page.dart';
 import 'profil_admin_page.dart';
@@ -365,10 +366,13 @@ class _DataKostPageState extends State<DataKostPage> {
       child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          for (final kost in daftarKost)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: _buildKostCard(kost),
+          for (var index = 0; index < daftarKost.length; index++)
+            SmoothEntrance(
+              index: index,
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: _buildKostCard(daftarKost[index]),
+              ),
             ),
           _buildManajemenKamarInfo(),
         ],
