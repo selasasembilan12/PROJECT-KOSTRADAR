@@ -437,7 +437,7 @@ class _DetailKostPageState extends State<DetailKostPage> {
                               decoration: BoxDecoration(
                                 color: _currentPhotoIndex == index
                                     ? AppColors.white
-                                    : AppColors.white.withOpacity(0.55),
+                                    : AppColors.white.withValues(alpha: 0.55),
                                 borderRadius: BorderRadius.circular(6),
                               ),
                             ),

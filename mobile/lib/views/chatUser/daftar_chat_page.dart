@@ -325,7 +325,7 @@ class _DaftarChatPageState extends State<DaftarChatPage> {
                             vertical: 4,
                           ),
                           itemCount: conversations.length,
-                          separatorBuilder: (_, __) =>
+                          separatorBuilder: (_, _) =>
                               const SizedBox(height: 8),
                           itemBuilder: (context, index) {
                             final chat = conversations[index];

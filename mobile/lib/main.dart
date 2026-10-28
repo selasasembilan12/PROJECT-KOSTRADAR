@@ -136,10 +136,17 @@ class _KostRadarAppState extends State<KostRadarApp> {
         }
 
         debugPrint(
-          'CALL: menerima snapshot ${rows.length} baris.',
+          'CALL DEBUG: snapshot diterima; jumlah baris=${rows.length}',
         );
 
         for (final call in rows) {
+          debugPrint(
+            'CALL DEBUG ROW: id=${call['id']}, '
+            'caller=${call['caller_id']}, '
+            'receiver=${call['receiver_id']}, '
+            'status=${call['status']}, '
+            'created_at=${call['created_at']}',
+          );
           if (call['status']?.toString() != 'ringing') {
             continue;
           }
@@ -291,6 +298,11 @@ class _KostRadarAppState extends State<KostRadarApp> {
     final currentUserId =
         Supabase.instance.client.auth.currentUser?.id;
 
+    debugPrint(
+      'CALL DEBUG: mulai tampilkan dialog; id=$callId, '
+      'caller=$callerId, currentUser=$currentUserId',
+    );
+
     if (callId == null ||
         callerId == null ||
         currentUserId == null) {
@@ -322,10 +334,18 @@ class _KostRadarAppState extends State<KostRadarApp> {
         return false;
       }
 
+      debugPrint(
+        'CALL DEBUG: hasil validasi terbaru untuk $callId: '
+        '$latestCall',
+      );
+
       if (latestCall == null ||
           latestCall['status']?.toString() != 'ringing' ||
           latestCall['receiver_id']?.toString() !=
               currentUserId) {
+        debugPrint(
+          'CALL DEBUG: dialog dilewati; status/receiver tidak cocok untuk $callId',
+        );
         return true;
       }
 
@@ -343,9 +363,14 @@ class _KostRadarAppState extends State<KostRadarApp> {
 
       if (latestAge.isNegative ||
           latestAge > const Duration(seconds: 45)) {
+        debugPrint(
+          'CALL DEBUG: dialog dilewati karena umur panggilan '
+          'tidak valid/kedaluwarsa: $latestAge, id=$callId',
+        );
         return true;
       }
 
+      debugPrint('CALL DEBUG: menampilkan dialog untuk $callId');
       final accepted = await showDialog<bool>(
         context: context,
         barrierDismissible: false,
@@ -447,6 +472,8 @@ class _KostRadarAppState extends State<KostRadarApp> {
               currentUserId) {
         return true;
       }
+
+      debugPrint('CALL DEBUG: hasil dialog id=$callId, accepted=$accepted');
 
       if (accepted == true) {
         // Buka halaman panggilan untuk menerima panggilan.
