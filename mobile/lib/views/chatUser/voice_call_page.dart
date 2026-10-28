@@ -162,6 +162,7 @@ class _VoiceCallPageState extends State<VoiceCallPage> {
             rows.first['status']?.toString();
 
         debugPrint('CALL STATUS: $callStatus');
+        debugPrint('[CALL FLOW][$id] caller observes DB status=$callStatus');
 
         if (callStatus == 'accepted') {
           if (offerSent) return;
@@ -277,7 +278,7 @@ class _VoiceCallPageState extends State<VoiceCallPage> {
       widget.peerId,
     );
 
-    debugPrint('CALL ACCEPTED');
+    debugPrint('[CALL FLOW][$id] DB status accepted; waiting for offer via Broadcast');
 
     if (mounted && !finished) {
       setState(() {
