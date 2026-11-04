@@ -89,19 +89,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
       if (response.user != null) {
         print('[DEBUG] Auth berhasil! User ID: ${response.user!.id}');
 
-        // 3. INSERT KE TABEL USERS (LOGIKA INI TETAP AMAN & TIDAK BERUBAH)
+        // 3. INSERT KE TABEL USERS (SUDAH DIHAPUS PASSWORD-NYA)
         await Supabase.instance.client.from('users').insert({
           'id_user': response.user!.id,
           'username': name,
           'email': email,
-          'password': password,
-          'role': _selectedRole
-              .toLowerCase(), // ✅ PAKAI toLowerCase() BIAR KONSISTEN
+          'role': _selectedRole.toLowerCase(),
           'foto_profile': null,
         });
         print('[DEBUG] Insert ke tabel users BERHASIL.');
-
-        // ✅ LOGIKA INSERT OTOMATIS KE TABEL KOST SUDAH DIHAPUS SESUAI PERMINTAAN
 
         if (mounted) {
           setState(() => _isLoading = false);
@@ -281,7 +277,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 suffixText: "Wajib",
               ),
               const SizedBox(height: 16),
-              // ✅ FIELD NAMA KOST & ALAMAT SUDAH DIHAPUS DARI SINI
               _buildTextField(
                 controller: _passwordController,
                 label: "Password",
@@ -318,7 +313,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    disabledBackgroundColor: AppColors.primary.withValues(alpha: 0.6),
+                    disabledBackgroundColor: AppColors.primary.withValues(
+                      alpha: 0.6,
+                    ),
                   ),
                   child: _isLoading
                       ? const SizedBox(

@@ -1,12 +1,14 @@
 // ============================================================
 // IMPORT LIBRARY
 // ============================================================
+import 'dart:html' as html;
+import 'dart:js' as js;
+
 import 'package:flutter/material.dart';
-// 🔗 [KONEKSI DATABASE] Import Supabase untuk mengakses fungsi update password
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/theme/app_theme.dart';
-import '../../core/utils/formatter.dart'; // ✅ TAMBAHKAN INI!
+import '../../core/utils/formatter.dart';
 
 // ============================================================
 // DEFINISI CLASS HALAMAN UPDATE PASSWORD
@@ -26,13 +28,95 @@ class _UpdatePasswordScreenState extends State<UpdatePasswordScreen> {
   final TextEditingController _confirmPasswordController =
       TextEditingController();
 
-  bool _obscurePassword = true; // Untuk show/hide password baru
-  bool _obscureConfirmPassword = true; // Untuk show/hide konfirmasi password
-  bool _isLoading = false; // State untuk animasi loading
+  bool _obscurePassword = true;
+  bool _obscureConfirmPassword = true;
+  bool _isLoading = false;
+  bool _isRecovering = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _recoverSession();
+  }
+
+  // ============================================================
+  // FUNGSI RECOVER SESSION (SOLUSI FINAL PAKAI dart:js)
+  // ============================================================
+  Future<void> _recoverSession() async {
+    try {
+      print('[DEBUG] === START RECOVER SESSION ===');
+
+      // Baca URL LANGSUNG dari JavaScript browser (bypass Flutter)
+      final jsLocation = js.context['location'];
+      final href = jsLocation['href'] as String;
+      final search = jsLocation['search'] as String;
+      final hash = jsLocation['hash'] as String;
+
+      print('[DEBUG] JS Href: $href');
+      print('[DEBUG] JS Search: $search');
+      print('[DEBUG] JS Hash: $hash');
+
+      // Ekstrak code dari URL pakai regex
+      final codeMatch = RegExp(r'[?&]code=([a-f0-9\-]+)').firstMatch(href);
+      final code = codeMatch?.group(1);
+      print('[DEBUG] Extracted code: $code');
+
+      if (code != null) {
+        // Tunggu sebentar
+        await Future.delayed(const Duration(milliseconds: 500));
+
+        // Rekonstruksi URL
+        final host = jsLocation['host'] as String;
+        final baseUrl = 'http://$host';
+        final fullUrl = '$baseUrl?code=$code';
+        print('[DEBUG] Reconstructed URL: $fullUrl');
+
+        // Coba getSessionFromUrl
+        try {
+          await Supabase.instance.client.auth.getSessionFromUrl(
+            Uri.parse(fullUrl),
+          );
+          final session = Supabase.instance.client.auth.currentSession;
+          if (session != null) {
+            print('[DEBUG] ✅ Session recovered! User: ${session.user.id}');
+            return;
+          }
+        } catch (e) {
+          print('[DEBUG] getSessionFromUrl failed: $e');
+        }
+
+        // Fallback: recoverSession
+        try {
+          await Supabase.instance.client.auth.recoverSession(fullUrl);
+          final session = Supabase.instance.client.auth.currentSession;
+          if (session != null) {
+            print(
+              '[DEBUG] ✅ Session recovered via fallback! User: ${session.user.id}',
+            );
+            return;
+          }
+        } catch (e) {
+          print('[DEBUG] recoverSession failed: $e');
+        }
+      } else {
+        print('[DEBUG] ⚠️ No code found in URL');
+      }
+
+      print('[DEBUG] ⚠️ All methods failed');
+    } catch (e) {
+      print('[DEBUG] ❌ Critical error: $e');
+    } finally {
+      await Future.delayed(const Duration(milliseconds: 300));
+      if (mounted) {
+        setState(() {
+          _isRecovering = false;
+        });
+      }
+    }
+  }
 
   @override
   void dispose() {
-    // Bersihkan controller dari memori saat halaman ditutup
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();
@@ -76,14 +160,33 @@ class _UpdatePasswordScreenState extends State<UpdatePasswordScreen> {
       return;
     }
 
+    // --- LANGKAH 1.5: CEK SESI SEBELUM UPDATE (PENTING!) ---
+    final session = Supabase.instance.client.auth.currentSession;
+    if (session == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Sesi tidak valid atau link kadaluarsa. Silakan minta link reset baru.',
+          ),
+          backgroundColor: AppColors.error,
+          duration: Duration(seconds: 4),
+        ),
+      );
+      return;
+    }
+
     // Nyalakan loading
     setState(() => _isLoading = true);
 
     // --- LANGKAH 2: PROSES UPDATE KE DATABASE ---
     try {
+      print('[DEBUG] Updating password for user: ${session.user.id}');
+
       await Supabase.instance.client.auth.updateUser(
         UserAttributes(password: password),
       );
+
+      print('[DEBUG] Password update SUCCESS!');
 
       // --- LANGKAH 3: LOGOUT SESSION RECOVERY ---
       await Supabase.instance.client.auth.signOut();
@@ -108,12 +211,14 @@ class _UpdatePasswordScreenState extends State<UpdatePasswordScreen> {
     }
     // --- LANGKAH 5: ERROR HANDLING ---
     catch (e) {
+      print('[DEBUG] Password update error: $e');
       if (mounted) {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Gagal mengubah password: $e'),
             backgroundColor: AppColors.error,
+            duration: const Duration(seconds: 5),
           ),
         );
       }
@@ -125,6 +230,27 @@ class _UpdatePasswordScreenState extends State<UpdatePasswordScreen> {
   // ============================================================
   @override
   Widget build(BuildContext context) {
+    // Tampilkan loading saat recover session
+    if (_isRecovering) {
+      return Scaffold(
+        backgroundColor: AppColors.background,
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const CircularProgressIndicator(color: AppColors.primary),
+              const SizedBox(height: 16),
+              const Text(
+                'Memverifikasi link reset...',
+                style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // Tampilan form update password (100% sama seperti kode lu)
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
@@ -296,7 +422,9 @@ class _UpdatePasswordScreenState extends State<UpdatePasswordScreen> {
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    disabledBackgroundColor: AppColors.primary.withValues(alpha: 0.6),
+                    disabledBackgroundColor: AppColors.primary.withValues(
+                      alpha: 0.6,
+                    ),
                   ),
                   child: _isLoading
                       ? const SizedBox(

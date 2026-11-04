@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/formatter.dart';
+import 'otp_verification_screen.dart'; // <--- TAMBAHKAN IMPORT INI (Akan kita buat di tahap 2)
 
 class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({super.key});
@@ -21,7 +22,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     super.dispose();
   }
 
-  Future<void> _handleResetPassword() async {
+  // ==========================================
+  // FUNGSI BARU: KIRIM OTP (BUKAN LINK RESET)
+  // ==========================================
+  Future<void> _handleSendOTP() async {
     final email = _emailController.text.trim();
 
     // 1. VALIDASI DASAR
@@ -48,40 +52,65 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // 2. PANGGIL SUPABASE UNTUK KIRIM EMAIL RESET
-      // PORT DI-FIX KE 59035 AGAR COCOK DENGAN PERINTAH RUN DI TERMINAL
-      await Supabase.instance.client.auth.resetPasswordForEmail(
-        email,
-        redirectTo: 'http://localhost:59035',
+      print('[DEBUG] Sending OTP to: $email');
+
+      // 2. PANGGIL SUPABASE UNTUK KIRIM OTP VIA EMAIL
+      await Supabase.instance.client.auth.signInWithOtp(
+        email: email,
+        shouldCreateUser:
+            false, // Jangan buat user baru kalau email belum terdaftar
       );
+
+      print('[DEBUG] OTP sent successfully!');
 
       if (mounted) {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Link reset berhasil dikirim! Cek email Anda.'),
+            content: Text('Kode OTP berhasil dikirim! Cek email Anda.'),
             backgroundColor: AppColors.success,
             duration: Duration(seconds: 4),
           ),
         );
 
-        // Kembali ke halaman login setelah berhasil
+        // 3. NAVIGASI KE HALAMAN VERIFIKASI OTP
         Future.delayed(const Duration(seconds: 2), () {
-          if (mounted) Navigator.pop(context);
+          if (mounted) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (context) => OtpVerificationScreen(email: email),
+              ),
+            );
+          }
         });
       }
     } on AuthException catch (e) {
+      print('[DEBUG] Auth Exception: ${e.message}');
       if (mounted) {
         setState(() => _isLoading = false);
+
+        String errorMsg = 'Gagal mengirim OTP!';
+        if (e.message.contains('not registered') ||
+            e.message.contains('User not found')) {
+          errorMsg = 'Email tidak terdaftar!';
+        } else if (e.message.contains('rate limit') ||
+            e.message.contains('Too many requests')) {
+          errorMsg = 'Terlalu banyak permintaan. Coba lagi nanti.';
+        } else {
+          errorMsg = 'Gagal: ${e.message}';
+        }
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Gagal: ${e.message}'),
+            content: Text(errorMsg),
             backgroundColor: AppColors.error,
             duration: const Duration(seconds: 4),
           ),
         );
       }
     } catch (e) {
+      print('[DEBUG] General Error: $e');
       if (mounted) {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -127,7 +156,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
               ),
               const SizedBox(height: 12),
               const Text(
-                "Jangan khawatir! Masukkan email yang terdaftar dan kami akan mengirimkan link untuk mereset password Anda.",
+                "Masukkan email yang terdaftar dan kami akan mengirimkan kode OTP untuk verifikasi.", // <-- TEKS DIUBAH
                 style: TextStyle(
                   fontSize: 14,
                   color: AppColors.textSecondary,
@@ -187,13 +216,17 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                 width: double.infinity,
                 height: 50,
                 child: ElevatedButton(
-                  onPressed: _isLoading ? null : _handleResetPassword,
+                  onPressed: _isLoading
+                      ? null
+                      : _handleSendOTP, // <-- PANGGIL FUNGSI BARU
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    disabledBackgroundColor: AppColors.primary.withValues(alpha: 0.6),
+                    disabledBackgroundColor: AppColors.primary.withValues(
+                      alpha: 0.6,
+                    ),
                   ),
                   child: _isLoading
                       ? const SizedBox(
@@ -205,7 +238,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                           ),
                         )
                       : const Text(
-                          "Kirim Link Reset",
+                          "Kirim Kode OTP", // <-- TEKS TOMBOL DIUBAH
                           style: TextStyle(
                             color: AppColors.white,
                             fontSize: 16,
